@@ -28,6 +28,7 @@ RUN curl -L https://storage.googleapis.com/cloud-tpu-tpuvm-artifacts/libtpu/1.6.
 WORKDIR /
 
 COPY requirements.txt .
+COPY llama3_tpu.ipynb .
 
 # Install Python packages from requirements.txt
 RUN pip install --no-cache-dir --upgrade pip
