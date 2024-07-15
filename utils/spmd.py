@@ -95,4 +95,4 @@ def partition_module_dp(model, mesh, device=xm.xla_device(), verbose=False):
     for name, module in model.named_modules():
         module.to(device)
         if isinstance(module, (nn.Embedding, nn.Linear)):
-            xs.mark_sharding(module.weight, mesh, spec)cat: .: Is a directory
+            xs.mark_sharding(module.weight, mesh, spec)
