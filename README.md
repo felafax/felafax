@@ -1,6 +1,6 @@
-# felafax-tunerx
+# TunerX
 
-Felafax TunnerX is a framework for fine-tuning and pre-training LLMs on XLA runtime. We provide an out of box Jupyter notebook and handle the necessary runtime setup for fine-tuning using using XLA + TPU.
+Felafax TunerX is a framework for fine-tuning and pre-training LLMs on XLA runtime. We provide an out of box Jupyter notebook and handle the necessary runtime setup for fine-tuning using using XLA + TPU.
 
 ## Setup
 
