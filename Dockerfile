@@ -25,10 +25,12 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
 # Download libtpu.so
 RUN curl -L https://storage.googleapis.com/cloud-tpu-tpuvm-artifacts/libtpu/1.6.0/libtpu.so -o /lib/libtpu.so
 
-WORKDIR /
+WORKDIR /home/
 
-COPY requirements.txt .
-COPY llama3_tpu.ipynb .
+COPY requirements.txt ./home/
+COPY llama3_tpu.ipynb ./home/
+COPY utils/ ./home/utils/  
+
 
 # Install Python packages from requirements.txt
 RUN pip install --no-cache-dir --upgrade pip
