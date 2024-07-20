@@ -43,8 +43,15 @@ def apply_lora(model):
     model.print_trainable_parameters()
     return model
 
+def fsdp_wrapper(x):
+    return FSDP(x, shard_param_on_dim_0=True, pin_layout_in_collective_ops=True, disable_reshard_on_root=False, reshard_after_forward=True)
+
 def apply_fsdp(model):
+    # Apply on layers within model.
     fsdp_util.apply_fsdp(model, ["LlamaDecoderLayer"])
+
+    # Apply on the model itself.
+    model = fsdp_wrapper(model)
     return model
 
 def get_dataset(*, tokenizer, batch_size: int = 1):
@@ -114,8 +121,7 @@ def create_dummy_batch(batch_size=1, sequence_length=128):
         'labels': labels
     }
 
-def fsdp_wrapper(x):
-    return FSDP(x, shard_param_on_dim_0=True, pin_layout_in_collective_ops=True, disable_reshard_on_root=False, reshard_after_forward=True)
+
 
 def train(index):
     torch.manual_seed(99)
@@ -124,7 +130,6 @@ def train(index):
     model, tokenizer = init_model(model_name=MODEL_NAME)
     model = apply_lora(model)
     model = apply_fsdp(model)
-    model = fsdp_wrapper(model)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     
