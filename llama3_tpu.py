@@ -61,8 +61,8 @@ MODEL_NAME = "TinyLlama/TinyLlama-1.1B-step-50K-105b" # "meta-llama/Llama-2-7b-h
 
 
 def init_model(*, model_name):
-    config = AutoConfig.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    config = AutoConfig.from_pretrained(model_name, use_auth_token=True)
+    model = AutoModelForCausalLM.from_config(config)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     if not tokenizer.pad_token:
@@ -193,13 +193,17 @@ def train():
             optimizer.zero_grad()
             
             # batch = {k: v.to(device) for k, v in batch.items()}
-            batch = create_dummy_batch(batch_size=1, sequence_length=128)
-            import pdb; pdb.set_trace()
+            # batch = create_dummy_batch(batch_size=1, sequence_length=128)
+            input_ids = torch.arange(i).unsqueeze(0).to(xm.xla_device())
+
+            output = model(input_ids=input_ids)
+            # import pdb; pdb.set_trace()
             # TODO: set labels = batch['input_ids'][:, 1:] + -100
-            output = model(input_ids=batch['input_ids'],
-                           attention_mask=batch['attention_mask'],
-                           labels=batch['input_ids'])
-            loss = outputs.loss
+            # output = model(input_ids=batch['input_ids'])
+                           # attention_mask=batch['attention_mask'],
+                           # labels=batch['input_ids'])
+            # loss = outputs.loss
+            loss = output.logits.mean()
             loss.backward()
             optimizer.step()
 
@@ -210,7 +214,7 @@ def train():
 
 
 def _map_fn(index):
-    torch.set_default_dtype(torch.float32)
+    # torch.set_default_dtype(torch.float32)
     train()
 
 
@@ -218,8 +222,8 @@ def _map_fn(index):
 
 
 if __name__ == '__main__':
-    # xmp.spawn(_map_fn)
-    _map_fn(0)
+    xmp.spawn(_map_fn)
+    # _map_fn(0)
 
 
 # In[ ]:
