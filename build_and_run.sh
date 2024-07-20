@@ -3,8 +3,8 @@
 # Configuration
 PROJECT_NAME="felafax-tunerx"
 PROJECT_ID="felafax-training"
-ZONE="us-central1-a"
-ACCELERATOR_TYPE="v3-8"
+ZONE="europe-west4-b"
+ACCELERATOR_TYPE="v5-8"
 TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="felafax-tunerx:latest"
 CONTAINER_NAME="felafax-tunerx-container"
