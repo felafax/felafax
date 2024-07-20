@@ -31,3 +31,6 @@ def apply_fsdp(module, class_names):
                 # print("Applying fsdp wrapper: ", module.__class__.__name__)
             else:
                 apply_fsdp(v, class_names)
+
+    module = fsdp_wrapper(module)
+    return module

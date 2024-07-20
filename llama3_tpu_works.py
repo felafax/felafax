@@ -43,15 +43,9 @@ def apply_lora(model):
     model.print_trainable_parameters()
     return model
 
-def fsdp_wrapper(x):
-    return FSDP(x, shard_param_on_dim_0=True, pin_layout_in_collective_ops=True, disable_reshard_on_root=False, reshard_after_forward=True)
-
 def apply_fsdp(model):
-    # Apply on layers within model.
-    fsdp_util.apply_fsdp(model, ["LlamaDecoderLayer"])
-
-    # Apply on the model itself.
-    model = fsdp_wrapper(model)
+    # Apply on layers within model and model itself.
+    model = fsdp_util.apply_fsdp(model, ["LlamaDecoderLayer"])
     return model
 
 def get_dataset(*, tokenizer, batch_size: int = 1):
