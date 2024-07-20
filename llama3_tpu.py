@@ -153,7 +153,23 @@ def get_dataset(*, tokenizer, batch_size: int = 1):
 
 
 # In[23]:
+def create_dummy_batch(batch_size=1, sequence_length=128):
+    device = xm.xla_device()
+    
+    # Create input_ids: tensor of 1s
+    input_ids = torch.ones(batch_size, sequence_length, dtype=torch.long).to(device)
+    
+    # Create attention_mask: tensor of 1s (assuming full attention)
+    attention_mask = torch.ones(batch_size, sequence_length, dtype=torch.long).to(device)
+    
+    # Create labels: same as input_ids for language modeling tasks
+    labels = torch.ones(batch_size, sequence_length, dtype=torch.long).to(device)
 
+    return {
+        'input_ids': input_ids,
+        'attention_mask': attention_mask,
+        'labels': labels
+    }
 
 def train():
     # dist.init_process_group('xla', init_method='xla://')
@@ -163,21 +179,22 @@ def train():
     model, tokenizer = init_model(model_name="TinyLlama/TinyLlama-1.1B-step-50K-105b")
     model = apply_lora(model)
     model = apply_fsdp(model)
-    print("FSDP model", model)
+    # print("FSDP model", model)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 
-    train_dataloader, test_dataloader = get_dataset(tokenizer=tokenizer, batch_size=1)
-    train_dataloader, test_dataloader = pl.MpDeviceLoader(train_dataloader, device),  pl.MpDeviceLoader(test_dataloader, device)
+    # train_dataloader, test_dataloader = get_dataset(tokenizer=tokenizer, batch_size=1)
+    # train_dataloader, test_dataloader = pl.MpDeviceLoader(train_dataloader, device),  pl.MpDeviceLoader(test_dataloader, device)
 
     for epoch in range(1):
         xm.master_print('Epoch {} train begin {}'.format(epoch, test_utils.now()))
         
-        for step, batch in enumerate(train_dataloader):
+        for i in [128, 256, 512, 1024, 2048]:
             optimizer.zero_grad()
             
-            batch = {k: v.to(device) for k, v in batch.items()}
-
+            # batch = {k: v.to(device) for k, v in batch.items()}
+            batch = create_dummy_batch(batch_size=1, sequence_length=128)
+            import pdb; pdb.set_trace()
             # TODO: set labels = batch['input_ids'][:, 1:] + -100
             output = model(input_ids=batch['input_ids'],
                            attention_mask=batch['attention_mask'],
@@ -201,7 +218,8 @@ def _map_fn(index):
 
 
 if __name__ == '__main__':
-    xmp.spawn(_map_fn)
+    # xmp.spawn(_map_fn)
+    _map_fn(0)
 
 
 # In[ ]:
