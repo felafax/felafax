@@ -163,10 +163,11 @@ def train():
     model, tokenizer = init_model(model_name="TinyLlama/TinyLlama-1.1B-step-50K-105b")
     model = apply_lora(model)
     model = apply_fsdp(model)
+    print("FSDP model", model)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 
     train_dataloader, test_dataloader = get_dataset(tokenizer=tokenizer, batch_size=1)
-    optimizer = optim.Adam(model.parameters(), lr=1e-5)
-
     train_dataloader, test_dataloader = pl.MpDeviceLoader(train_dataloader, device),  pl.MpDeviceLoader(test_dataloader, device)
 
     for epoch in range(1):
@@ -174,6 +175,9 @@ def train():
         
         for step, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
+            
+            batch = {k: v.to(device) for k, v in batch.items()}
+
             # TODO: set labels = batch['input_ids'][:, 1:] + -100
             output = model(input_ids=batch['input_ids'],
                            attention_mask=batch['attention_mask'],
