@@ -20,7 +20,7 @@ from huggingface_hub import login
 
 login(token="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")
 
-MODEL_NAME = "TinyLlama/TinyLlama-1.1B-step-50K-105b"
+MODEL_NAME = "meta-llama/Llama-2-7b-hf" # "TinyLlama/TinyLlama-1.1B-step-50K-105b"
 
 def init_model(*, model_name):
     config = AutoConfig.from_pretrained(model_name, use_auth_token=True)
@@ -48,9 +48,58 @@ def apply_fsdp(model):
     return model
 
 def get_dataset(*, tokenizer, batch_size: int = 1):
-    # Your existing get_dataset function here
-    # (Commented out for brevity, but keep it in your actual code)
-    pass
+    # Define Alpaca prompt template
+    alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+    
+    ### Instruction: {}
+    
+    ### Input: {}
+    
+    ### Response: {}"""
+    
+    EOS_TOKEN = tokenizer.eos_token
+    
+    # Define formatting function.
+    def _format_prompts(examples):
+        instructions = examples["instruction"]
+        inputs = examples["input"]
+        outputs = examples["output"]
+        texts = []
+        for instruction, input, output in zip(instructions, inputs, outputs):
+            text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
+            texts.append(text)
+        return {"text": texts}
+
+    # Tokenize the dataset.
+    def _tokenize(examples):
+        return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512)
+
+    # Load and preprocess the dataset.
+    dataset = load_dataset("yahma/alpaca-cleaned", split="train")
+    dataset = dataset.map(_format_prompts, batched=True)
+
+    # Create train and test dataset.
+    ds = dataset.train_test_split(test_size=0.15)
+    ds['train'] = ds['train'].map(_tokenize, batched=True, remove_columns=dataset.column_names)
+    ds['test'] = ds['test'].map(_tokenize, batched=True, remove_columns=dataset.column_names)
+
+    # Create DataLoader
+    train_dataloader = torch.utils.data.DataLoader(
+        ds['train'],
+        shuffle=True,
+        batch_size=batch_size,
+        collate_fn=default_data_collator,
+    )
+    
+    test_dataloader = torch.utils.data.DataLoader(
+        ds['test'],
+        shuffle=True,
+        batch_size=batch_size,
+        collate_fn=default_data_collator,
+    )
+
+    return train_dataloader, test_dataloader
+
 
 def create_dummy_batch(batch_size=1, sequence_length=128):
     device = xm.xla_device()
@@ -79,24 +128,24 @@ def train(index):
     
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     
-    # Uncomment these lines when you want to use your dataset
-    # train_dataloader, test_dataloader = get_dataset(tokenizer=tokenizer, batch_size=1)
-    # train_dataloader, test_dataloader = pl.MpDeviceLoader(train_dataloader, device), pl.MpDeviceLoader(test_dataloader, device)
+    train_dataloader, test_dataloader = get_dataset(tokenizer=tokenizer, batch_size=1)
+    train_dataloader, test_dataloader = pl.MpDeviceLoader(train_dataloader, device), pl.MpDeviceLoader(test_dataloader, device)
     
     for epoch in range(1):
         xm.master_print(f'Epoch {epoch} train begin {test_utils.now()}')
         
-        for i in [128, 256, 512, 1024, 2048]:
+        for step, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
-            
-            # Use this when you want to switch to your dataset
-            # batch = next(iter(train_dataloader))
+
+            # labels = batch['input_ids'].clone()
+            # labels[:, :-1] = batch['input_ids'][:, 1:]
+            # labels[:, -1] = -100
             # batch = {k: v.to(device) for k, v in batch.items()}
             
-            input_ids = torch.arange(i).unsqueeze(0).to(device)
-            
-            output = model(input_ids=input_ids)
-            loss = output.logits.mean()
+            output = model(input_ids=batch['input_ids'],
+                           attention_mask=batch['attention_mask'],
+                           labels=batch['input_ids'])
+            loss = output.loss
             
             loss.backward()
             optimizer.step()
