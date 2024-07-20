@@ -20,7 +20,7 @@ from huggingface_hub import login
 
 login(token="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")
 
-MODEL_NAME = "meta-llama/Llama-2-7b-hf" # "TinyLlama/TinyLlama-1.1B-step-50K-105b"
+MODEL_NAME = "meta-llama/Meta-Llama-3-8B" # "TinyLlama/TinyLlama-1.1B-step-50K-105b"
 
 def init_model(*, model_name):
     config = AutoConfig.from_pretrained(model_name, use_auth_token=True)
@@ -151,5 +151,3 @@ def train(index):
             
             xm.master_print(f'Loss: {loss:.2f}')
 
-if __name__ == '__main__':
-    xmp.spawn(train)
