@@ -18,7 +18,7 @@ importlib.reload(fsdp_util)
 
 from huggingface_hub import login
 
-login(token="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")
+login(token="HUGGINGFACE_TOKEN")
 
 # "TinyLlama/TinyLlama-1.1B-step-50K-105b"
 # "meta-llama/Meta-Llama-3-8B" 

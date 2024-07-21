@@ -1,11 +1,11 @@
-# FROM us-central1-docker.pkg.dev/tpu-pytorch-releases/docker/xla:r2.2.0_3.10_tpuvm
-# Use PT, XLA 2.1 on v3-8.
+# For TPU v3-8, use pt-xla-2.1
 FROM us-central1-docker.pkg.dev/tpu-pytorch-releases/docker/xla:r2.1.0_3.10_tpuvm
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH ./
 
-LABEL project="felafax-tunerx"
+LABEL project="LLaMa3-tunerX-docker"
 
 # Install system dependencies
 RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
@@ -29,11 +29,6 @@ RUN curl -L https://storage.googleapis.com/cloud-tpu-tpuvm-artifacts/libtpu/1.6.
 
 WORKDIR /home/
 
-RUN mkdir -p ./utils
-COPY requirements.txt ./
-COPY llama3_tpu.ipynb ./
-# COPY ./utils ./utils  
-
 # Install Python packages from requirements.txt
 RUN pip install --no-cache-dir --upgrade pip
 
@@ -45,9 +40,9 @@ RUN pip install trl==0.8.1 peft==0.10.0
 RUN pip install accelerate==0.28.0
 RUN pip install jupyterlab
 
-ENV PYTHONPATH ./
+RUN git clone https://github.com/felafax/tunerX.git tunerX
+
+WORKDIR /home
 
 # Command to run when the container starts
-# CMD ["/bin/bash"]
-# CMD ["jupyter", "lab", "--ip", "0.0.0.0", "--no-browser", "--allow-root", "--port", "8888"]
 CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]

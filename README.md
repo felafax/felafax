@@ -1,4 +1,4 @@
-# TunerX 🦊 -- train on TPUs for 30% lower cost and easly scale from 8 chips to 1000 chips!
+# TunerX 🦊 -- tune LLaMa3 on Cloud TPU for 30% lower cost and easly scale tuning from 8 chips (30mins) to 1000 chips (5mins)!
 
 Felafax TunerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 
@@ -12,9 +12,9 @@ Felafax TunerX is a framework for continued-training and fine-tuning open source
 
 The instructions below guide you through launching a TPU VM on your Google Cloud account and firing up a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
-1. Install gcloud command-line tool and authenticate your account (SKIP this STEP if you already have gcloud installed and used TPUs before! 😎)
+1. Install gcloud command-line tool and authenticate your account (SKIP this STEP if you already have gcloud installed and have used TPUs before! 😎)
 
-   ```
+   ```bash
     # Download gcloud CLI
     curl https://sdk.cloud.google.com | bash
     source ~/.bashrc
@@ -35,7 +35,12 @@ The instructions below guide you through launching a TPU VM on your Google Cloud
 2. Spin up a TPU v3-8 VM 🤠.
 
     ```bash
-    sh ./spin_up.sh
+    sh ./spin_up_tuner.sh
     ```
+    Keep an eye on the terminal -- you might be asked to input SSH key password and need to put in your HuggingFace token. 
 
 3. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
+
+## Credits:
+- PyTorch XLA FSDP and SPMD testing done by [HeegyuKim](https://github.com/HeegyuKim/torch-xla-SPMD).
+- Examples from [PyTorch-XLA](https://github.com/pytorch/xla/) repo.

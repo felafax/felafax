@@ -1,14 +1,13 @@
 #!/bin/bash
 
 # Configuration
-PROJECT_NAME="felafax-tunerx"
-PROJECT_ID="felafax-training"
-ZONE="europe-west4-b"
-ACCELERATOR_TYPE="v5p-8"
-# TPU_VERSION="v2-alpha-tpuv5"
-TPU_VERSION="tpu-ubuntu2204-base"
-IMAGE_NAME="felafax-tunerx:latest"
-CONTAINER_NAME="felafax-tunerx-container"
+PROJECT_NAME="LLaMa3-tunerX"
+PROJECT_ID=$(gcloud config get-value project)
+ZONE="us-central1-a"
+ACCELERATOR_TYPE="v3-8"
+TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
+IMAGE_NAME="gcr.io/felafax-training/tunerx-base:latest"
+CONTAINER_NAME="tunerx-base-container"
 JUPYTER_PORT="8888"
 
 # Color codes for output
@@ -33,30 +32,27 @@ else
     --version="$TPU_VERSION"
 fi
 
-echo -e "${GREEN}Copying Dockerfile and requirements.txt to TPU VM...${NC}"
-gcloud compute tpus tpu-vm scp Dockerfile "$TPU_NAME":~ --zone="$ZONE"
-gcloud compute tpus tpu-vm scp requirements.txt "$TPU_NAME":~ --zone="$ZONE"
-gcloud compute tpus tpu-vm scp llama3_tpu.ipynb "$TPU_NAME":~ --zone="$ZONE"
+# echo -e "${GREEN}Copying Dockerfile and requirements.txt to TPU VM...${NC}"
+# gcloud compute tpus tpu-vm scp Dockerfile "$TPU_NAME":~ --zone="$ZONE"
+# gcloud compute tpus tpu-vm scp requirements.txt "$TPU_NAME":~ --zone="$ZONE"
+# gcloud compute tpus tpu-vm scp llama3_tpu.ipynb "$TPU_NAME":~ --zone="$ZONE"
 
-echo -e "${GREEN}Connecting to TPU VM, cleaning up, and building Docker image...${NC}"
+echo -e "${GREEN}Connecting to TPU VM, cleaning up, and starting Docker container...${NC}"
 gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" <<EOF
   # Cleanup existing container
   echo -e "${YELLOW}Cleaning up existing Docker container...${NC}"
   sudo docker stop $CONTAINER_NAME 2>/dev/null
   sudo docker rm $CONTAINER_NAME 2>/dev/null
 
-  # Optionally remove Jupyter notebooks
-  # Uncomment the following line if you want to remove existing notebooks
-  # sudo rm -rf /path/to/notebooks/*.ipynb
-
-  echo -e "${GREEN}Building Docker image...${NC}"
-  sudo docker build -t "$IMAGE_NAME" .
+  echo -e "${GREEN}Pulling Docker image...${NC}"
+  sudo docker pull "$IMAGE_NAME"
   if [ $? -ne 0 ]; then
-    echo -e "${RED}Failed to build Docker image. Please check your Dockerfile and requirements.txt.${NC}"
+    echo -e "${RED}Failed to pull Docker image. Please check if the image exists and you have the necessary permissions.${NC}"
     exit 1
   fi
-  echo -e "${GREEN}Running Docker container with JupyterLab...${NC}"
-  sudo docker run -d --rm --net=host --name "$CONTAINER_NAME" --privileged "$IMAGE_NAME"
+
+  echo -e "${GREEN}Running Docker container...${NC}"
+  sudo docker run -d --rm --net=host --shm-size=16G --name "$CONTAINER_NAME" --privileged "$IMAGE_NAME"
   if [ $? -ne 0 ]; then
     echo -e "${RED}Failed to start Docker container. Please check the previous error messages.${NC}"
     exit 1
