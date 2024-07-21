@@ -160,3 +160,5 @@ def train(index):
             
             xm.master_print(f'Loss: {loss:.2f}')
 
+if __name__ == '__main__':
+    xmp.spawn(train)
