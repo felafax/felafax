@@ -1,25 +1,41 @@
-# TunerX
+# TunerX 🦊 -- train on TPUs for 30% lower cost and easly scale from 8 chips to 1000 chips!
 
-Felafax TunerX is a framework for fine-tuning and pre-training LLMs using **XLA runtime**. We provide an out of box Jupyter notebook and handle the necessary runtime setup for fine-tuning using using XLA + TPU.
+Felafax TunerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
+
+## Currently supported models
+
+- LLaMa3 8B on Google Cloud TPUs
+  - Supports LoRA and full-precision training.
+  - Tested on TPU v3-8
 
 ## Setup
 
-1. Clone the repository
+The instructions below guide you through launching a TPU VM on your Google Cloud account and firing up a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
-2. Ensure `gcloud` is installed and authenticated
+1. Install gcloud command-line tool and authenticate your account (SKIP this STEP if you already have gcloud installed and used TPUs before! 😎)
 
-3. Run the following command to setup the GCP environment
+   ```
+    # Download gcloud CLI
+    curl https://sdk.cloud.google.com | bash
+    source ~/.bashrc
 
-```bash
-./build_and_run.sh
-```
-4. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
+    # Authenticate gcloud CLI
+    gcloud auth login
 
+    # Create a new project for now
+    gcloud projects create LLaMa3-tunerX --set-as-default
 
-## TPU setup
+    # Set up default credentials
+    gcloud auth application-default login
 
-1. Set environment variables.
-```
-export USE_TORCH=True
-export PJRT_DEVICE=TPU
-```
+    # Enable Cloud TPU API access
+    gcloud services enable compute.googleapis.com tpu.googleapis.com storage-component.googleapis.com aiplatform.googleapis.com
+   ```
+
+2. Spin up a TPU v3-8 VM 🤠.
+
+    ```bash
+    sh ./spin_up.sh
+    ```
+
+3. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
