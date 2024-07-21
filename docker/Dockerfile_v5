@@ -1,0 +1,29 @@
+# Use pytorch/xla base image
+FROM us-central1-docker.pkg.dev/tpu-pytorch-releases/docker/xla:nightly_3.8_tpuvm_20231128
+
+USER root
+
+# Install tools.
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends apt-utils
+RUN apt-get install -y --no-install-recommends curl
+RUN apt-get install -y --no-install-recommends wget
+RUN apt-get install -y --no-install-recommends git
+
+# Install libraries.
+ENV PIP_ROOT_USER_ACTION=ignore
+RUN python3 -m pip install --upgrade pip
+RUN pip install numpy==1.24.4
+RUN pip install sentencepiece==0.1.99
+
+# Install from source.
+# COPY . /workspace/gemma/
+# WORKDIR /workspace/gemma/
+# RUN pip install -e .
+
+RUN pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
+RUN pip install transformers==4.38.2 -U
+RUN pip install datasets==2.18.0
+RUN pip install trl==0.8.1 peft==0.10.0
+RUN pip install accelerate==0.28.0
