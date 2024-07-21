@@ -5,17 +5,19 @@ import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.distributed.parallel_loader as pl
 
 from transformers import AutoModelForCausalLM, AutoConfig, GPT2LMHeadModel
-from fsdp_gpt import FSDPLlamaModel
 from fsdp_peft import apply_fsdp
 from peft import LoraConfig, TaskType, get_peft_model
 from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as FSDP, checkpoint_module
 
 import os
-from dotenv import load_dotenv
 from huggingface_hub import login
 
-load_dotenv()
-login(token=os.getenv("HUGGINGFACE_TOKEN"))
+# from dotenv import load_dotenv
+# load_dotenv()
+# login(token=os.getenv("HUGGINGFACE_TOKEN"))
+
+from huggingface_hub import login
+login(token="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")
 
 def fsdp_wrapper(x):
     return FSDP(x, shard_param_on_dim_0=True, pin_layout_in_collective_ops=True, disable_reshard_on_root=False, reshard_after_forward=True)
