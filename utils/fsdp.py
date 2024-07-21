@@ -22,7 +22,7 @@ def apply_fsdp(module, class_names, fsdp_wrapper):
                 clsname = layer.__class__.__name__
                 if clsname in class_names:
                     v[i] = fsdp_wrapper(layer)
-                    print("Applying FSDP on layer: ", layer.__class__.__name__)
+                    # print("Applying FSDP on layer: ", layer.__class__.__name__)
                 else:
                     apply_fsdp(layer, class_names, fsdp_wrapper)
 
@@ -31,6 +31,6 @@ def apply_fsdp(module, class_names, fsdp_wrapper):
 
             if clsname in class_names:
                 setattr(module, k, fsdp_wrapper(v))
-                print("Applying FSDP on module: ", module.__class__.__name__)
+                # print("Applying FSDP on module: ", module.__class__.__name__)
             else:
                 apply_fsdp(v, class_names, fsdp_wrapper)

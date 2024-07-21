@@ -75,4 +75,5 @@ gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" -- -L "$JUPYTER_PORT:l
 
 echo -e "${GREEN}Script completed. You can now access JupyterLab at http://localhost:$JUPYTER_PORT${NC}"
 echo -e "${YELLOW}To reconnect later, use the following command:${NC}"
-echo -e "gcloud compute tpus tpu-vm ssh --zone \"$ZONE\" \"$TPU_NAME\" --project \"$PROJECT_ID\" -- -L $JUPYTER_PORT:localhost:$JUPYTER_PORT"
+echo -e "nohup gcloud compute tpus tpu-vm ssh --zone \"$ZONE\" \"$TPU_NAME\" --project \"$PROJECT_ID\" -- -fNT -L $JUPYTER_PORT:localhost:$JUPYTER_PORT > /dev/null 2>&1 &"
+
