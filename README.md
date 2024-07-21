@@ -16,8 +16,10 @@ Felafax TunerX is a framework for fine-tuning and pre-training LLMs using **XLA 
 4. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
 
 
-## TPU v3
+## TPU setup
 
+1. Set environment variables.
 ```
 export USE_TORCH=True
+export PJRT_DEVICE=TPU
 ```
