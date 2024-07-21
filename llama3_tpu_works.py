@@ -20,7 +20,9 @@ from huggingface_hub import login
 
 login(token="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")
 
-MODEL_NAME = "meta-llama/Meta-Llama-3-8B" # "TinyLlama/TinyLlama-1.1B-step-50K-105b"
+# "TinyLlama/TinyLlama-1.1B-step-50K-105b"
+# "meta-llama/Meta-Llama-3-8B" 
+MODEL_NAME = "meta-llama/Llama-2-7b-hf" 
 
 def init_model(*, model_name):
     config = AutoConfig.from_pretrained(model_name, use_auth_token=True)
@@ -43,9 +45,16 @@ def apply_lora(model):
     model.print_trainable_parameters()
     return model
 
+
+def fsdp_wrapper(x):
+    return FSDP(x, shard_param_on_dim_0=True, pin_layout_in_collective_ops=True, disable_reshard_on_root=False, reshard_after_forward=True)
+
 def apply_fsdp(model):
-    # Apply on layers within model and model itself.
-    model = fsdp_util.apply_fsdp(model, ["LlamaDecoderLayer"])
+    # Apply on layers within model.
+    fsdp_util.apply_fsdp(model, ["LlamaDecoderLayer"])
+
+    # Apply on the model itself.
+    model = fsdp_wrapper(model)
     return model
 
 def get_dataset(*, tokenizer, batch_size: int = 1):
