@@ -25,6 +25,6 @@ RUN echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-retries
 
 RUN python3 -m pip install --upgrade pip
 RUN pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
-RUN pip install transformers -U datasets trl peft accelerate jupyterlab
+RUN pip install -U transformers datasets trl peft accelerate jupyterlab
 
 HEALTHCHECK CMD curl --fail http://localhost:8080 || exit 1
