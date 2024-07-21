@@ -1,0 +1,30 @@
+# Use pytorch/xla base image
+# FROM us-central1-docker.pkg.dev/tpu-pytorch-releases/docker/xla:nightly_3.8_tpuvm_20231128
+FROM us-central1-docker.pkg.dev/tpu-pytorch-releases/docker/xla:r2.3.0_3.10_tpuvm
+
+USER root
+
+# doesnt work -- copy this vm's sources.list which has europe version.
+# COPY /etc/apt/sources.list /etc/apt/sources.list
+
+RUN sed -i 's/deb.debian.org/ftp.de.debian.org/g' /etc/apt/sources.list
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_ROOT_USER_ACTION=ignore
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    apt-utils \
+    curl \
+    wget \
+    git \
+    vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add retry mechanism for apt-get
+RUN echo 'Acquire::Retries "3";' > /etc/apt/apt.conf.d/80-retries
+
+RUN python3 -m pip install --upgrade pip
+RUN pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
+RUN pip install transformers -U datasets trl peft accelerate jupyterlab
+
+HEALTHCHECK CMD curl --fail http://localhost:8080 || exit 1
