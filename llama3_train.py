@@ -33,9 +33,10 @@ supported_models = [
     "TinyLlama/TinyLlama-1.1B-step-50K-105b",
     "meta-llama/Llama-2-7b-hf",
     "meta-llama/Meta-Llama-3-8B",
+    "meta-llama/Meta-Llama-3-70B",
 ]
 
-MODEL_NAME = "TinyLlama/TinyLlama-1.1B-step-50K-105b"
+MODEL_NAME = "meta-llama/Meta-Llama-3-70B"
 
 
 def init_model(*, model_name):
