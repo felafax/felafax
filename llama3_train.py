@@ -36,7 +36,7 @@ supported_models = [
     "meta-llama/Meta-Llama-3-70B",
 ]
 
-MODEL_NAME = "meta-llama/Meta-Llama-3-70B"
+MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
 
 
 def init_model(*, model_name):
@@ -170,7 +170,7 @@ def train(index):
             
             loss.backward()
             xm.optimizer_step(optimizer)
-            
+            print(f'Other Train Loss: {loss:.2f}')
             xm.master_print(f'Train Loss: {loss:.2f}')
         
         model.eval()
