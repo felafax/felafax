@@ -28,6 +28,9 @@ The instructions below guide you through launching a TPU VM on your Google Cloud
     # Create a new project for now
     gcloud projects create LLaMa3-tunerX --set-as-default
 
+    # Config SSH and add
+   gcloud compute config-ssh --quiet
+   
     # Set up default credentials
     gcloud auth application-default login
 
