@@ -1,13 +1,9 @@
-# TunerX 🦊 -- tune LLaMa3 on Google Cloud TPUs for 30% lower cost and easly scale training by 6000X (from single VM with 8 cores to entire TPU pod with 6000 cores)!
-
+# TunerX 🦊 -- tune LLaMa3 on Google Cloud TPUs for 30% lower cost and easly scale training from 1X to 1000X!
 
 Felafax TunerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use
 - Easy to configure all aspects of training (designed for ML Developers by ML Developers)"
-- Easy to scale to 1000 chips and cut-down your training time by 90%!
-- Easy to use
-- Easy to configure all aspects of training (designed for ML Developers by ML Developers)"
-- Easy to scale to 1000 chips and cut-down your training time by 90%!
+- Easy to scale training from a single VM with 8 TPU cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
 
 ## Currently supported models
 
