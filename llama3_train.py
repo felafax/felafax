@@ -168,7 +168,7 @@ def train(index):
             loss = output.loss
             
             loss.backward()
-            optimizer.step()
+            xm.optimizer_step(optimizer)
             
             xm.master_print(f'Train Loss: {loss:.2f}')
         
