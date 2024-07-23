@@ -4,7 +4,7 @@
 PROJECT_NAME="LLaMa3-tunerX"
 PROJECT_ID=$(gcloud config get-value project)
 ZONE="europe-west4-b"
-ACCELERATOR_TYPE="v5p-16"
+ACCELERATOR_TYPE="v5p-8"
 TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"

@@ -41,7 +41,7 @@ importlib.reload(spmd_util)
 import os
 from huggingface_hub import login
 
-login(token="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")
+login(token="HUGGINFACE_TOKEN")
 
 supported_models = [
     "TinyLlama/TinyLlama-1.1B-step-50K-105b",
