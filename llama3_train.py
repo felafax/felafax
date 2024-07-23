@@ -3,9 +3,19 @@ import contextlib
 from dataclasses import dataclass
 
 import torch
+import numpy as np
 import torch.distributed as dist
 import torch_xla.core.xla_model as xm
-from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as FSDP, checkpoint_module
+import torch_xla.runtime as xr
+xr.use_spmd()
+
+import torch_xla.experimental.xla_sharding as xs 
+from torch_xla.experimental.xla_sharded_tensor import XLAShardedTensor
+from torch_xla.experimental.xla_sharding import Mesh
+
+# from torch_xla.distributed.fsdp import XlaFullyShardedDataParallel as FSDP, checkpoint_module
+from torch_xla.distributed.fsdp import checkpoint_module
+
 import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.distributed.parallel_loader as pl
 import torch_xla.test.test_utils as test_utils
@@ -18,11 +28,15 @@ import logging
 logging.getLogger("datasets").setLevel(logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
 
+assert xr.is_spmd()==True
+
 import sys
 import importlib
 sys.path.append('')
 fsdp_util = importlib.import_module('utils.fsdp')
+spmd_util = importlib.import_module('utils.spmd')
 importlib.reload(fsdp_util)
+importlib.reload(spmd_util)
 
 import os
 from huggingface_hub import login
@@ -61,13 +75,9 @@ def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
     model.print_trainable_parameters()
     return model
 
-def apply_fsdp(*, model):
+def apply_spmd(*, model, mesh):
     # Apply on layers within model.
-    fsdp_util.apply_fsdp(model, ["LlamaDecoderLayer"], fsdp_util.fsdp_wrapper)
-
-    # Apply on the model itself.
-    model = fsdp_util.fsdp_wrapper(model)
-    return model
+    spmd_util.partition_module(model, mesh)
 
 def get_dataset(*, tokenizer, batch_size=None, max_length=None):
     # Define Alpaca prompt template
@@ -105,6 +115,7 @@ def get_dataset(*, tokenizer, batch_size=None, max_length=None):
 
     # Load and preprocess the dataset.
     dataset = load_dataset("yahma/alpaca-cleaned", split="train")
+    dataset = dataset.select(range(32)) # for faster iteration
     dataset = dataset.map(_format_prompts, batched=True)
 
     # Create train and test dataset.
@@ -134,6 +145,11 @@ def train(index):
     torch.manual_seed(99)
     device = xm.xla_device()
     
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices, 1)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ('dp', 'fsdp', 'mp'))
+
     trainer_config = {
         "lr": 5e-5,
         "batch_size": 1,
@@ -147,9 +163,10 @@ def train(index):
     }
     
     model, tokenizer = init_model(model_name=MODEL_NAME)
+    model = checkpoint_module(model) # new
     model = apply_lora(model=model, 
                        lora_rank=trainer_config["lora_rank"], lora_alpha=trainer_config["lora_alpha"], lora_dropout=trainer_config["lora_dropout"])
-    model = apply_fsdp(model=model)
+    apply_spmd(model=model, mesh=mesh)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=trainer_config["lr"])
 
@@ -162,28 +179,21 @@ def train(index):
         model.train()
         for step, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
+
+            input_ids, attention_mask, labels = batch['input_ids'], batch['attention_mask'], batch['labels']
+            xs.mark_sharding(input_ids, mesh, (0, 1))
+            xs.mark_sharding(attention_mask, mesh, (0, 1))
+            xs.mark_sharding(labels, mesh, (0, 1))
             
-            output = model(input_ids=batch['input_ids'],
-                           attention_mask=batch['attention_mask'],
-                           labels=batch['labels'])
+            output = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
             loss = output.loss
             
             loss.backward()
-            xm.optimizer_step(optimizer)
-            print(f'Other Train Loss: {loss:.2f}')
+            optimizer.step()
+            xm.mark_step()
+            
             xm.master_print(f'Train Loss: {loss:.2f}')
-        
-        model.eval()
-        eval_loss = 0
-        with torch.no_grad():
-            for step, batch in enumerate(test_dataloader):
-                output = model(input_ids=batch['input_ids'],
-                               attention_mask=batch['attention_mask'],
-                               labels=batch['labels'])
-                eval_loss += output.loss.item()
-        
-        avg_eval_loss = eval_loss / len(test_dataloader)
-        xm.master_print(f'Epoch {epoch} eval loss: {avg_eval_loss:.2f}')
+    return
 
 if __name__ == "__main__":
     xmp.spawn(train)
