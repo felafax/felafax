@@ -1,4 +1,4 @@
-# RoadrunnerX -- tune LLaMa3 on Google Cloud TPUs for 30% lower cost and easly scale training from 1X to 1000X!
+# RoadrunnerX -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and easly scale training from 1X to 1000X!
 
 ![image](https://github.com/user-attachments/assets/d312aa7b-17fa-41f4-a14d-5af8cabc96e7)
 
