@@ -25,7 +25,7 @@ from dataset import get_dataset
 from model_partitioning import apply_spmd, checkpoint_module
 
 
-MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
+MODEL_NAME = "meta-llama/Meta-Llama-3.1-405B"
 TRAINER_CONFIG = {
     "lr": 5e-5,
     "batch_size": 1,
