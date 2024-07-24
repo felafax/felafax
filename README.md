@@ -40,7 +40,7 @@ The instructions below guide you through launching a TPU VM on your Google Cloud
     gcloud services enable compute.googleapis.com tpu.googleapis.com storage-component.googleapis.com aiplatform.googleapis.com
    ```
 
-2. Spin up a TPU v3-8 VM 🤠.
+2. Spin up a TPU v5-8 VM 🤠.
 
     ```bash
     sh ./launch_tuner.sh
