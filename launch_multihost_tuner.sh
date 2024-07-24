@@ -9,6 +9,8 @@ TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"
 JUPYTER_PORT="8888"
+BOOT_DISK_SIZE="200GB"
+
 
 # Color codes for output
 GREEN='\033[0;32m'
@@ -29,7 +31,8 @@ else
   gcloud compute tpus tpu-vm create "$TPU_NAME" \
     --zone="$ZONE" \
     --accelerator-type="$ACCELERATOR_TYPE" \
-    --version="$TPU_VERSION"
+    --version="$TPU_VERSION" \
+    --boot-disk-size="$BOOT_DISK_SIZE"
 fi
 
 echo -e "${GREEN}Connecting to TPU VM, cleaning up, and starting Docker container on all workers...${NC}"
