@@ -9,7 +9,7 @@ TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"
 JUPYTER_PORT="8888"
-PERSISTENT_DISK_SIZE="200GB"
+PERSISTENT_DISK_SIZE="2000GB"
 PERSISTENT_DISK_TYPE="pd-balanced"
 
 # Color codes for output
