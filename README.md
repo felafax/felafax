@@ -9,9 +9,9 @@ Felafax TunerX is a framework for continued-training and fine-tuning open source
 
 ## Currently supported models
 
-- LLaMa3 8B on Google Cloud TPUs
+- LLaMa3.1 8B, 80B, 405B on Google Cloud TPUs
   - Supports LoRA and full-precision training.
-  - Tested on TPU v3-8
+  - Tested on TPU v5p.
 
 ## Setup
 
