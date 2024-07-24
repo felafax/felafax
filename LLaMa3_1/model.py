@@ -1,8 +1,11 @@
+"""Defines the model configuration for your LLaMa3 finetuning."""
+
 from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer
 from peft import LoraConfig, TaskType, get_peft_model
 
 
 def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
+    """Applies LoRA configuration to the model."""
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         inference_mode=False,
@@ -15,13 +18,21 @@ def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
     return model
 
 
-def init_model(*, model_name):
-    config = AutoConfig.from_pretrained(model_name, use_auth_token=HUGGINGFACE_TOKEN)
+def init_model(*, model_name, hugging_face_token):
+    """Downloads and initializes the model."""
+    config = AutoConfig.from_pretrained(
+        model_name, 
+        use_auth_token=hugging_face_token)
+    
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, config=config, use_auth_token=HUGGINGFACE_TOKEN
+        model_name, 
+        config=config, 
+        use_auth_token=hugging_face_token,
+        low_cpu_mem_usage=True
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_name, use_auth_token=HUGGINGFACE_TOKEN
+        model_name, 
+        use_auth_token=hugging_face_token
     )
 
     if not tokenizer.pad_token:

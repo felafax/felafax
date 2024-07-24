@@ -1,9 +1,11 @@
+"""Library for partitioning the LLaMa3 model."""
+
 import torch
 import torch.nn as nn
 import re
 import torch_xla.experimental.xla_sharding as xs
 import torch_xla.core.xla_model as xm
-from transformers import LlamaConfig
+
 
 # Sharding rules for LLaMA model
 LLAMA_SHARDING_RULES = [
