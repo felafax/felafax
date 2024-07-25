@@ -75,7 +75,15 @@ gcloud compute tpus tpu-vm ssh ${TPU_NAME} \
       exit 1
     fi
 
-    sudo docker run -d --rm --net=host --shm-size=16G --name $CONTAINER_NAME --privileged -v /dev/disk/by-id/google-persistent-disk-1:/mnt/persistent-disk $IMAGE_NAME
+    DISK_PATH=$(readlink -f /dev/disk/by-id/google-persistent-disk-1)
+    sudo mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard $DISK_PATH
+    sudo mkdir -p /mnt/persistent-disk
+    sudo mount -o discard,defaults $DISK_PATH /mnt/persistent-disk
+    sudo docker run -d --rm --net=host --shm-size=16G --name $CONTAINER_NAME --privileged -v /mnt/persistent-disk:/mnt/persistent-disk $IMAGE_NAME
+    if [ \$? -ne 0 ]; then
+      echo 'Failed to start Docker container.'
+      exit 1
+    fi
     if [ \$? -ne 0 ]; then
       echo 'Failed to start Docker container.'
       exit 1
