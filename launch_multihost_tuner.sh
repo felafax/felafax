@@ -93,12 +93,6 @@ gcloud compute tpus tpu-vm ssh ${TPU_NAME} \
       pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
       apt update && apt install -y vim
       echo \"export PJRT_DEVICE=TPU\" >> /root/.bashrc
-      mkdir -p /mnt/persistent-disk
-      if [ ! -d \"/mnt/persistent-disk/lost+found\" ]; then
-        mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/disk/by-id/google-persistent-disk-1
-      fi
-      mount -o discard,defaults /dev/disk/by-id/google-persistent-disk-1 /mnt/persistent-disk
-      chmod a+w /mnt/persistent-disk
     '
 
     sleep 10
