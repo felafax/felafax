@@ -20,12 +20,10 @@ import torch_xla.distributed.parallel_loader as pl
 import torch_xla.test.test_utils as test_utils
 
 from model import init_model, apply_lora
-from model_partitioning import apply_spmd
 from dataset import get_dataset
-from model_partitioning import apply_spmd, checkpoint_module
+import model_partitioning
 
-
-MODEL_NAME = "meta-llama/Meta-Llama-3.1-405B"
+MODEL_NAME = "meta-llama/Meta-Llama-3.1-70B"
 TRAINER_CONFIG = {
     "lr": 5e-5,
     "batch_size": 1,
@@ -35,7 +33,7 @@ TRAINER_CONFIG = {
     "lora_alpha": 32,
     "lora_dropout": 0.1,
 }
-HUGGINGFACE_TOKEN = "YOUR_HUGGINFACE_TOKEN"
+HUGGINGFACE_TOKEN = "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"
 
 
 def train(index):
@@ -63,7 +61,7 @@ def train(index):
     )
 
     # Partition the model using SPMD.
-    apply_spmd(model=model, mesh=mesh)
+    model_partitioning.partition_model(model=model, mesh=mesh)
     
     # Configure the training loop.
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAINER_CONFIG["lr"])
