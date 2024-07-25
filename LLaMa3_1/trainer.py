@@ -23,7 +23,7 @@ from model import init_model, apply_lora
 from dataset import get_dataset
 import model_partitioning
 
-MODEL_NAME = "meta-llama/Meta-Llama-3.1-70B"
+MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
 TRAINER_CONFIG = {
     "lr": 5e-5,
     "batch_size": 1,
