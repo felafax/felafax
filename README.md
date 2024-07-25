@@ -1,4 +1,6 @@
-# RoadrunnerX -- tune LLaMa3 on Google Cloud TPUs for 30% lower cost and easly scale training from 1X to 1000X!
+# RoadrunnerX -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and easly scale training from 1X to 1000X!
+
+![image](./assets/image.jpg)
 
 ![image](https://github.com/user-attachments/assets/d312aa7b-17fa-41f4-a14d-5af8cabc96e7)
 
@@ -10,9 +12,9 @@ Felafax TunerX is a framework for continued-training and fine-tuning open source
 
 ## Currently supported models
 
-- LLaMa3 8B on Google Cloud TPUs
+- LLaMa3.1 8B, 80B, 405B on Google Cloud TPUs
   - Supports LoRA and full-precision training.
-  - Tested on TPU v3-8
+  - Tested on TPU v5p.
 
 ## Setup
 
@@ -41,7 +43,7 @@ The instructions below guide you through launching a TPU VM on your Google Cloud
     gcloud services enable compute.googleapis.com tpu.googleapis.com storage-component.googleapis.com aiplatform.googleapis.com
    ```
 
-2. Spin up a TPU v3-8 VM 🤠.
+2. Spin up a TPU v5-8 VM 🤠.
 
     ```bash
     sh ./launch_tuner.sh
