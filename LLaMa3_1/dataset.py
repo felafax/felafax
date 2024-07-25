@@ -29,20 +29,19 @@ def _format_prompts(examples, tokenizer):
     return {"text": texts}
 
 
-def tokenize(examples, tokenizer, max_length):
+def tokenize(examples):
     """Tokenizes the dataset."""
-
+    # Tokenized is list within list. Compute labels for causalLM by shifting input_id; 
+    # consequently truncate input_id to penultimate position.
     tokenized = tokenizer(
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=512 if not max_length else max_length,
+        max_length=512+1 if not max_length else max_length+1, # -1 pos will be truncated in input_ids.
     )
-    labels = tokenized["input_ids"].copy()
-    for i in range(len(labels)):
-        labels[i][:-1] = tokenized["input_ids"][i][1:]
-        labels[i][-1] = -100
-    tokenized["labels"] = labels
+    labels = tokenized['input_ids'].copy()
+    tokenized['labels'] = [label[1:] for label in labels]
+    tokenized['input_ids'] = [input_id[:-1] for input_id in tokenized['input_ids']]
     return tokenized
 
 
