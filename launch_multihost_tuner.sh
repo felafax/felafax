@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # Configuration
-PROJECT_NAME="llama3-tunerx"  # Changed to lowercase
+PROJECT_NAME="llama3-tunerx" # Changed to lowercase
 PROJECT_ID=$(gcloud config get-value project)
-ZONE="europe-west4-b"
-ACCELERATOR_TYPE="v5p-8"
+ZONE="us-central1-a" # "europe-west4-b"
+ACCELERATOR_TYPE="v3-8" # "v5p-8"
 TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"
 JUPYTER_PORT="8888"
-PERSISTENT_DISK_SIZE="2000GB"
+PERSISTENT_DISK_SIZE="200GB"
 PERSISTENT_DISK_TYPE="pd-balanced"
 
 # Color codes for output
@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 # Function to create a valid name
 create_valid_name() {
-    echo "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9-]/-/g' -e 's/^[^a-z]*//' -e 's/-*$//' | cut -c1-63
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9-]/-/g' -e 's/^[^a-z]*//' -e 's/-*$//' | cut -c1-63
 }
 
 # Check if TPU name is provided as an argument
@@ -62,32 +62,46 @@ fi
 echo -e "${GREEN}Connecting to TPU VM, cleaning up, and starting Docker container on all workers...${NC}"
 
 gcloud compute tpus tpu-vm ssh ${TPU_NAME} \
---zone=${ZONE} \
---project=${PROJECT_ID} \
---worker=all \
---command="
+  --zone=${ZONE} \
+  --project=${PROJECT_ID} \
+  --worker=all \
+  --command="
     sudo docker stop $CONTAINER_NAME 2>/dev/null
     sudo docker rm $CONTAINER_NAME 2>/dev/null
 
     sudo docker pull $IMAGE_NAME
     if [ \$? -ne 0 ]; then
-      echo 'Failed to pull Docker image.'
+      echo 'NTNTNT Failed to pull Docker image.'
       exit 1
     fi
 
-    DISK_PATH=$(readlink -f /dev/disk/by-id/google-persistent-disk-1)
-    sudo mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard $DISK_PATH
+    DISK_PATH=\$(readlink -f /dev/disk/by-id/google-persistent-disk-1)
+    echo \"Disk path: \$DISK_PATH\"
+    
+    sudo mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard \$DISK_PATH
+    if [ \$? -ne 0 ]; then
+      echo \"Failed to format disk\"
+      exit 1
+    fi
+    
     sudo mkdir -p /mnt/persistent-disk
-    sudo mount -o discard,defaults $DISK_PATH /mnt/persistent-disk
+    sudo mount -o discard,defaults \$DISK_PATH /mnt/persistent-disk
+    if [ \$? -ne 0 ]; then
+      echo \"Failed to mount disk\"
+      exit 1
+    fi
+    
+    echo \"Disk mounted successfully\"
+    ls -l /mnt/persistent-disk
+    
     sudo docker run -d --rm --net=host --shm-size=16G --name $CONTAINER_NAME --privileged -v /mnt/persistent-disk:/mnt/persistent-disk $IMAGE_NAME
     if [ \$? -ne 0 ]; then
-      echo 'Failed to start Docker container.'
+      echo \"Failed to start Docker container\"
       exit 1
     fi
-    if [ \$? -ne 0 ]; then
-      echo 'Failed to start Docker container.'
-      exit 1
-    fi
+    
+    echo \"Docker container started successfully\"
+    sudo docker ps
 
     sudo docker exec $CONTAINER_NAME /bin/bash -c '
       pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
