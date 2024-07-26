@@ -25,16 +25,35 @@ import model_partitioning
 
 MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
 TRAINER_CONFIG = {
-    "lr": 5e-5,
+    "epochs": 1,
     "batch_size": 1,
     "max_length": 512,
-    "epochs": 1,
+    
+    "lr": 5e-5,
+    "logging_interval": 5,  # logs every 5 steps
+    
     "lora_rank": 8,
     "lora_alpha": 32,
     "lora_dropout": 0.1,
 }
 HUGGINGFACE_TOKEN = "YOUR_HF_TOKEN"
 
+
+def _print_training_update(device,
+                          step,
+                          loss,
+                          rate,
+                          global_rate,
+                          epoch=None):
+  """Prints the training metrics at a given step."""
+  update_data = [
+      'Training', 'Device={}'.format(_get_device_spec(device)),
+      'Epoch={}'.format(epoch) if epoch is not None else None,
+      'Step={}'.format(step), 'Loss={:.5f}'.format(loss),
+      'Rate={:.2f}'.format(rate), 'GlobalRate={:.2f}'.format(global_rate),
+      'Time={}'.format(now())
+  ]
+  print('|', ' '.join(item for item in update_data if item), flush=True)
 
 def train(index):
     torch.manual_seed(99)
@@ -72,16 +91,24 @@ def train(index):
         max_length=TRAINER_CONFIG["max_length"],
     )
     train_dataloader, test_dataloader = pl.MpDeviceLoader(
-        train_dataloader, device
-    ), pl.MpDeviceLoader(test_dataloader, device)
+        train_dataloader, 
+        device,
+        input_sharding=xs.ShardingSpec(mesh, (0, 1))
+    ) 
+    test_dataloader = pl.MpDeviceLoader(
+        test_dataloader, 
+        device,
+        input_sharding=xs.ShardingSpec(mesh, (0, 1))
+    )
 
     for epoch in range(TRAINER_CONFIG["epochs"]):
         xm.master_print(f"Epoch {epoch} train begin {test_utils.now()}")
-
+        tracker = xm.RateTracker()
+        
         model.train()
         for step, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
-
+            
             input_ids, attention_mask, labels = (
                 batch["input_ids"],
                 batch["attention_mask"],
@@ -90,30 +117,38 @@ def train(index):
             xs.mark_sharding(input_ids, mesh, (0, 1))
             xs.mark_sharding(attention_mask, mesh, (0, 1))
             xs.mark_sharding(labels, mesh, (0, 1))
-
+            
             output = model(
                 input_ids=input_ids, attention_mask=attention_mask, labels=labels
             )
             loss = output.loss
-
             loss.backward()
+            
             optimizer.step()
             xm.mark_step()
 
-            xm.master_print(f"Train Loss: {loss:.2f}")
+            if step%TRAINER_CONFIG["logging_interval"]==0:
+                xm.add_step_closure(print_training_update, args=(device, step, loss, tracker, epoch))
             
-            
-            model.eval()
-            eval_loss = 0
-            with torch.no_grad():
-                for step, batch in enumerate(test_dataloader):
-                    output = model(input_ids=batch['input_ids'],
-                                attention_mask=batch['attention_mask'],
-                                labels=batch['labels'])
-                    eval_loss += output.loss.item()
-            
-            avg_eval_loss = eval_loss / len(test_dataloader)
-            xm.master_print(f'Epoch {epoch} eval loss: {avg_eval_loss:.2f}')
+        model.eval()
+        eval_loss = 0
+        with torch.no_grad():
+            for step, batch in enumerate(test_dataloader):
+                input_ids, attention_mask, labels = (
+                    batch["input_ids"],
+                    batch["attention_mask"],
+                    batch["labels"],
+                )
+                xs.mark_sharding(input_ids, mesh, (0, 1))
+                xs.mark_sharding(attention_mask, mesh, (0, 1))
+                xs.mark_sharding(labels, mesh, (0, 1))
+                
+                output = model(
+                    input_ids=input_ids, attention_mask=attention_mask, labels=labels
+                )
+                eval_loss += output.loss.item()
+        avg_eval_loss = eval_loss / len(test_dataloader)
+        xm.master_print(f'Epoch {epoch} eval loss: {avg_eval_loss:.2f}')
     return
 
 
