@@ -107,6 +107,10 @@ gcloud compute tpus tpu-vm ssh ${TPU_NAME} \
       pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
       apt update && apt install -y vim
       echo \"export PJRT_DEVICE=TPU\" >> /root/.bashrc
+      # Install RoadrunnerX
+      rm -rf /home/tunerX/
+      cd /home/
+      git clone https://github.com/felafel/RoadrunnerX.git
     '
 
     sleep 10
@@ -120,7 +124,7 @@ fi
 
 echo -e "${GREEN}Setting up port forwarding for JupyterLab on the first worker...${NC}"
 echo -e "${YELLOW}Please keep this terminal open to maintain the connection.${NC}"
-gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --worker=0 -- -L "$JUPYTER_PORT:localhost:$JUPYTER_PORT"
+gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --worker=0 -- -L "$JUPYTER_PORT:localhost:8888"
 
 echo -e "${GREEN}Script completed. You can now access JupyterLab at http://localhost:$JUPYTER_PORT${NC}"
 echo -e "${YELLOW}To reconnect later, use the following command:${NC}"
