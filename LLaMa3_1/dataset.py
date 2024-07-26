@@ -29,7 +29,7 @@ def _format_prompts(examples, tokenizer):
     return {"text": texts}
 
 
-def tokenize(examples):
+def tokenize(examples, tokenizer, max_length):
     """Tokenizes the dataset."""
     # Tokenized is list within list. Compute labels for causalLM by shifting input_id; 
     # consequently truncate input_id to penultimate position.
