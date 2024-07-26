@@ -23,7 +23,16 @@ from model import init_model, apply_lora
 from dataset import get_dataset
 import model_partitioning
 
-MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
+# On a single TPU VM host, you can train/tune LLaMa 3/3.1 8B models with full precision or LoRA.
+supported_models = [
+    "TinyLlama/TinyLlama-1.1B-step-50K-105b",
+    "meta-llama/Llama-2-7b-hf",
+    "meta-llama/Meta-Llama-3-8B",
+    "meta-llama/Meta-Llama-3.1-8B"
+]
+
+# Select a supported model from above list to use!
+MODEL_NAME = "TinyLlama/TinyLlama-1.1B-step-50K-105b"
 TRAINER_CONFIG = {
     "epochs": 1,
     "batch_size": 1,
@@ -93,12 +102,10 @@ def train(index):
     train_dataloader, test_dataloader = pl.MpDeviceLoader(
         train_dataloader, 
         device,
-        input_sharding=xs.ShardingSpec(mesh, (0, 1))
     ) 
     test_dataloader = pl.MpDeviceLoader(
         test_dataloader, 
         device,
-        input_sharding=xs.ShardingSpec(mesh, (0, 1))
     )
 
     for epoch in range(TRAINER_CONFIG["epochs"]):
