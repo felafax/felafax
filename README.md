@@ -2,9 +2,6 @@
 
 ![image](./assets/image.jpg)
 
-![image](https://github.com/user-attachments/assets/d312aa7b-17fa-41f4-a14d-5af8cabc96e7)
-
-
 Felafax TunerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use
 - Easy to configure all aspects of training (designed for ML researchers and hackers).
