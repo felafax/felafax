@@ -37,7 +37,7 @@ def tokenize(examples, tokenizer, max_length):
         examples["text"],
         truncation=True,
         padding="max_length",
-        max_length=512+1 if not max_length else max_length+1, # -1 pos will be truncated in input_ids.
+        max_length=512+1 if not max_length else max_length+1, # lenght+1 because last pos will be truncated in input_ids.
     )
     labels = tokenized['input_ids'].copy()
     tokenized['labels'] = [label[1:] for label in labels]
@@ -49,7 +49,6 @@ def get_dataset(*, tokenizer, batch_size=None, max_length=None):
     """Returns the training and test dataset loaders for LLaMa3 finetuning."""
     # Load and preprocess the dataset.
     dataset = load_dataset("yahma/alpaca-cleaned", split="train")
-    dataset = dataset.select(range(32))  # for faster iteration
     dataset = dataset.map(lambda x: _format_prompts(x, tokenizer), batched=True)
 
     # Create train and test dataset.

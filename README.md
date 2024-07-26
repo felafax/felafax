@@ -1,15 +1,15 @@
-# RoadrunnerX -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and easly scale training from 1X to 1000X!
+# RoadrunnerX -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
 
 ![image](./assets/image.jpg)
 
-Felafax TunerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
-- Easy to use
+RoadRunnerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
+- Easy to use.
 - Easy to configure all aspects of training (designed for ML researchers and hackers).
 - Easy to scale training from a single VM with 8 TPU cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
 
 ## Currently supported models
 
-- LLaMa3.1 8B, 80B, 405B on Google Cloud TPUs
+- LLaMa-3/3.1 8B, 80B on Google Cloud TPUs. LLaMa-3.1 405B will be available on our cloud platform [felafax.ai](https://felafax.ai) -- sign-up for the waitlist.
   - Supports LoRA and full-precision training.
   - Tested on TPU v5p.
 

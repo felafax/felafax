@@ -11,8 +11,8 @@ import torch_xla.runtime as xr
 xr.use_spmd()
 assert xr.is_spmd() == True
 
-import torch_xla.experimental.xla_sharding as xs
-from torch_xla.experimental.xla_sharding import Mesh
+import torch_xla.distributed.spmd as xs
+from torch_xla.distributed.spmd import Mesh
 from torch_xla.distributed.fsdp import checkpoint_module
 
 import torch_xla.distributed.xla_multiprocessing as xmp
@@ -33,7 +33,7 @@ TRAINER_CONFIG = {
     "lora_alpha": 32,
     "lora_dropout": 0.1,
 }
-HUGGINGFACE_TOKEN = "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"
+HUGGINGFACE_TOKEN = "YOUR_HF_TOKEN"
 
 
 def train(index):
