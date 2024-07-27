@@ -3,8 +3,8 @@
 # Configuration
 PROJECT_NAME="llama3-tunerx" # Changed to lowercase
 PROJECT_ID=$(gcloud config get-value project)
-ZONE="us-central1-a" # "europe-west4-b"
-ACCELERATOR_TYPE="v3-8" # "v5p-8"
+ZONE="europe-west4-b" # "us-central1-a" # "europe-west4-b"
+ACCELERATOR_TYPE="v5p-8" # "v3-8" # "v5p-8"
 TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"
@@ -127,8 +127,8 @@ fi
 
 echo -e "${GREEN}Setting up port forwarding for JupyterLab on the first worker...${NC}"
 echo -e "${YELLOW}Please keep this terminal open to maintain the connection.${NC}"
-gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --worker=0 -- -L "$JUPYTER_PORT:localhost:8888"
+nohup gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --worker=0 -- -L "$JUPYTER_PORT:localhost:8888" > /dev/null 2>&1 &
 
-echo -e "${GREEN}Script completed. You can now access JupyterLab at http://localhost:$JUPYTER_PORT${NC}"
 echo -e "${YELLOW}To reconnect later, use the following command:${NC}"
 echo -e "nohup gcloud compute tpus tpu-vm ssh --zone \"$ZONE\" \"$TPU_NAME\" --project \"$PROJECT_ID\" --worker=0 -- -fNT -L $JUPYTER_PORT:localhost:$JUPYTER_PORT > /dev/null 2>&1 &"
+echo -e "${GREEN} Now, open JupyterLab at http://localhost:$JUPYTER_PORT${NC}"
