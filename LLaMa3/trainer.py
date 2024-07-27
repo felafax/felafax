@@ -45,22 +45,21 @@ TRAINER_CONFIG = {
     "lora_alpha": 32,
     "lora_dropout": 0.1,
 }
-HUGGINGFACE_TOKEN = "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"
+HUGGINGFACE_TOKEN = "YOUR_HF_TOKEN"
 
 
-def _print_training_update(device,
+def print_training_update(device,
                           step,
                           loss,
                           rate,
-                          global_rate,
                           epoch=None):
   """Prints the training metrics at a given step."""
   update_data = [
-      'Training', 'Device={}'.format(_get_device_spec(device)),
+      'Training',
       'Epoch={}'.format(epoch) if epoch is not None else None,
       'Step={}'.format(step), 'Loss={:.5f}'.format(loss),
-      'Rate={:.2f}'.format(rate), 'GlobalRate={:.2f}'.format(global_rate),
-      'Time={}'.format(now())
+       # 'Rate={:.2f}'.format(rate),
+       # 'Time={}'.format(now())
   ]
   print('|', ' '.join(item for item in update_data if item), flush=True)
 
@@ -99,13 +98,13 @@ def train(index):
         batch_size=TRAINER_CONFIG["batch_size"],
         max_length=TRAINER_CONFIG["max_length"],
     )
-    train_dataloader, test_dataloader = pl.MpDeviceLoader(
+    train_dataloader = pl.MpDeviceLoader(
         train_dataloader, 
-        device,
+        device
     ) 
     test_dataloader = pl.MpDeviceLoader(
         test_dataloader, 
-        device,
+        device
     )
 
     for epoch in range(TRAINER_CONFIG["epochs"]):

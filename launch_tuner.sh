@@ -110,7 +110,7 @@ gcloud compute tpus tpu-vm ssh ${TPU_NAME} \
       # Install RoadrunnerX
       rm -rf /home/tunerX/
       cd /home/
-      git clone https://github.com/felafel/RoadrunnerX.git
+      git clone https://github.com/felafax/RoadrunnerX.git
     '
 
     sleep 10
