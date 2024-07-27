@@ -4,14 +4,14 @@
 PROJECT_NAME="llama3-tunerx"
 PROJECT_ID=$(gcloud config get-value project)
 ZONE="europe-west4-b"  # "us-central1-a" # "europe-west4-b"
-ACCELERATOR_TYPE="v5p-8"  # "us-central1-a" # "europe-west4-b"
+ACCELERATOR_TYPE="v5p-16"
 TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"
-JUPYTER_PORT="8888"
-PERSISTENT_DISK_SIZE="200GB"
+JUPYTER_PORT="8885"
+PERSISTENT_DISK_SIZE="1000GB"
 PERSISTENT_DISK_TYPE="pd-balanced"
-PERSISTENT_DISK_NAME=""
+PERSISTENT_DISK_NAME="nithin-disk-5"
 
 # Color codes for output
 GREEN='\033[0;32m'

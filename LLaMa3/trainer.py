@@ -1,5 +1,11 @@
 """Mullti-controller trainer for LLaMa3 finetuning."""
 
+import os
+os.environ['USE_TORCH'] = 'True'  # To use transformers library in TPU
+os.environ['PJRT_DEVICE'] = 'TPU'
+os.environ['HF_HUB_CACHE'] = '/mnt/persistent-disk/hf/'
+os.environ['HF_HOME'] = '/mnt/persistent-disk/hf/'
+
 from dataclasses import dataclass
 
 import torch
