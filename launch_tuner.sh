@@ -9,6 +9,7 @@ TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"
 JUPYTER_PORT="8885"
+PERSISTENT_DISK_ENABLE=false
 PERSISTENT_DISK_SIZE="1000GB"
 PERSISTENT_DISK_TYPE="pd-balanced"
 PERSISTENT_DISK_NAME="nithin-disk-5"
@@ -43,30 +44,59 @@ setup_new_tpu() {
     TIMESTAMP=$(date +%Y%m%d-%H%M%S)
     TPU_NAME=$(create_valid_name "${PROJECT_NAME}-${TIMESTAMP}")
     PERSISTENT_DISK_NAME="${PERSISTENT_DISK_NAME:-${TPU_NAME}-disk}"
+    
+    if [ "$PERSISTENT_DISK_ENABLE" = true ]; then
+      echo_color $GREEN "Checking if Persistent Disk exists..."
+      if ! gcloud compute disks describe $PERSISTENT_DISK_NAME --project=$PROJECT_ID --zone=$ZONE &>/dev/null; then
+          echo_color $GREEN "Creating Persistent Disk..."
+          run_gcloud_command gcloud compute disks create $PERSISTENT_DISK_NAME \
+              --project=$PROJECT_ID \
+              --zone=$ZONE \
+              --size=$PERSISTENT_DISK_SIZE \
+              --type=$PERSISTENT_DISK_TYPE
+      else
+          echo_color $YELLOW "Persistent Disk $PERSISTENT_DISK_NAME already exists. Skipping creation."
+      fi
 
-    echo_color $GREEN "Checking if Persistent Disk exists..."
-    if ! gcloud compute disks describe $PERSISTENT_DISK_NAME --project=$PROJECT_ID --zone=$ZONE &>/dev/null; then
-        echo_color $GREEN "Creating Persistent Disk..."
-        run_gcloud_command gcloud compute disks create $PERSISTENT_DISK_NAME \
+      echo_color $GREEN "Creating TPU VM..."
+      run_gcloud_command gcloud compute tpus tpu-vm create "$TPU_NAME" \
+          --project=$PROJECT_ID \
+          --zone=$ZONE \
+          --accelerator-type=$ACCELERATOR_TYPE \
+          --version=$TPU_VERSION \
+          --data-disk="source=projects/$PROJECT_ID/zones/$ZONE/disks/$PERSISTENT_DISK_NAME,mode=read-write"
+
+    else
+        echo_color $GREEN "Creating TPU VM without disk..."
+        run_gcloud_command gcloud compute tpus tpu-vm create "$TPU_NAME" \
             --project=$PROJECT_ID \
             --zone=$ZONE \
-            --size=$PERSISTENT_DISK_SIZE \
-            --type=$PERSISTENT_DISK_TYPE
-    else
-        echo_color $YELLOW "Persistent Disk $PERSISTENT_DISK_NAME already exists. Skipping creation."
+            --accelerator-type=$ACCELERATOR_TYPE \
+            --version=$TPU_VERSION
     fi
-
-    echo_color $GREEN "Creating TPU VM..."
-    run_gcloud_command gcloud compute tpus tpu-vm create "$TPU_NAME" \
-        --project=$PROJECT_ID \
-        --zone=$ZONE \
-        --accelerator-type=$ACCELERATOR_TYPE \
-        --version=$TPU_VERSION \
-        --data-disk="source=projects/$PROJECT_ID/zones/$ZONE/disks/$PERSISTENT_DISK_NAME,mode=read-write"
 }
 
 start_docker_container() {
     echo_color $GREEN "Connecting to TPU VM, cleaning up, and starting Docker container on all workers..."
+
+    DISK_MOUNT_COMMAND=""
+    if [ "$PERSISTENT_DISK_ENABLE" = true ]; then
+        DISK_MOUNT_COMMAND="
+        DISK_PATH=\$(readlink -f /dev/disk/by-id/google-persistent-disk-1)
+        echo \"Disk path: \$DISK_PATH\"
+        sudo mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard \$DISK_PATH
+        sudo mkdir -p /mnt/persistent-disk
+        sudo mount -o discard,defaults \$DISK_PATH /mnt/persistent-disk
+        echo \"Disk mounted successfully\"
+        ls -l /mnt/persistent-disk
+        "
+    fi
+
+    DOCKER_VOLUME_MOUNT=""
+    if [ "$PERSISTENT_DISK_ENABLE" = true ]; then
+        DOCKER_VOLUME_MOUNT="-v /mnt/persistent-disk:/mnt/persistent-disk"
+    fi
+
     run_gcloud_command gcloud compute tpus tpu-vm ssh ${TPU_NAME} \
         --zone=${ZONE} \
         --project=${PROJECT_ID} \
@@ -77,17 +107,9 @@ start_docker_container() {
         sudo docker rm $CONTAINER_NAME 2>/dev/null || true
         sudo docker pull $IMAGE_NAME
 
-        DISK_PATH=\$(readlink -f /dev/disk/by-id/google-persistent-disk-1)
-        echo \"Disk path: \$DISK_PATH\"
+        $DISK_MOUNT_COMMAND
         
-        sudo mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard \$DISK_PATH
-        sudo mkdir -p /mnt/persistent-disk
-        sudo mount -o discard,defaults \$DISK_PATH /mnt/persistent-disk
-        
-        echo \"Disk mounted successfully\"
-        ls -l /mnt/persistent-disk
-        
-        sudo docker run -d --rm --net=host --shm-size=16G --name $CONTAINER_NAME --privileged -v /mnt/persistent-disk:/mnt/persistent-disk $IMAGE_NAME
+        sudo docker run -d --rm --net=host --shm-size=16G --name $CONTAINER_NAME --privileged $DOCKER_VOLUME_MOUNT $IMAGE_NAME
         
         echo \"Docker container started successfully\"
         sudo docker ps
