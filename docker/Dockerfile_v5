@@ -38,15 +38,12 @@ RUN pip install --no-cache-dir --upgrade pip
 
 # Install required libs
 # pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir transformers==4.38.2 -U
+RUN pip install --no-cache-dir transformers==4.43.3 -U
 RUN pip install --no-cache-dir datasets==2.18.0
 RUN pip install --no-cache-dir trl==0.8.1 peft==0.10.0
 RUN pip install --no-cache-dir accelerate==0.28.0
 RUN pip install --no-cache-dir jupyterlab
 RUN pip install --no-cache-dir torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
-
-
-RUN git clone https://github.com/felafax/tunerX.git tunerX
 
 WORKDIR /home
 
