@@ -53,16 +53,20 @@ def print_training_update(device,
                           loss,
                           rate,
                           epoch=None):
-  """Prints the training metrics at a given step."""
-  update_data = [
-      'Training',
-      'Epoch={}'.format(epoch) if epoch is not None else None,
-      'Step={}'.format(step), 'Loss={:.5f}'.format(loss),
-       # 'Rate={:.2f}'.format(rate),
-       # 'Time={}'.format(now())
-  ]
-  print('|', ' '.join(item for item in update_data if item), flush=True)
+    """Prints the training metrics at a given step."""
+    if xm.is_master_ordinal():  # Only print on the master device
+        update_data = [
+            'Training',
+            f'Epoch={epoch}' if epoch is not None else None,
+            f'Step={step}',
+            f'Loss={loss:.5f}',
+            # f'Rate={rate:.2f}',
+            # f'Time={now()}'
+        ]
+        print(' | '.join(item for item in update_data if item), flush=True)
+        print()
 
+    
 def train(index):
     torch.manual_seed(99)
     device = xm.xla_device()
@@ -134,7 +138,11 @@ def train(index):
             xm.mark_step()
 
             if step%TRAINER_CONFIG["logging_interval"]==0:
-                xm.add_step_closure(print_training_update, args=(device, step, loss, tracker, epoch))
+                loss_cpu = loss.item()
+                xm.add_step_closure(
+                    print_training_update,
+                    args=(device, step, loss_cpu, tracker.rate(), epoch)
+                )
             
         model.eval()
         eval_loss = 0
