@@ -32,7 +32,7 @@ supported_models = [
 ]
 
 # Select a supported model from above list to use!
-MODEL_NAME = "TinyLlama/TinyLlama-1.1B-step-50K-105b"
+MODEL_NAME = "meta-llama/Meta-Llama-3-8B"
 TRAINER_CONFIG = {
     "epochs": 1,
     "batch_size": 1,
@@ -45,7 +45,7 @@ TRAINER_CONFIG = {
     "lora_alpha": 32,
     "lora_dropout": 0.1,
 }
-HUGGINGFACE_TOKEN = "YOUR_HF_TOKEN"
+HUGGINGFACE_TOKEN = "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"
 
 
 def _print_training_update(device,
