@@ -11,6 +11,7 @@ CONTAINER_NAME="tunerx-base-container"
 JUPYTER_PORT="8888"
 PERSISTENT_DISK_SIZE="200GB"
 PERSISTENT_DISK_TYPE="pd-balanced"
+PERSISTENT_DISK_NAME=""
 
 # Color codes for output
 GREEN='\033[0;32m'
@@ -31,7 +32,9 @@ else
   # Generate TPU name with timestamp
   TIMESTAMP=$(date +%Y%m%d-%H%M%S)
   TPU_NAME=$(create_valid_name "${PROJECT_NAME}-${TIMESTAMP}")
-  PERSISTENT_DISK_NAME="${TPU_NAME}-disk"
+  if [ -z "$PERSISTENT_DISK_NAME" ]; then
+    PERSISTENT_DISK_NAME="${TPU_NAME}-disk"
+  fi
 
   echo -e "${GREEN}Creating Persistent Disk...${NC}"
   gcloud compute disks create $PERSISTENT_DISK_NAME \
