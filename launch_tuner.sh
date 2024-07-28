@@ -118,7 +118,7 @@ start_docker_container() {
             pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
             apt update && apt install -y vim
             echo \"export PJRT_DEVICE=TPU\" >> /root/.bashrc
-            rm -rf /home/tunerX/
+            pip install --upgrade transformers
             cd /home/
             git clone https://github.com/felafax/RoadrunnerX.git
         '
