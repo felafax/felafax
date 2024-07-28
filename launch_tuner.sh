@@ -4,15 +4,15 @@
 PROJECT_NAME="llama3-tunerx"
 PROJECT_ID=$(gcloud config get-value project)
 ZONE="europe-west4-b"  # "us-central1-a" # "europe-west4-b"
-ACCELERATOR_TYPE="v5p-16"
+ACCELERATOR_TYPE="v5p-8"
 TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
 IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
 CONTAINER_NAME="tunerx-base-container"
-JUPYTER_PORT="8885"
-PERSISTENT_DISK_ENABLE=false
+JUPYTER_PORT="8881"
+PERSISTENT_DISK_ENABLE=true
 PERSISTENT_DISK_SIZE="1000GB"
 PERSISTENT_DISK_TYPE="pd-balanced"
-PERSISTENT_DISK_NAME="nithin-disk-5"
+PERSISTENT_DISK_NAME="nithin-disk-1"
 
 # Color codes for output
 GREEN='\033[0;32m'
@@ -131,6 +131,7 @@ start_docker_container() {
 setup_port_forwarding() {
     echo_color $GREEN "Setting up port forwarding for JupyterLab on the first worker..."
     echo_color $YELLOW "Please keep this terminal open to maintain the connection."
+    gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --worker=0 -- -L "$JUPYTER_PORT:localhost:8888" > /dev/null 2>&1 &
     gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --worker=0 -- -L "$JUPYTER_PORT:localhost:8888" > /dev/null 2>&1 &
 
     echo_color $YELLOW "To reconnect later, use the following command:"
