@@ -22,17 +22,16 @@ def init_model(*, model_name, hugging_face_token):
     """Downloads and initializes the model."""
     config = AutoConfig.from_pretrained(
         model_name, 
-        use_auth_token=hugging_face_token)
+        token=hugging_face_token)
     
     model = AutoModelForCausalLM.from_pretrained(
         model_name, 
-        config=config, 
-        use_auth_token=hugging_face_token,
+        token=hugging_face_token,
         low_cpu_mem_usage=True
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_name, 
-        use_auth_token=hugging_face_token
+        token=hugging_face_token
     )
 
     if not tokenizer.pad_token:
