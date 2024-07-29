@@ -19,19 +19,17 @@ LLAMA_SHARDING_RULES = [
 ]
 
 
-def partition_model(model, mesh, device=xm.xla_device(), verbose=False):
+def partition_model(model, mesh, verbose=False):
     """
     Partition a LLaMA model according to the defined sharding rules.
 
     Args:
     - model: The LLaMA model to be partitioned
     - mesh: The device mesh for sharding
-    - device: The XLA device (default: xm.xla_device())
     - verbose: If True, print matching rules (default: False)
     """
 
     for name, module in model.named_modules():
-        module.to(device)
         if isinstance(module, (nn.Embedding, nn.Linear)):
             for rule_pattern, spec in LLAMA_SHARDING_RULES:
                 if re.findall(rule_pattern, name):
