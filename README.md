@@ -15,6 +15,8 @@ RoadRunnerX is a framework for continued-training and fine-tuning open source LL
 
 ## Setup
 
+Use our [app.felafax.ai](https://app.felafax.ai) for easy setup, or follow the manual setup instructions below.
+
 The instructions below guide you through launching a TPU VM on your Google Cloud account and firing up a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
 1. Install gcloud command-line tool and authenticate your account (SKIP this STEP if you already have gcloud installed and have used TPUs before! 😎)
