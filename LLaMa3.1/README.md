@@ -18,9 +18,8 @@ This repository contains scripts and notebooks for fine-tuning LLaMa 3 and LLaMa
 - LLaMa 3 and LLaMa 3.1 (8B, 70B variants)
   - Can be trained on a single TPU VM host (preferably use v5p-8)
 - LLaMa 3.1 405B
-  - Requires multi-host training
-  - Available through our platform at [felafax.ai](https://felafax.ai)
-  - Sign-up for the waitlist!
+  - Requires multi-host training, will be available through our cloud platform at [felafax.ai](https://felafax.ai).
+  - Sign-up for the [waitlist](https://tally.so/r/mRLeaQ)!!
 
 ## Quick Start
 
