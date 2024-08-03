@@ -12,7 +12,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 
 ## Currently supported models
 
-- LLaMa-3/3.1 8B, 80B on Google Cloud TPUs. 
+- LLaMa-3/3.1 8B, 70B on Google Cloud TPUs. 
   - Supports LoRA and full-precision training.
   - Tested on TPU v3, v5p.
 - LLaMa-3.1 405B will be available on our cloud platform [felafax.ai](https://felafax.ai) -- sign-up for the waitlist!
