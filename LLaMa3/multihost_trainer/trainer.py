@@ -25,9 +25,9 @@ import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.distributed.parallel_loader as pl
 import torch_xla.test.test_utils as test_utils
 
-from model import init_model, apply_lora
-from dataset import get_dataset
-import model_partitioning
+from LLaMa3.multihost_trainer.model import init_model, apply_lora
+from LLaMa3.multihost_trainer.dataset import get_dataset
+import LLaMa3.multihost_trainer.model_partitioning as model_partitioning
 
 # On a single TPU VM host, you can train/tune LLaMa 3/3.1 8B models with full precision or LoRA.
 supported_models = [
@@ -54,10 +54,8 @@ TRAINER_CONFIG = {
 HUGGINGFACE_TOKEN = "YOUR_HF_TOKEN"
 
 
-def print_training_update(device,
-                          step,
+def print_training_update(step,
                           loss,
-                          rate,
                           epoch=None):
     """Prints the training metrics at a given step."""
     if xm.is_master_ordinal():  # Only print on the master device
@@ -66,8 +64,6 @@ def print_training_update(device,
             f'Epoch={epoch}' if epoch is not None else None,
             f'Step={step}',
             f'Loss={loss:.5f}',
-            # f'Rate={rate:.2f}',
-            # f'Time={now()}'
         ]
         print(' | '.join(item for item in update_data if item), flush=True)
         print()
