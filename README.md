@@ -7,6 +7,9 @@ RoadRunnerX is a framework for continued-training and fine-tuning open source LL
 - Easy to configure all aspects of training (designed for ML researchers and hackers).
 - Easy to scale training from a single VM with 8 TPU cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
 
+## Goal
+Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
+
 ## Currently supported models
 
 - LLaMa-3/3.1 8B, 80B on Google Cloud TPUs. LLaMa-3.1 405B will be available on our cloud platform [felafax.ai](https://felafax.ai) -- sign-up for the waitlist.
