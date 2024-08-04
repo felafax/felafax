@@ -1,0 +1,21 @@
+# image: gcr.io/felafax-training/roadrunner-jax:latest
+FROM python:3.10
+
+RUN pip install --upgrade jax
+RUN pip install jax[tpu] -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+
+WORKDIR /home/
+
+# Install Python packages from requirements.txt
+RUN pip install --no-cache-dir --upgrade pip
+
+# Install required libs
+# pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir transformers==4.43.3 -U
+RUN pip install --no-cache-dir datasets==2.18.0
+RUN pip install --no-cache-dir trl==0.8.1 peft==0.10.0
+RUN pip install --no-cache-dir accelerate==0.28.0
+RUN pip install --no-cache-dir jupyterlab
+
+# Command to run when the container starts
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
