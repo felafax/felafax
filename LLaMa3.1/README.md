@@ -8,7 +8,6 @@ This repository contains scripts and notebooks for fine-tuning LLaMa 3 and LLaMa
   - `dataset.py`: Configure the dataset for training
   - `model.py`: Advanced configuration for LoRA
   - `model_partitioning.py`: Configure model partitioning
-- `README.md`: This file
 - `llama3_70b_train.ipynb`: Notebook for training 70B model
 - `llama3_8b_train.ipynb`: Notebook for training 8B model
 - `multihost_trainer.py`: Script for multi-host training
