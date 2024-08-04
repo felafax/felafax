@@ -1,6 +1,6 @@
 # RoadrunnerX -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
 
-![image](./assets/image.jpg)
+![image](./utils/assets/image.jpg)
 
 RoadRunnerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use.
