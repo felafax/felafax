@@ -241,24 +241,21 @@ def train_loop(
     # Initialize the training state with unsharded parameters
     state = create_trainstate_from_params(params, model.apply, optimizer)
 
-    # Iterate through the training data
-    for i, train_batch in enumerate(train_dataloader):
-        # Place the batch on the appropriate devices
-        train_batch = jax.device_put(train_batch, NamedSharding(mesh, PS()))
+    for epoch in range(training_cfg.num_epochs):
+        for step, train_batch in enumerate(train_dataloader):
+            # Place the batch on the appropriate devices
+            train_batch = jax.device_put(train_batch, NamedSharding(mesh, PS()))
+    
+            # Perform a single training step
+            state, train_loss = sharded_train_step(
+                state, train_batch, tokenizer.pad_token_id
+            )
+    
+            if step%training_cfg.print_every_n_steps == 0:
+                print(f"Step {step}, Train Loss: {train_loss:.4f}")
+    
+            if training_cfg.max_steps and step >= training_cfg.max_steps:
+                break
 
-        # Perform a single training step
-        state, train_loss = sharded_train_step(
-            state, train_batch, tokenizer.pad_token_id
-        )
-
-        n_steps += 1
-        avg_loss += train_loss
-        print(f"Step {n_steps}, Train Loss: {train_loss:.4f}")
-
-        if training_cfg.max_steps is not None and n_steps >= training_cfg.max_steps:
-            break
-
-    avg_loss /= n_steps
-    print(f"Training complete. Average loss: {avg_loss:.4f}")
-
+    print(f"Training complete!")
     return state
