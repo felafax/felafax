@@ -22,7 +22,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 
 ## Setup
 
-For a hosted version with a seamless workflow, please visit [app.felafax.ai](https://app.felafax.ai). 
+**For a hosted version with a seamless workflow 🚀, please visit [app.felafax.ai](https://app.felafax.ai)**. 
 
 If you prefer a self-hosted training version, follow the instructions below. These steps will guide you through launching a TPU VM on your Google Cloud account and starting a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
