@@ -365,17 +365,17 @@ def named_tree_map(f, tree, *rest, is_leaf=None, sep=None):
     )
 
 
-def match_partition_rules(rules, params, mesh):
+def match_partition_rules(rules, params):
     """ Returns a pytree of PartitionSpec according to rules. Supports handling
         Flax TrainState and Optax optimizer state.
     """
     def get_partition_spec(name, leaf):
         if len(leaf.shape) == 0 or np.prod(leaf.shape) == 1:
             """ Don't partition scalar values. """
-            return NamedSharding(mesh, PS())
+            return PS()
         for rule, ps in rules:
             if re.search(rule, name) is not None:
-                return NamedSharding(mesh, ps)
+                return ps
         raise ValueError(f'Partition rule not found for param: {name}')
     return named_tree_map(get_partition_spec, params, sep='/')
 
