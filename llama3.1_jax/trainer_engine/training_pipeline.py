@@ -132,7 +132,7 @@ def train_loop(
     device_mesh = mesh_utils.create_device_mesh((1, device_count, 1))
     mesh = Mesh(devices=device_mesh, axis_names=("dp", "fsdp", "mp"))
 
-    state_shapes = get_state_shapes(model, 32, optimizer)
+    state_shapes = get_state_shapes(model, training_cfg.seq_length, optimizer)
 
     state_shapes_partitioned = jax_utils.match_partition_rules(
         llama_model.LlamaConfig.get_partition_rules(), state_shapes
@@ -158,9 +158,13 @@ def train_loop(
         state, restored_params = streaming_checkpointer.load_trainstate_checkpoint(
             "flax_params::" + model_path, state_shapes, shard_fns
         )
-        state = sharded_create_trainstate_from_params(
-            restored_params, model.apply, optimizer
-        )
+        if restored_params is not None:
+            state = sharded_create_trainstate_from_params(
+                restored_params, model.apply, optimizer
+            )
+            del restored_params
+        else:
+            raise ValueError("Failed to load checkpoint")
 
         for epoch in range(training_cfg.num_epochs):
             for step, train_batch in enumerate(train_dataloader):
@@ -175,7 +179,10 @@ def train_loop(
                 )
 
                 if step % training_cfg.print_every_n_steps == 0:
-                    print(f"Step {step}, Train Loss: {metrics['loss']:.4f}")
+                    print(
+                        f"Epoch {epoch}, Step {step}, Train Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
+                    )
 
                 if training_cfg.max_steps and step >= training_cfg.max_steps:
                     break
+        return state
