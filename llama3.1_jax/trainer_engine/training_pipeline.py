@@ -45,8 +45,10 @@ from gemma import transformer as transformer_lib
 from tqdm import tqdm, trange
 import numpy as np
 import mlxu
-from EasyLM.jax_utils import (
-    JaxRNG, cross_entropy_loss_and_accuracy, global_norm,
+from .jax_utils import (
+    JaxRNG,
+    cross_entropy_loss_and_accuracy,
+    global_norm,
     with_sharding_constraint,
 )
 

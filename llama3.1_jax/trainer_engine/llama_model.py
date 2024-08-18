@@ -23,48 +23,10 @@ from .jax_utils import (
 )
 
 
-class LLaMAConfigurator(object):
+class LlamaConfig(object):
     """Simplified LLaMA configuration. We start from a base model and
     allow for easy updates to the configuration.
     """
-
-    @classmethod
-    def get_default_config(cls, updates=None):
-        config = mlxu.config_dict()
-        config.base_model = "llama_3b"
-        config.vocab_size = mlxu.config_placeholder(int)
-        config.hidden_size = mlxu.config_placeholder(int)
-        config.intermediate_size = mlxu.config_placeholder(int)
-        config.num_hidden_layers = mlxu.config_placeholder(int)
-        config.num_attention_heads = mlxu.config_placeholder(int)
-        config.num_key_value_heads = mlxu.config_placeholder(int)
-        config.initializer_range = mlxu.config_placeholder(float)
-        config.rms_norm_eps = mlxu.config_placeholder(float)
-        config.max_position_embeddings = mlxu.config_placeholder(int)
-        config.rope_theta = mlxu.config_placeholder(float)
-        config.embedding_dropout = mlxu.config_placeholder(float)
-        config.feedforward_dropout = mlxu.config_placeholder(float)
-        config.attention_dropout = mlxu.config_placeholder(float)
-        config.residue_dropout = mlxu.config_placeholder(float)
-        config.remat_policy = mlxu.config_placeholder(str)
-        config.scan_attention = False  # mlxu.config_placeholder(bool)
-        config.scan_mlp = False  # mlxu.config_placeholder(bool)
-        config.scan_query_chunk_size = 0 #mlxu.config_placeholder(int)
-        config.scan_key_chunk_size = 0 # mlxu.config_placeholder(int)
-        config.scan_mlp_chunk_size = 0 # mlxu.config_placeholder(int)
-        config.fcm_min_ratio = 0.0 # mlxu.config_placeholder(float)
-        config.fcm_max_ratio = 0.0 # mlxu.config_placeholder(float)
-        return mlxu.update_config_dict(config, updates)
-
-    @classmethod
-    def finalize_config(cls, config):
-        """Apply updates on top of standard base model config."""
-        standard_config = cls.get_standard_llama_config(config.base_model)
-        for key, value in config.items():
-            if value is not None:
-                standard_config[key] = value
-        # This is where you get pretrained config from huggingface merged with your updates.
-        return PretrainedConfig.from_dict(standard_config)
 
     @classmethod
     def get_standard_llama_config(cls, model_name):
@@ -130,6 +92,21 @@ class LLaMAConfigurator(object):
         }[model_name]
         return mlxu.update_config_dict(config, updates)
 
+    @classmethod
+    def finalize_config(cls, config):
+        """Apply updates on top of standard base model config."""
+        standard_config = cls.get_standard_llama_config(config.base_model)
+        for key, value in config.items():
+            if value is not None:
+                standard_config[key] = value
+        # This is where you get pretrained config from huggingface merged with your updates.
+        return PretrainedConfig.from_dict(standard_config)
+
+
+    @staticmethod
+    def rng_keys():
+        return ("params", "dropout", "fcm")
+
     @staticmethod
     def get_jax_mesh(axis_dims):
         return get_jax_mesh(axis_dims, ("dp", "fsdp", "mp"))
@@ -160,9 +137,6 @@ class LLaMAConfigurator(object):
             (".*", PS(None)),
         )
 
-    @staticmethod
-    def rng_keys():
-        return ("params", "dropout", "fcm")
 
 class RMSNorm(nn.Module):
     dim: int

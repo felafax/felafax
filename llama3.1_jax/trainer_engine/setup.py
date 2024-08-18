@@ -32,7 +32,7 @@ def setup_imports():
     import jax.numpy as jnp
     import flax
     import flax.linen as nn
-    from flax.training import train_state
+    from flax.training.train_state import TrainState
     from flax.core.meta import unbox
     import optax
     import chex
