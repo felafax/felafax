@@ -114,6 +114,7 @@ def get_sharded_train_step(state_partitioned):
 
 
 def train_loop(
+    *,
     model: Any,
     optimizer: optax.GradientTransformation,
     train_dataloader: torch.utils.data.DataLoader,
@@ -121,7 +122,6 @@ def train_loop(
     training_cfg: Any,
     mesh: Mesh,
     model_path: str,
-    params: Dict[str, Any],
 ) -> train_state.TrainState:
     # initalizes rng generator in jax_utils
     jax_utils.init_rng(99)
@@ -132,7 +132,7 @@ def train_loop(
     device_mesh = mesh_utils.create_device_mesh((1, device_count, 1))
     mesh = Mesh(devices=device_mesh, axis_names=("dp", "fsdp", "mp"))
 
-    state_shapes = get_state_shapes(model, training_cfg.seq_length, optimizer)
+    state_shapes = get_state_shapes(model, training_cfg.max_length, optimizer)
 
     state_shapes_partitioned = jax_utils.match_partition_rules(
         llama_model.LlamaConfig.get_partition_rules(), state_shapes
@@ -155,6 +155,8 @@ def train_loop(
 
     with mesh:
         state, restored_params = None, None
+        
+        print("Loading llama JAX model...")
         state, restored_params = streaming_checkpointer.load_trainstate_checkpoint(
             "flax_params::" + model_path, state_shapes, shard_fns
         )
@@ -167,6 +169,8 @@ def train_loop(
             raise ValueError("Failed to load checkpoint")
 
         for epoch in range(training_cfg.num_epochs):
+            print(f"Starting epoch {epoch} of training...")
+            
             for step, train_batch in enumerate(train_dataloader):
                 # Place the batch on the appropriate devices
                 train_batch = jax.device_put(train_batch, NamedSharding(mesh, PS()))
