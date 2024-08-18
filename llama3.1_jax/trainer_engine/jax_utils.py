@@ -47,48 +47,6 @@ class JaxRNG(object):
             return {key: val for key, val in zip(keys, split_rngs[1:])}
 
 
-class JaxDistributedConfig(object):
-    """ Utility class for initializing JAX distributed. """
-
-    @staticmethod
-    def get_default_config(updates=None):
-        config = ConfigDict()
-        config.initialize_jax_distributed = False
-        config.coordinator_address = placeholder(str)
-        config.num_processes = placeholder(int)
-        config.process_id = placeholder(int)
-        config.local_device_ids = placeholder(str)
-
-        if updates is not None:
-            config.update(ConfigDict(updates).copy_and_resolve_references())
-        return config
-
-    @classmethod
-    def initialize(cls, config):
-        config = cls.get_default_config(config)
-        if config.initialize_jax_distributed:
-            if config.local_device_ids is not None:
-                local_device_ids = [int(x) for x in config.local_device_ids.split(',')]
-            else:
-                local_device_ids = None
-
-            jax.distributed.initialize(
-                coordinator_address=config.coordinator_address,
-                num_processes=config.num_processes,
-                process_id=config.process_id,
-                local_device_ids=local_device_ids,
-            )
-
-
-class FlaxTemperatureLogitsWarper(FlaxLogitsWarper):
-    """ JIT traceable version of FlaxLogitsWarper that performs temperature scaling."""
-    def __init__(self, temperature):
-        self.temperature = temperature
-
-    def __call__(self, input_ids, scores, cur_len):
-        return scores / jnp.clip(self.temperature, a_min=1e-8)
-
-
 def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
     """ Create pytree of sharding and gathering functions from pytree of
         partition specs.
@@ -144,35 +102,6 @@ def set_random_seed(seed):
     init_rng(seed)
 
 
-def get_jax_mesh(axis_dims, names):
-    if axis_dims.startswith('!'):
-        # Allow splitting a physical mesh axis if needed
-        mesh_axis_splitting = True
-        axis_dims = axis_dims[1:]
-    else:
-        mesh_axis_splitting = False
-
-    if ':' in axis_dims:
-        dims = []
-        dim_names = []
-        for axis in axis_dims.split(','):
-            name, dim = axis.split(':')
-            assert name in names
-            dims.append(int(dim))
-            dim_names.append(name)
-        assert(set(dim_names) == set(names))
-    else:
-        dims = [int(x) for x in axis_dims.split(',')]
-        dim_names = names
-    assert len(dims) == len(names)
-    mesh_shape = np.arange(jax.device_count()).reshape(dims).shape
-    if mesh_axis_splitting:
-        physical_mesh = np.array(jax.devices()).reshape(mesh_shape)
-    else:
-        physical_mesh = mesh_utils.create_device_mesh(mesh_shape)
-    return Mesh(physical_mesh, dim_names)
-
-
 def names_in_current_mesh(*names):
     """ Check if current mesh axes contain these names. """
     mesh_axis_names = pxla.thread_resources.env.physical_mesh.axis_names
@@ -204,18 +133,6 @@ def with_sharding_constraint(x, partition_specs):
         x = jax.lax.with_sharding_constraint(x, partition_specs)
     return x
 
-
-def wrap_function_with_rng(rng):
-    """ To be used as decorator, automatically bookkeep a RNG for the wrapped function. """
-    def wrap_function(function):
-        def wrapped(*args, **kwargs):
-            nonlocal rng
-            rng, split_rng = jax.random.split(rng)
-            return function(split_rng, *args, **kwargs)
-        return wrapped
-    return wrap_function
-
-
 def init_rng(seed):
     global jax_utils_rng
     jax_utils_rng = JaxRNG.from_seed(seed)
@@ -224,31 +141,6 @@ def init_rng(seed):
 def next_rng(*args, **kwargs):
     global jax_utils_rng
     return jax_utils_rng(*args, **kwargs)
-
-
-def get_metrics(metrics, unreplicate=False, stack=False):
-    if unreplicate:
-        metrics = flax.jax_utils.unreplicate(metrics)
-    metrics = jax.device_get(metrics)
-    if stack:
-        return jax.tree_map(lambda *args: np.stack(args), *metrics)
-    else:
-        return {key: float(val) for key, val in metrics.items()}
-
-
-def mse_loss(val, target, valid=None):
-    if valid is None:
-        valid = jnp.ones((*target.shape[:2], 1))
-    valid = valid.astype(jnp.float32)
-    loss = jnp.mean(
-        jnp.where(
-            valid > 0.0,
-            jnp.square(val - target),
-            0.0
-        )
-    )
-    return loss
-
 
 def cross_entropy_loss_and_accuracy(logits, tokens, valid=None):
     if valid is None:
@@ -282,12 +174,6 @@ def global_norm(tree):
     return jnp.sqrt(jnp.sum(flattened))
 
 
-def average_metrics(metrics):
-    return jax.tree_map(
-        lambda *args: jnp.mean(jnp.stack(args)),
-        *metrics
-    )
-
 
 def get_float_dtype_by_name(dtype):
     return {
@@ -317,16 +203,6 @@ def float_to_dtype(tree, dtype):
     return jax.tree_util.tree_map(
         partial(float_tensor_to_dtype, dtype=dtype), tree
     )
-
-
-def get_gradient_checkpoint_policy(name):
-    return {
-        'everything_saveable': jax.checkpoint_policies.everything_saveable,
-        'nothing_saveable': jax.checkpoint_policies.nothing_saveable,
-        'checkpoint_dots': jax.checkpoint_policies.checkpoint_dots,
-        'checkpoint_dots_with_no_batch_dims': jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
-    }[name]
-
 
 def tree_path_to_string(path, sep=None):
     keys = []
@@ -379,21 +255,6 @@ def match_partition_rules(rules, params):
         raise ValueError(f'Partition rule not found for param: {name}')
     return named_tree_map(get_partition_spec, params, sep='/')
 
-
-def get_weight_decay_mask(exclusions):
-    """ Return a weight decay mask function that computes the pytree masks
-        according to the given exclusion rules.
-    """
-    def decay(name, _):
-        for rule in exclusions:
-            if re.search(rule, name) is not None:
-                return False
-        return True
-
-    def weight_decay_mask(params):
-        return named_tree_map(decay, params, sep='/')
-
-    return weight_decay_mask
 
 
 def tree_apply(fns, tree):
