@@ -32,10 +32,10 @@ from jax.experimental import mesh_utils
 from jax.experimental.pjit import pjit
 
 # Local imports
-import jax_utils
-from .jax_utils import cross_entropy_loss_and_accuracy
-import llama_model
-import checkpointer
+from trainer_engine import jax_utils
+from trainer_engine.jax_utils import cross_entropy_loss_and_accuracy
+from trainer_engine import llama_model
+from trainer_engine import checkpointer
 
 # Less common imports
 import mlxu
