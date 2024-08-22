@@ -148,7 +148,7 @@ def train_loop(
     )
 
     streaming_checkpointer = checkpoint_lib.Checkpointer(
-        .Checkpointer.get_default_config(),
+        checkpoint_lib.Checkpointer.get_default_config(),
         checkpoint_dir=os.path.dirname(model_path),
         enable=jax.process_index() == 0,
     )
