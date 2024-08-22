@@ -150,7 +150,7 @@ def train_loop(
     streaming_checkpointer = checkpoint_lib.Checkpointer(
         checkpoint_lib.Checkpointer.get_default_config(),
         checkpoint_dir=os.path.dirname(model_path),
-        enable=jax.process_index() == 0,
+        enable_checkpointer=jax.process_index() == 0,
     )
 
     with mesh:
