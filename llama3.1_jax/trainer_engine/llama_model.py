@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import mlxu
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -17,7 +16,7 @@ from transformers.modeling_flax_outputs import FlaxBaseModelOutput, FlaxCausalLM
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
 from .jax_utils import with_sharding_constraint
-
+from trainer_engine import config_lib
 
 
 class LlamaConfig(object):
@@ -27,7 +26,7 @@ class LlamaConfig(object):
 
     @classmethod
     def get_standard_llama_config(cls, model_name):
-        config = mlxu.config_dict()
+        config = config_lib.config_dict()
         config.base_model = "llama_3b"
         config.vocab_size = 32000
         config.hidden_size = 3200
@@ -87,7 +86,7 @@ class LlamaConfig(object):
                 rope_theta=5e5,
             ),
         }[model_name]
-        return mlxu.update_config_dict(config, updates)
+        return config_lib.update_config_dict(config, updates)
 
     @classmethod
     def finalize_config(cls, config):

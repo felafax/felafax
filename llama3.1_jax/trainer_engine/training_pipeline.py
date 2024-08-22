@@ -35,7 +35,7 @@ from jax.experimental.pjit import pjit
 from trainer_engine import jax_utils
 from trainer_engine.jax_utils import cross_entropy_loss_and_accuracy
 from trainer_engine import llama_model
-from trainer_engine import checkpointer
+from trainer_engine import checkpoint_lib 
 
 # Less common imports
 import mlxu
@@ -147,8 +147,8 @@ def train_loop(
         state_shapes_partitioned
     )
 
-    streaming_checkpointer = checkpointer.StreamingCheckpointer(
-        checkpointer.StreamingCheckpointer.get_default_config(),
+    streaming_checkpointer = checkpoint_lib.Checkpointer(
+        .Checkpointer.get_default_config(),
         checkpoint_dir=os.path.dirname(model_path),
         enable=jax.process_index() == 0,
     )

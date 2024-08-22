@@ -1,21 +1,24 @@
 import os
 import numpy as np
 from ml_collections import ConfigDict
-import mlxu
 import jax
 import jax.numpy as jnp
 import flax
 from flax.serialization import from_bytes, to_bytes, to_state_dict, from_state_dict
 from flax.traverse_util import flatten_dict, unflatten_dict, empty_node
 import msgpack
+from trainer_engine import config_lib
+from .config_lib import config_dict, update_config_dict
 
 from .jax_utils import tree_apply, float_tensor_to_dtype
 
 
-class StreamingCheckpointer(object):
-    """Custom msgpack checkpointer that saves large train states by serializing
-    and saving tensors one by one in a streaming fashion. Avoids running
-    out of memory or local TPU disk with default flax checkpointer.
+class Checkpointer(object):
+    """Checkpoints large JAX models efficiently.
+
+    Utilizes msgpack for streaming serialization of individual tensors,
+    optimizing memory usage and storage capacity. This approach is
+    particularly advantageous for distributed training environments.
     """
 
     @staticmethod
@@ -28,13 +31,13 @@ class StreamingCheckpointer(object):
             config.update(ConfigDict(updates).copy_and_resolve_references())
         return config
 
-    def __init__(self, config, checkpoint_dir, enable=True):
+    def __init__(self, config, checkpoint_dir, enable_checkpointer=True):
         self.config = self.get_default_config(config)
         self.checkpoint_dir = checkpoint_dir
-        self.enable = enable
+        self.enable_checkpointer = enable_checkpointer
 
     def save_checkpoint(self, train_state, filename, gather_fns=None):
-        if self.enable:
+        if self.enable_checkpointer:
             path = os.path.join(self.checkpoint_dir, filename)
         else:
             path = "/dev/null"
@@ -50,7 +53,7 @@ class StreamingCheckpointer(object):
         if gather_fns is not None:
             gather_fns = flatten_dict(to_state_dict(gather_fns))
 
-        with mlxu.open_file(path, "wb") as fout:
+        with open(path, "wb") as fout:
             for key, value in flattend_train_state.items():
                 if gather_fns is not None:
                     value = gather_fns[key](value)
@@ -58,11 +61,11 @@ class StreamingCheckpointer(object):
                 fout.write(packer.pack((key, to_bytes(value))))
 
     def save_pickle(self, obj, filename):
-        if self.enable:
+        if self.enable_checkpointer:
             path = os.path.join(self.checkpoint_dir, filename)
         else:
             path = "/dev/null"
-        mlxu.save_pickle(obj, path)
+        config_lib.save_pickle(obj, f)
 
     def save_all(
         self, train_state, gather_fns, metadata=None, dataset=None, milestone=False
@@ -99,7 +102,7 @@ class StreamingCheckpointer(object):
         if remove_dict_prefix is not None:
             remove_dict_prefix = tuple(remove_dict_prefix)
         flattend_train_state = {}
-        with mlxu.open_file(path) as fin:
+        with config_lib.open_file(path) as fin: 
             # 83886080 bytes = 80 MB, which is 16 blocks on GCS
             unpacker = msgpack.Unpacker(fin, read_size=83886080, max_buffer_size=0)
             for key, value in unpacker:
@@ -134,7 +137,7 @@ class StreamingCheckpointer(object):
         """Load a standard flax checkpoint that's not saved with the
         msgpack streaming format.
         """
-        with mlxu.open_file(path, "rb") as fin:
+        with config_lib.open_file(path) as fin: 
             encoded_bytes = fin.read()
 
         state_dict = flax.serialization.msgpack_restore(encoded_bytes)
