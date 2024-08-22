@@ -38,7 +38,6 @@ from trainer_engine import llama_model
 from trainer_engine import checkpoint_lib 
 
 # Less common imports
-import mlxu
 import torch
 
 

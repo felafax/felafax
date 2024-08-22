@@ -55,14 +55,6 @@ def define_flags_with_default(**kwargs):
     return absl.flags.FLAGS, kwargs
 
 
-def print_flags(flags, flags_def):
-    flag_srings = [
-        "{}: {}".format(key, val)
-        for key, val in get_user_flags(flags, flags_def).items()
-    ]
-    logging.info("Hyperparameter configs: \n{}".format(pprint.pformat(flag_srings)))
-
-
 def get_user_flags(flags, flags_def):
     output = {}
     for key in flags_def:
@@ -73,15 +65,6 @@ def get_user_flags(flags, flags_def):
             output[key] = val
 
     return output
-
-
-def user_flags_to_config_dict(flags, flags_def):
-    output = ConfigDict()
-    for key in flags_def:
-        output[key] = getattr(flags, key)
-
-    return output
-
 
 def update_config_dict(config, updates=None):
     updated_config = deepcopy(config)
