@@ -1,15 +1,13 @@
 import os
-import numpy as np
 from ml_collections import ConfigDict
 import jax
-import jax.numpy as jnp
 import flax
 from flax.serialization import from_bytes, to_bytes, to_state_dict, from_state_dict
 from flax.traverse_util import flatten_dict, unflatten_dict, empty_node
 import msgpack
+
 from trainer_engine import config_lib
 from .config_lib import config_dict, update_config_dict
-
 from .jax_utils import tree_apply, float_tensor_to_dtype
 
 
