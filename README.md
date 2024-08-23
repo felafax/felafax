@@ -16,13 +16,13 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
   - Supports LoRA and full-precision training.
   - Tested on TPU v3, v5p.
 - LLaMa-3.1 405B will be available on our cloud platform at felafax.ai -- sign-up for the [waitlist](https://tally.so/r/mRLeaQ)!
-- Gemma 2 2B on Cloud TPUs. $${\color{red}New!}$$	 
+- Gemma2 2B, 9B, 27B on Cloud TPUs. $${\color{red}New!}$$	 
   - Supports fast full-precision training.
   - Tested on TPU v3, v5p.
 
 ## Setup
 
-For a hosted version with a seamless workflow, please visit [app.felafax.ai](https://app.felafax.ai). 
+**For a hosted version with a seamless workflow, please visit [app.felafax.ai](https://app.felafax.ai)** 🦊. 
 
 If you prefer a self-hosted training version, follow the instructions below. These steps will guide you through launching a TPU VM on your Google Cloud account and starting a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
