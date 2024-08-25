@@ -20,12 +20,9 @@ fi
 
 echo 'export PJRT_DEVICE=TPU' >>~/.bashrc
 
-# Mount the Google Cloud Storage bucket
-# if [ -n "${UID+x}" ] && [ -n "$UID" ]; then
-#   gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/"
-# else
-gcsfuse --implicit-dirs felafax-storage "/home/felafax-storage/"
-# fi
+if [ "$UID" != "0" ]; then
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/"
+fi
 
 # Start Jupyter Lab
 exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
