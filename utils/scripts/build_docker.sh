@@ -5,7 +5,7 @@ build_and_push() {
   local image_name=$2
 
   echo "Building Docker image: $image_name"
-  docker build -t $image_name -f $dockerfile .
+  docker build -t $image_name -f $dockerfile --platform linux/amd64 .
 
   if [ $? -eq 0 ]; then
     echo "Docker image built successfully"
