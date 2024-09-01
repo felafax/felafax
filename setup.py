@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 # Read requirements from requirements.txt
 with open('requirements.txt') as f:
@@ -7,6 +7,7 @@ with open('requirements.txt') as f:
 setup(
     name="felafax",
     version="1.0",
-    packages=find_packages(),
+    packages=find_packages(where='llama3_jax'),
+    package_dir={'': 'llama3_jax'},
     install_requires=requirements,
 )

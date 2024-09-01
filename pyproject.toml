@@ -6,7 +6,7 @@ authors = [
   "Nithin <nithin@felafax.ai>",
 ]
 python = "^3.10"
-packages = [{include = "felafax"}]
+packages = [{include = "llama3_jax"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
