@@ -1,4 +1,4 @@
-# RoadrunnerX -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
+# Felafax -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
 
 ![image](./utils/assets/image.jpg)
 
