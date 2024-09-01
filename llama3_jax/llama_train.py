@@ -9,23 +9,22 @@ import jax
 import jax.numpy as jnp
 
 # Add the parent directory of the current working directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '.')))
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '..')))
 
 try:
-    import felafax
+    import llama3_jax
     print("felafax package imported successfully")
 except ImportError as e:
-    print(f"Error importing felafax: {e}")
+    print(f"Error importing llama3_jax: {e}")
 
 from .trainer_engine import setup
-
 setup.setup_environment()
 
 from . import llama_config
 from .trainer_engine import (automodel_lib, checkpoint_lib, convert_lib,
                              jax_utils, trainer_lib, utils)
-
-setup.reload_modules()
+setup.reload_modules("llama3_jax")
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 

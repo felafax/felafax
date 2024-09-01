@@ -15,11 +15,10 @@ import torch
 from flax.training import train_state
 from jax.sharding import Mesh, NamedSharding
 from jax.sharding import PartitionSpec as PS
-from jax_utils import cross_entropy_loss_and_accuracy
 from transformers import LlamaConfig, LlamaForCausalLM
 
 from . import checkpoint_lib, jax_utils, utils
-
+from .jax_utils import cross_entropy_loss_and_accuracy
 
 class FelafaxTrainer(ABC):
 
