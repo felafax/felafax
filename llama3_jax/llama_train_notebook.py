@@ -34,9 +34,8 @@ from datasets import load_dataset
 from transformers import default_data_collator
 
 HUGGINGFACE_USERNAME = input(
-    "INPUT: Please provide your HUGGINGFACE_USERNAME: ") or "felarof01"
-HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: "
-                          ) or "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"
+    "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
+HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
 
 # Select a supported model from above list to use!
 MODEL_NAME = "Meta-Llama-3.1-8B"
