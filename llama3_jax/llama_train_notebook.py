@@ -45,7 +45,7 @@ FELAFAX_DIR = os.path.dirname(os.path.dirname(felafax.__file__))
 GCS_DIR = "/home/felafax-storage/"
 EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
 HF_COMPATIBLE_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
-HF_REPO_ID = "felarof01/test_checkpoint"
+HF_REPO_ID = f"{HUGGINGFACE_USERNAME}/llama3.1_finetuned_8B"
 
 # Ensure directories exist
 utils.makedirs(EXPORT_DIR, exist_ok=True)
