@@ -1,24 +1,24 @@
 import functools
-import os
 import gc
-import shutil
 import json
+import os
+import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 import chex
+import flax
 import jax
 import jax.numpy as jnp
-import flax
 import torch
 from flax.training import train_state
-from jax.sharding import Mesh, NamedSharding, PartitionSpec as PS
-
-from . import checkpoint_lib, utils, jax_utils
-from felafax.llama3_jax.trainer_engine.jax_utils import cross_entropy_loss_and_accuracy
-
+from jax.sharding import Mesh, NamedSharding
+from jax.sharding import PartitionSpec as PS
+from jax_utils import cross_entropy_loss_and_accuracy
 from transformers import LlamaConfig, LlamaForCausalLM
+
+from . import checkpoint_lib, jax_utils, utils
 
 
 class FelafaxTrainer(ABC):

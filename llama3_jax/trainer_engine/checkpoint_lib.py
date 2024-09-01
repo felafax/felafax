@@ -4,18 +4,17 @@ import os
 import flax
 import jax
 import jax.numpy as jnp
-import numpy as np
-from jax.sharding import PartitionSpec as PS
-from jax.sharding import NamedSharding, Mesh
-from jax.experimental import mesh_utils
-
 import msgpack
+import numpy as np
 from flax.serialization import (from_bytes, from_state_dict, to_bytes,
                                 to_state_dict)
 from flax.traverse_util import empty_node, flatten_dict, unflatten_dict
+from jax.experimental import mesh_utils
+from jax.sharding import Mesh, NamedSharding
+from jax.sharding import PartitionSpec as PS
 from ml_collections import ConfigDict
 
-from felafax.llama3_jax.trainer_engine import utils, jax_utils
+from . import jax_utils, utils
 
 
 def get_float_dtype_by_name(dtype):

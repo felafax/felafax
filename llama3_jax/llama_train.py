@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import importlib
 import os
 import sys
-import importlib
+
 import jax
 import jax.numpy as jnp
 
@@ -16,20 +17,21 @@ try:
 except ImportError as e:
     print(f"Error importing felafax: {e}")
 
-from felafax.llama3_jax.trainer_engine import setup
+from .trainer_engine import setup
 
 setup.setup_environment()
 
-from felafax.llama3_jax.trainer_engine import utils, jax_utils
-from felafax.llama3_jax.trainer_engine import automodel_lib, checkpoint_lib, trainer_lib, convert_lib
-from felafax.llama3_jax import llama_config
+from . import llama_config
+from .trainer_engine import (automodel_lib, checkpoint_lib, convert_lib,
+                             jax_utils, trainer_lib, utils)
 
 setup.reload_modules()
 
-from typing import (Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union)
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+
+import chex
 import jax
 import jax.numpy as jnp
-import chex
 import optax
 import torch
 from datasets import load_dataset

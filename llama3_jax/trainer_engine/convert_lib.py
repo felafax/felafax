@@ -13,7 +13,7 @@ import torch
 from flax.traverse_util import flatten_dict
 from transformers import LlamaConfig, LlamaForCausalLM
 
-from felafax.llama3_jax.trainer_engine import checkpoint_lib
+from . import checkpoint_lib
 
 
 def save_hf_compatible_checkpoint(load_path, out_dir, model_configurator):
