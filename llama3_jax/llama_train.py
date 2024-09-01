@@ -1,35 +1,36 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import importlib
 import os
 import sys
-import importlib
+
 import jax
 import jax.numpy as jnp
 
 # Add the parent directory of the current working directory to the Python path
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '.')))
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '..')))
 
 try:
-    import felafax
+    import llama3_jax
     print("felafax package imported successfully")
 except ImportError as e:
-    print(f"Error importing felafax: {e}")
+    print(f"Error importing llama3_jax: {e}")
 
-from felafax.llama3_jax.trainer_engine import setup
-
+from llama3_jax.trainer_engine import setup
 setup.setup_environment()
 
-from felafax.llama3_jax.trainer_engine import utils, jax_utils
-from felafax.llama3_jax.trainer_engine import automodel_lib, checkpoint_lib, trainer_lib, convert_lib
-from felafax.llama3_jax import llama_config
+from llama3_jax import llama_config
+from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib, convert_lib,
+                             jax_utils, trainer_lib, utils)
+setup.reload_modules("llama3_jax")
 
-setup.reload_modules()
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
-from typing import (Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union)
+import chex
 import jax
 import jax.numpy as jnp
-import chex
 import optax
 import torch
 from datasets import load_dataset

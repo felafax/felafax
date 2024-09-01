@@ -1,12 +1,11 @@
-import numpy as np
+import re
+
 import jax
 import jax.numpy as jnp
-
-from jax.sharding import PartitionSpec as PS
-from jax.sharding import NamedSharding, Mesh
+import numpy as np
 from jax.experimental import mesh_utils
-
-import re
+from jax.sharding import Mesh, NamedSharding
+from jax.sharding import PartitionSpec as PS
 
 ###################################################
 # Util functions for JAX RNG handling

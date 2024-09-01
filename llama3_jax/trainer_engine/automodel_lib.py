@@ -1,11 +1,14 @@
 import os
-from typing import Tuple, Union, Dict
+from typing import Dict, Tuple, Union
 
+import jax.numpy as jnp
 from huggingface_hub import snapshot_download
 from transformers import AutoConfig, AutoTokenizer
-from felafax.llama3_jax.llama_config import create_llama_model, Llama3_1_8B_Configurator, Llama3_1_70B_Configurator, LlamaTestConfigurator
-from felafax.llama3_jax import llama_model
-import jax.numpy as jnp
+
+from .. import llama_model
+from ..llama_config import (Llama3_1_8B_Configurator,
+                            Llama3_1_70B_Configurator, LlamaTestConfigurator,
+                            create_llama_model)
 
 LlamaConfigType = Union[Dict, Llama3_1_8B_Configurator,
                         Llama3_1_70B_Configurator, LlamaTestConfigurator]
