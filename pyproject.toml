@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "felafax"
+version = "1.0.0"
+description = "felafax"
+authors = [
+  "Nithin <nithin2602@gmail.com>",
+]
+python = "^3.10"
+packages = [{include = "felafax"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+flax = ">=0.8"
+jax = "^0.4.0"
+jaxlib = "^0.4.0"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "setuptools", "wheel"]
+build-backend = "poetry.core.masonry.api"
