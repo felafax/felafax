@@ -22,7 +22,7 @@ setup.setup_environment()
 
 from felafax.llama3_jax.trainer_engine import utils, jax_utils
 from felafax.llama3_jax.trainer_engine import automodel_lib, checkpoint_lib, trainer_lib, convert_lib
-from felafax import llama_config
+from felafax.llama3_jax import llama_config
 
 setup.reload_modules()
 
