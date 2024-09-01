@@ -15,7 +15,7 @@ from flax.serialization import (from_bytes, from_state_dict, to_bytes,
 from flax.traverse_util import empty_node, flatten_dict, unflatten_dict
 from ml_collections import ConfigDict
 
-from felafax.trainer_engine import utils, jax_utils
+from felafax.llama3_jax.trainer_engine import utils, jax_utils
 
 
 def get_float_dtype_by_name(dtype):

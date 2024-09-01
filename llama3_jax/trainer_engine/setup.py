@@ -35,7 +35,7 @@ def clear_cache():
 def reload_modules():
     clear_cache()
     import felafax
-    import felafax.trainer_engine
+    import felafax.llama3_jax.trainer_engine
     modules_to_reload = [
         module for name, module in sys.modules.items()
         if name.startswith('felafax')

@@ -3,8 +3,8 @@ from typing import Tuple, Union, Dict
 
 from huggingface_hub import snapshot_download
 from transformers import AutoConfig, AutoTokenizer
-from felafax.llama_config import create_llama_model, Llama3_1_8B_Configurator, Llama3_1_70B_Configurator, LlamaTestConfigurator
-from felafax import llama_model
+from felafax.llama3_jax.llama_config import create_llama_model, Llama3_1_8B_Configurator, Llama3_1_70B_Configurator, LlamaTestConfigurator
+from felafax.llama3_jax import llama_model
 import jax.numpy as jnp
 
 LlamaConfigType = Union[Dict, Llama3_1_8B_Configurator,

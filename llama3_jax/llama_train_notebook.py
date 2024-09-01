@@ -14,13 +14,13 @@ try:
 except ImportError as e:
     print(f"Error importing felafax: {e}")
 
-from felafax.trainer_engine import setup
+from felafax.llama3_jax.trainer_engine import setup
 
 setup.setup_environment()
 
-from felafax.trainer_engine import utils, jax_utils
-from felafax.trainer_engine import automodel_lib, checkpoint_lib, trainer_lib, convert_lib
-from felafax import llama_config
+from felafax.llama3_jax.trainer_engine import utils, jax_utils
+from felafax.llama3_jax.trainer_engine import automodel_lib, checkpoint_lib, trainer_lib, convert_lib
+from felafax.llama3_jax import llama_config
 
 setup.reload_modules()
 
@@ -34,9 +34,8 @@ from datasets import load_dataset
 from transformers import default_data_collator
 
 HUGGINGFACE_USERNAME = input(
-    "INPUT: Please provide your HUGGINGFACE_USERNAME: ") or "felarof01"
-HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: "
-                          ) or "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"
+    "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
+HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
 
 # Select a supported model from above list to use!
 MODEL_NAME = "Meta-Llama-3.1-8B"
@@ -46,7 +45,7 @@ FELAFAX_DIR = os.path.dirname(os.path.dirname(felafax.__file__))
 GCS_DIR = "/home/felafax-storage/"
 EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
 HF_COMPATIBLE_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
-HF_REPO_ID = "felarof01/test_checkpoint"
+HF_REPO_ID = f"{HUGGINGFACE_USERNAME}/llama3.1_finetuned_8B"
 
 # Ensure directories exist
 utils.makedirs(EXPORT_DIR, exist_ok=True)

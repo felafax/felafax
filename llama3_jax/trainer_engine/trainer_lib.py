@@ -16,7 +16,7 @@ from flax.training import train_state
 from jax.sharding import Mesh, NamedSharding, PartitionSpec as PS
 
 from . import checkpoint_lib, utils, jax_utils
-from felafax.llama_train import cross_entropy_loss_and_accuracy
+from felafax.llama3_jax.trainer_engine.jax_utils import cross_entropy_loss_and_accuracy
 
 from transformers import LlamaConfig, LlamaForCausalLM
 

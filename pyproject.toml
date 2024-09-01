@@ -3,7 +3,7 @@ name = "felafax"
 version = "1.0.0"
 description = "felafax"
 authors = [
-  "Nithin <nithin2602@gmail.com>",
+  "Nithin <nithin@felafax.ai>",
 ]
 python = "^3.10"
 packages = [{include = "felafax"}]
