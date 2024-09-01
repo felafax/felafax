@@ -1,5 +1,5 @@
 from typing import Union
-from felafax.trainer_engine import utils
+from felafax.llama3_jax.trainer_engine import utils
 from jax.sharding import PartitionSpec as PS
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_flax_outputs import FlaxBaseModelOutput, FlaxCausalLMOutput

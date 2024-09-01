@@ -14,12 +14,12 @@ try:
 except ImportError as e:
     print(f"Error importing felafax: {e}")
 
-from felafax.trainer_engine import setup
+from felafax.llama3_jax.trainer_engine import setup
 
 setup.setup_environment()
 
-from felafax.trainer_engine import utils, jax_utils
-from felafax.trainer_engine import automodel_lib, checkpoint_lib, trainer_lib, convert_lib
+from felafax.llama3_jax.trainer_engine import utils, jax_utils
+from felafax.llama3_jax.trainer_engine import automodel_lib, checkpoint_lib, trainer_lib, convert_lib
 from felafax import llama_config
 
 setup.reload_modules()
