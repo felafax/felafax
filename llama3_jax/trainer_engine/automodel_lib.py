@@ -19,6 +19,11 @@ MODEL_NAME_TO_DOWNLOAD_CONFIG = {
         "felafax_model_name": "felafax/llama-3.1-8B-JAX",
         "chkpt_filename": "llama3.1_8b_serialized.flax",
     },
+    "llama-3.1-8B-Instruct-JAX": {
+        "hf_model_name": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+        "felafax_model_name": "felafax/llama-3.1-8B-Instruct-JAX",
+        "chkpt_filename": "llama3.1_instruct_8b_serialized.flax",
+    },
 }
 
 
