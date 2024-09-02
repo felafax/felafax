@@ -59,7 +59,7 @@ class AutoJAXModelForCausalLM:
                 download_config["hf_model_name"], token=huggingface_token)
         else:
             tokenizer = AutoTokenizer.from_pretrained(
-                download_config["hf_model_name"])
+                model_dir)
 
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token

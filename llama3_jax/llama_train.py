@@ -47,7 +47,7 @@ MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
 FELAFAX_DIR = os.path.dirname(os.path.dirname(llama3_jax.__file__))
 GCS_DIR = "/home/felafax-storage/"
 
-EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
+EXPORT_DIR = os.path.join(GCS_DIR, "export")
 HF_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
 
 # Ensure directories exist
