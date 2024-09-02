@@ -60,7 +60,6 @@ def open_file(path, mode="rb", cache_type="readahead"):
     if path.startswith("gs://"):
         raise NotImplementedError("GCS is not implemented yet.")
         import gcsfs
-        logging.getLogger("fsspec").setLevel(logging.WARNING)
         return gcsfs.GCSFileSystem().open(path, mode, cache_type=cache_type)
     else:
         return open(path, mode)
