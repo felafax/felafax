@@ -20,6 +20,9 @@ from transformers import LlamaConfig, LlamaForCausalLM
 from . import checkpoint_lib, jax_utils, utils
 from .jax_utils import cross_entropy_loss_and_accuracy
 
+# Top-level constant for the compiled train step pickle file path
+COMPILED_TRAIN_STEP_PATH = "/home/felafax-storage/compiled_train_step.pkl"
+
 
 class FelafaxTrainer(ABC):
 
@@ -106,10 +109,13 @@ class CausalLMTrainer(FelafaxTrainer):
     def load_or_compile_train_step(self):
         try:
             self.compiled_train_step = utils.load_pickle(
-                "compiled_train_step.pkl")
-            print("Loaded compiled train step.")
+                COMPILED_TRAIN_STEP_PATH)
+            print(
+                f"Loaded compiled train step from {COMPILED_TRAIN_STEP_PATH}")
         except FileNotFoundError:
-            print("Compiled train step not found. Compiling now...")
+            print(
+                f"Compiled train step not found at {COMPILED_TRAIN_STEP_PATH}. Compiling now..."
+            )
             self.compile_train_step()
 
     def compile_train_step(self):
@@ -136,8 +142,8 @@ class CausalLMTrainer(FelafaxTrainer):
             dummy_state, dummy_batch, jax.random.PRNGKey(0)).compile()
 
         # Save the compiled function
-        utils.save_pickle(self.compiled_train_step, "compiled_train_step.pkl")
-        print("Compiled train step saved.")
+        utils.save_pickle(self.compiled_train_step, COMPILED_TRAIN_STEP_PATH)
+        print(f"Compiled train step saved to {COMPILED_TRAIN_STEP_PATH}")
 
     def get_dummy_batch(self):
         # Create a dummy batch matching your expected input structure
