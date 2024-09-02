@@ -39,6 +39,8 @@ import optax
 import torch
 from datasets import load_dataset
 from transformers import default_data_collator
+from huggingface_hub import snapshot_download
+import shutil
 
 # Select a supported model from above list to use!
 MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
@@ -152,7 +154,7 @@ test_dataset_pipeline(tokenizer)
 class TrainingConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
-    max_steps: int | None = 5
+    max_steps: int | None = 1
     batch_size: int = 32
     seq_length: int = 64
     dataset_size_limit: int | None = 32
@@ -187,11 +189,28 @@ trainer.save_checkpoint(state, path=flax_checkpoint_path)
 convert_lib.save_hf_compatible_checkpoint(
     f'flax_params::{flax_checkpoint_path}', HF_EXPORT_DIR, model_configurator)
 
-# HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
-# HUGGINGFACE_USERNAME = input(
-#     "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
-# HUGGINGFACE_REPO_NAME = input(
-#     "INPUT: Please provide your HUGGINGFACE_REPO_NAME: ")
-# convert_lib.upload_checkpoint_to_hf(
-#     HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
-#     HUGGINGFACE_TOKEN)
+# Download and save the tokenizer
+tokenizer_repo = f"felafax/tokenizer-{MODEL_NAME}"
+tokenizer_dir = snapshot_download(repo_id=tokenizer_repo)
+
+# Move all files from tokenizer_dir to HF_EXPORT_DIR
+for item in os.listdir(tokenizer_dir):
+    s = os.path.join(tokenizer_dir, item)
+    d = os.path.join(HF_EXPORT_DIR, item)
+    if os.path.isfile(s):
+        shutil.copy2(s, d)
+        print(f"Copied {item} to {HF_EXPORT_DIR}")
+    elif os.path.isdir(s):
+        shutil.copytree(s, d, dirs_exist_ok=True)
+        print(f"Copied directory {item} to {HF_EXPORT_DIR}")
+
+print(f"All tokenizer files saved to {HF_EXPORT_DIR}")
+
+HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
+HUGGINGFACE_USERNAME = input(
+    "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
+HUGGINGFACE_REPO_NAME = input(
+    "INPUT: Please provide your HUGGINGFACE_REPO_NAME: ")
+convert_lib.upload_checkpoint_to_hf(
+    HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
+    HUGGINGFACE_TOKEN)

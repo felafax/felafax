@@ -8,7 +8,7 @@ import sys
 def setup_environment(base_dir):
     hf_dir = os.path.join(base_dir, "hf/")
     os.environ["HF_HUB_CACHE"] = hf_dir
-    os.environ["HF_HOME"] =hf_dir
+    os.environ["HF_HOME"] = hf_dir
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     # Note: The following shell commands won't work directly in Python.
