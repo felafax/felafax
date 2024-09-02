@@ -113,9 +113,9 @@ def create_llama_model(
 ) -> Union[LlamaTestConfigurator, Llama3_1_8B_Configurator,
            Llama3_1_70B_Configurator]:
     """Creates and returns the appropriate llama model."""
-    if model_name == "llama-3.1-8B-JAX":
+    if model_name in ("llama-3.1-8B-JAX", "llama-3.1-8B-Instruct-JAX"):
         return Llama3_1_8B_Configurator()
-    elif model_name == "llama-3.1-70B-JAX":
+    elif model_name in ("llama-3.1-70B-JAX", "llama-3.1-70B-Instruct-JAX"):
         return Llama3_1_70B_Configurator()
     elif model_name == "llama_test":
         return LlamaFactory()

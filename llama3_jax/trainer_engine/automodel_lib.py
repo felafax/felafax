@@ -33,7 +33,7 @@ class AutoJAXModelForCausalLM:
     def from_pretrained(
         cls,
         model_name: str,
-        huggingface_token: str,
+        huggingface_token: Optional[str] = None,
         **kwargs,
     ) -> Tuple[str, llama_model.CausalLlamaModule, LlamaConfigType,
                AutoTokenizer]:
@@ -49,10 +49,18 @@ class AutoJAXModelForCausalLM:
             )
 
         model_dir = snapshot_download(
-            repo_id=download_config["felafax_model_name"])
+            repo_id=download_config["felafax_model_name"],
+            token=huggingface_token if huggingface_token else None,
+        )
         model_path = os.path.join(model_dir, download_config["chkpt_filename"])
 
-        tokenizer = AutoTokenizer.from_pretrained(model_dir)
+        if huggingface_token:
+            tokenizer = AutoTokenizer.from_pretrained(
+                download_config["hf_model_name"], token=huggingface_token)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(
+                download_config["hf_model_name"])
+
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
