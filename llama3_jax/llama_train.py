@@ -54,8 +54,8 @@ HF_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
 utils.makedirs(EXPORT_DIR, exist_ok=True)
 utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
 
-model_path, model, model_configurator, tokenizer = (automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-        MODEL_NAME))
+model_path, model, model_configurator, tokenizer = (
+    automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
 
 
 def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
@@ -181,11 +181,11 @@ trainer = trainer_lib.CausalLMTrainer(
 
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
 
-export_path = os.path.join(EXPORT_DIR, ")
-trainer.save_checkpoint(state, path=export_path)
+flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
+trainer.save_checkpoint(state, path=flax_checkpoint_path)
 
-convert_lib.save_hf_compatible_checkpoint(f'flax_params::{export_path}',
-                                          HF_EXPORT_DIR, model_configurator)
+convert_lib.save_hf_compatible_checkpoint(
+    f'flax_params::{flax_checkpoint_path}', HF_EXPORT_DIR, model_configurator)
 
 # HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
 # HUGGINGFACE_USERNAME = input(
