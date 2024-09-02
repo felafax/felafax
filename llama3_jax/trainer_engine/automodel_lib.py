@@ -22,7 +22,7 @@ MODEL_NAME_TO_DOWNLOAD_CONFIG = {
     "llama-3.1-8B-Instruct-JAX": {
         "hf_model_name": "meta-llama/Meta-Llama-3.1-8B-Instruct",
         "felafax_model_name": "felafax/llama-3.1-8B-Instruct-JAX",
-        "chkpt_filename": "llama3.1_instruct_8b_serialized.flax",
+        "chkpt_filename": "llama-3.1-8B-Instruct-JAX.flax",
     },
 }
 
@@ -48,22 +48,13 @@ class AutoJAXModelForCausalLM:
                 f"Available models are: {', '.join(MODEL_NAME_TO_DOWNLOAD_CONFIG.keys())}"
             )
 
-        hf_config = AutoConfig.from_pretrained(
-            download_config["hf_model_name"], token=huggingface_token)
+        model_dir = snapshot_download(
+            repo_id=download_config["felafax_model_name"])
+        model_path = os.path.join(model_dir, download_config["chkpt_filename"])
 
-        tokenizer = AutoTokenizer.from_pretrained(
-            download_config["hf_model_name"],
-            token=huggingface_token,
-        )
+        tokenizer = AutoTokenizer.from_pretrained(model_dir)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
-
-        model_path = snapshot_download(
-            repo_id=download_config["felafax_model_name"],
-            token=huggingface_token,
-        )
-        model_path = os.path.join(model_path,
-                                  download_config["chkpt_filename"])
 
         print(f"{model_name} was downloaded to {model_path}.")
 
