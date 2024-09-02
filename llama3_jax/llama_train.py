@@ -41,20 +41,26 @@ from datasets import load_dataset
 from transformers import default_data_collator
 from huggingface_hub import snapshot_download
 import shutil
+from datetime import datetime
+import gzip
+import os
 
 # Select a supported model from above list to use!
 MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
 
 # Constants for paths
 FELAFAX_DIR = os.path.dirname(os.path.dirname(llama3_jax.__file__))
-GCS_DIR = "/home/felafax-storage/"
 
-EXPORT_DIR = os.path.join(GCS_DIR, "export")
-HF_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
+EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
+HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
+
+current_date = datetime.now().strftime("%Y%m%d")
+GCS_DIR = f"/home/felafax-storage/checkpoints/{MODEL_NAME}/{current_date}/"
 
 # Ensure directories exist
 utils.makedirs(EXPORT_DIR, exist_ok=True)
 utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
+utils.makedirs(GCS_DIR, exist_ok=True)
 
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
@@ -206,11 +212,47 @@ for item in os.listdir(tokenizer_dir):
 
 print(f"All tokenizer files saved to {HF_EXPORT_DIR}")
 
-HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
-HUGGINGFACE_USERNAME = input(
-    "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
-HUGGINGFACE_REPO_NAME = input(
-    "INPUT: Please provide your HUGGINGFACE_REPO_NAME: ")
-convert_lib.upload_checkpoint_to_hf(
-    HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
-    HUGGINGFACE_TOKEN)
+# Compress and copy checkpoint to GCS
+gzip_checkpoint_path = f"{flax_checkpoint_path}.gz"
+with open(flax_checkpoint_path, 'rb') as f_in:
+    with gzip.open(gzip_checkpoint_path, 'wb') as f_out:
+        f_out.writelines(f_in)
+
+gcs_checkpoint_path = os.path.join(GCS_DIR,
+                                   os.path.basename(gzip_checkpoint_path))
+shutil.copy2(gzip_checkpoint_path, gcs_checkpoint_path)
+print(f"Compressed and copied {flax_checkpoint_path} to {gcs_checkpoint_path}")
+
+# Remove the local gzip file to save space
+os.remove(gzip_checkpoint_path)
+
+# HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
+# HUGGINGFACE_USERNAME = input(
+#     "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
+# HUGGINGFACE_REPO_NAME = input(
+#     "INPUT: Please provide your HUGGINGFACE_REPO_NAME: ")
+# convert_lib.upload_checkpoint_to_hf(
+#     HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
+#     HUGGINGFACE_TOKEN)
+
+import os
+import tarfile
+import gzip
+import shutil
+
+# Create a tar.gz archive of all files in HF_EXPORT_DIR
+archive_name = f"{os.path.basename(HF_EXPORT_DIR)}.tar.gz"
+archive_path = os.path.join(os.path.dirname(HF_EXPORT_DIR), archive_name)
+
+with tarfile.open(archive_path, "w:gz") as tar:
+    tar.add(HF_EXPORT_DIR, arcname=os.path.basename(HF_EXPORT_DIR))
+
+# Copy the archive to GCS_DIR
+gcs_archive_path = os.path.join(GCS_DIR, archive_name)
+shutil.copy2(archive_path, gcs_archive_path)
+
+print(f"Compressed all files from {HF_EXPORT_DIR} into {archive_name}")
+print(f"Copied {archive_name} to {gcs_archive_path}")
+
+# Remove the local archive to save space
+os.remove(archive_path)
