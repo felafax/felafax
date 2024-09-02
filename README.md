@@ -59,5 +59,7 @@ If you prefer a self-hosted training version, follow the instructions below. The
 3. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
 
 ## Credits:
+- Google Deepmind's [Gemma repo](https://github.com/google-deepmind/gemma).
+- [EasyLM](https://github.com/young-geng/EasyLM) for great work on llama models in JAX
 - PyTorch XLA FSDP and SPMD testing done by [HeegyuKim](https://github.com/HeegyuKim/torch-xla-SPMD).
 - Examples from [PyTorch-XLA](https://github.com/pytorch/xla/) repo.
