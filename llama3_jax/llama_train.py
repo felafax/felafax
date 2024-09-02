@@ -8,9 +8,10 @@ import sys
 import jax
 import jax.numpy as jnp
 
-# Add the parent directory of the current working directory to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '.')))
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '..')))
+# Add the current directory and its parent to the Python path.
+# This allows importing modules from these directories.
+sys.path.append(os.path.abspath(os.getcwd()))
+sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
 
 try:
     import llama3_jax
@@ -19,11 +20,14 @@ except ImportError as e:
     print(f"Error importing llama3_jax: {e}")
 
 from llama3_jax.trainer_engine import setup
-setup.setup_environment()
+
+setup.setup_environment(base_dir="/home/")
 
 from llama3_jax import llama_config
-from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib, convert_lib,
-                             jax_utils, trainer_lib, utils)
+from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
+                                       convert_lib, jax_utils, trainer_lib,
+                                       utils)
+
 setup.reload_modules("llama3_jax")
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
@@ -36,26 +40,22 @@ import torch
 from datasets import load_dataset
 from transformers import default_data_collator
 
-HUGGINGFACE_USERNAME = input(
-    "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
-HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
-
 # Select a supported model from above list to use!
-MODEL_NAME = "Meta-Llama-3.1-8B"
+MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
 
 # Constants for paths
-FELAFAX_DIR = os.path.dirname(os.path.dirname(felafax.__file__))
+FELAFAX_DIR = os.path.dirname(os.path.dirname(llama3_jax.__file__))
 GCS_DIR = "/home/felafax-storage/"
+
 EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
-HF_COMPATIBLE_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
-HF_REPO_ID = "felarof01/test_checkpoint"
+HF_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
 
 # Ensure directories exist
 utils.makedirs(EXPORT_DIR, exist_ok=True)
-utils.makedirs(HF_COMPATIBLE_EXPORT_DIR, exist_ok=True)
+utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
 
-model_path, model, model_configurator, tokenizer = automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-    "llama-3.1-8B-JAX", HUGGINGFACE_TOKEN)
+model_path, model, model_configurator, tokenizer = (automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+        MODEL_NAME))
 
 
 def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
@@ -181,11 +181,17 @@ trainer = trainer_lib.CausalLMTrainer(
 
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
 
-export_path = os.path.join(EXPORT_DIR, "llama3.flax")
+export_path = os.path.join(EXPORT_DIR, ")
 trainer.save_checkpoint(state, path=export_path)
 
 convert_lib.save_hf_compatible_checkpoint(f'flax_params::{export_path}',
-                                          HF_COMPATIBLE_EXPORT_DIR,
-                                          model_configurator)
+                                          HF_EXPORT_DIR, model_configurator)
 
-# convert_lib.upload_checkpoint_to_hf(HF_COMPATIBLE_EXPORT_DIR, HF_REPO_ID, HUGGINGFACE_TOKEN)
+# HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
+# HUGGINGFACE_USERNAME = input(
+#     "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
+# HUGGINGFACE_REPO_NAME = input(
+#     "INPUT: Please provide your HUGGINGFACE_REPO_NAME: ")
+# convert_lib.upload_checkpoint_to_hf(
+#     HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
+#     HUGGINGFACE_TOKEN)
