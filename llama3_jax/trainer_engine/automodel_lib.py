@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, Optional
 
 import jax.numpy as jnp
 from huggingface_hub import snapshot_download
