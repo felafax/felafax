@@ -30,6 +30,10 @@ from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
 
 setup.reload_modules("llama3_jax")
 
+import gzip
+import os
+import shutil
+from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import chex
@@ -38,12 +42,8 @@ import jax.numpy as jnp
 import optax
 import torch
 from datasets import load_dataset
-from transformers import default_data_collator
 from huggingface_hub import snapshot_download
-import shutil
-from datetime import datetime
-import gzip
-import os
+from transformers import default_data_collator
 
 # Select a supported model from above list to use!
 MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
@@ -166,6 +166,7 @@ class TrainingConfig:
     dataset_size_limit: int | None = 32
     print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
+    max_eval_steps: int | None = 1
 
 
 training_cfg = TrainingConfig()

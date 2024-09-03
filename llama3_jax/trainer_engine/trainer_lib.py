@@ -299,7 +299,10 @@ class CausalLMTrainer(FelafaxTrainer):
         total_accuracy = 0
         num_batches = 0
 
-        for eval_batch in eval_dataloader:
+        for step, eval_batch in enumerate(eval_dataloader):
+            if self.training_config.max_eval_steps and step >= self.training_config.max_eval_steps:
+                break
+
             eval_batch = jax.device_put(eval_batch,
                                         NamedSharding(self.mesh, PS()))
 
@@ -307,14 +310,22 @@ class CausalLMTrainer(FelafaxTrainer):
                 metrics = self.jitted_eval_step(state, eval_batch)
             else:
                 metrics = self.eval_step(state, eval_batch)
+
             total_loss += metrics['loss']
             total_accuracy += metrics['accuracy']
             num_batches += 1
 
-        return {
-            'loss': total_loss / num_batches,
-            'accuracy': total_accuracy / num_batches
-        }
+            print(
+                f"Eval Step {step}, Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
+            )
+
+        avg_loss = total_loss / num_batches
+        avg_accuracy = total_accuracy / num_batches
+        print(
+            f"Evaluation complete. Average Loss: {avg_loss:.4f}, Average Accuracy: {avg_accuracy:.4f}"
+        )
+
+        return {'loss': avg_loss, 'accuracy': avg_accuracy}
 
     def save_checkpoint(self, state, path):
         print(f"Saving checkpoint to {path}...")
