@@ -20,6 +20,10 @@ from transformers import LlamaConfig, LlamaForCausalLM
 from . import checkpoint_lib, jax_utils, utils
 from .jax_utils import cross_entropy_loss_and_accuracy
 
+# Top-level constant for the compiled train step pickle file path
+COMPILED_TRAIN_STEP_PATH = "/home/felafax-storage/compiled_train_step.pkl"
+
+
 class FelafaxTrainer(ABC):
 
     @abstractmethod
@@ -67,6 +71,7 @@ class CausalLMTrainer(FelafaxTrainer):
         self.mesh = mesh
         self.model_params = model_params
 
+        self.compiled_train_step = None
         self.setup()
 
     def setup(self):
@@ -98,6 +103,58 @@ class CausalLMTrainer(FelafaxTrainer):
                     self.model_params)
             else:
                 raise ValueError("Failed to load checkpoint")
+
+        self.load_or_compile_train_step()
+
+    def load_or_compile_train_step(self):
+        try:
+            self.compiled_train_step = utils.load_pickle(
+                COMPILED_TRAIN_STEP_PATH)
+            print(
+                f"Loaded compiled train step from {COMPILED_TRAIN_STEP_PATH}")
+        except FileNotFoundError:
+            print(
+                f"Compiled train step not found at {COMPILED_TRAIN_STEP_PATH}. Compiling now..."
+            )
+            self.compile_train_step()
+
+    def compile_train_step(self):
+        print("Compiling train step...")
+        dummy_state = self.create_train_state_from_params(self.model_params)
+        dummy_batch = self.get_dummy_batch()
+
+        aot_train_step = jax.jit(
+            self.train_step,
+            static_argnums=(2, ),  # rng is static
+            donate_argnums=(0, ),  # Allow reuse of memory for state
+            in_shardings=(
+                self.state_shapes_partitioned,  # state
+                NamedSharding(self.mesh, PS()),  # batch
+                NamedSharding(self.mesh, PS())  # rng
+            ),
+            out_shardings=(
+                self.state_shapes_partitioned,  # updated state
+                NamedSharding(self.mesh, PS()),  # new rng
+                NamedSharding(self.mesh, PS())  # metrics
+            ))
+
+        self.compiled_train_step = aot_train_step.lower(
+            dummy_state, dummy_batch, jax.random.PRNGKey(0)).compile()
+
+        # Save the compiled function
+        utils.save_pickle(self.compiled_train_step, COMPILED_TRAIN_STEP_PATH)
+        print(f"Compiled train step saved to {COMPILED_TRAIN_STEP_PATH}")
+
+    def get_dummy_batch(self):
+        # Create a dummy batch matching your expected input structure
+        return {
+            "input_tokens":
+            jnp.zeros((4, self.training_config.seq_length), dtype=jnp.int32),
+            "target_tokens":
+            jnp.zeros((4, self.training_config.seq_length), dtype=jnp.int32),
+            "loss_masks":
+            jnp.ones((4, self.training_config.seq_length), dtype=jnp.float32),
+        }
 
     def get_state_shapes(self):
         return jax.eval_shape(
@@ -193,7 +250,11 @@ class CausalLMTrainer(FelafaxTrainer):
         )
         return metrics
 
-    def train(self, train_dataloader, eval_dataloader, run_jitted=True):
+    def train(self,
+              train_dataloader,
+              eval_dataloader,
+              run_jitted=True,
+              run_aot=False):
         state = self.train_state
 
         for epoch in range(self.training_config.num_epochs):
@@ -205,7 +266,10 @@ class CausalLMTrainer(FelafaxTrainer):
 
                 sharded_rng = jax_utils.next_rng()
 
-                if run_jitted:
+                if run_aot and self.compiled_train_step is not None:
+                    state, sharded_rng, metrics = self.compiled_train_step(
+                        state, train_batch, sharded_rng)
+                elif run_jitted:
                     state, sharded_rng, metrics = self.jitted_train_step(
                         state, train_batch, sharded_rng)
                 else:
