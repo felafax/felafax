@@ -21,7 +21,7 @@ from . import checkpoint_lib, jax_utils, utils
 from .jax_utils import cross_entropy_loss_and_accuracy
 
 # Top-level constant for the compiled train step pickle file path
-COMPILED_TRAIN_STEP_PATH = "/home/felafax-storage/compiled_train_step.pkl"
+COMPILED_TRAIN_STEP_PATH = "/mnt/persistent-disk/compiled/compiled_train_step.pkl"
 
 
 class FelafaxTrainer(ABC):
