@@ -179,6 +179,26 @@ train_dataloader, val_dataloader = get_dataset(
     max_examples=training_cfg.dataset_size_limit,
 )
 
+# Calculate and print training steps information
+total_samples = len(train_dataloader.dataset)
+batch_size = training_cfg.batch_size
+steps_per_epoch = (total_samples + batch_size - 1) // batch_size
+total_steps = steps_per_epoch * training_cfg.num_epochs
+
+if training_cfg.max_steps:
+    total_steps = min(total_steps, training_cfg.max_steps)
+
+print("\nTraining Configuration Summary:")
+print(f"Total samples: {total_samples}")
+print(f"Batch size: {batch_size}")
+print(f"Number of epochs: {training_cfg.num_epochs}")
+print(f"Steps per epoch: {steps_per_epoch}")
+print(f"Total training steps: {total_steps}")
+if training_cfg.max_steps and total_steps == training_cfg.max_steps:
+    print(
+        f"*Note*: Total steps limited by max_steps setting ({training_cfg.max_steps})"
+    )
+
 trainer = trainer_lib.CausalLMTrainer(
     model=model,
     model_ckpt_path=model_path,
