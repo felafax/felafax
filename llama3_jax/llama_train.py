@@ -21,7 +21,7 @@ except ImportError as e:
 
 from llama3_jax.trainer_engine import setup
 
-setup.setup_environment(base_dir="/home/")
+setup.setup_environment(base_dir="/mnt/persistent-disk/")
 
 from llama3_jax import llama_config
 from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
@@ -49,7 +49,7 @@ import os
 MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
 
 # Constants for paths
-FELAFAX_DIR = os.path.dirname(os.path.dirname(llama3_jax.__file__))
+FELAFAX_DIR = "/mnt/persistent-disk" # os.path.dirname(os.path.dirname(llama3_jax.__file__))
 
 EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
 HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
@@ -212,19 +212,20 @@ for item in os.listdir(tokenizer_dir):
 
 print(f"All tokenizer files saved to {HF_EXPORT_DIR}")
 
-# Compress and copy checkpoint to GCS
-gzip_checkpoint_path = f"{flax_checkpoint_path}.gz"
-with open(flax_checkpoint_path, 'rb') as f_in:
-    with gzip.open(gzip_checkpoint_path, 'wb') as f_out:
-        f_out.writelines(f_in)
 
-gcs_checkpoint_path = os.path.join(GCS_DIR,
-                                   os.path.basename(gzip_checkpoint_path))
-shutil.copy2(gzip_checkpoint_path, gcs_checkpoint_path)
-print(f"Compressed and copied {flax_checkpoint_path} to {gcs_checkpoint_path}")
+# Compress and copy checkpoint to GCS
+# gzip_checkpoint_path = f"{flax_checkpoint_path}.gz"
+# with open(flax_checkpoint_path, 'rb') as f_in:
+#     with gzip.open(gzip_checkpoint_path, 'wb') as f_out:
+#         f_out.writelines(f_in)
+
+# gcs_checkpoint_path = os.path.join(GCS_DIR,
+#                                    os.path.basename(gzip_checkpoint_path))
+# shutil.copy2(gzip_checkpoint_path, gcs_checkpoint_path)
+# print(f"Compressed and copied {flax_checkpoint_path} to {gcs_checkpoint_path}")
 
 # Remove the local gzip file to save space
-os.remove(gzip_checkpoint_path)
+# os.remove(gzip_checkpoint_path)
 
 # HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
 # HUGGINGFACE_USERNAME = input(
@@ -235,24 +236,37 @@ os.remove(gzip_checkpoint_path)
 #     HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
 #     HUGGINGFACE_TOKEN)
 
-import os
-import tarfile
-import gzip
+
 import shutil
 
-# Create a tar.gz archive of all files in HF_EXPORT_DIR
-archive_name = f"{os.path.basename(HF_EXPORT_DIR)}.tar.gz"
-archive_path = os.path.join(os.path.dirname(HF_EXPORT_DIR), archive_name)
+# Replace the tar.gz creation and copying code with this:
 
-with tarfile.open(archive_path, "w:gz") as tar:
-    tar.add(HF_EXPORT_DIR, arcname=os.path.basename(HF_EXPORT_DIR))
+# Copy all files from HF_EXPORT_DIR to GCS_DIR
+for item in os.listdir(HF_EXPORT_DIR):
+    if item == "tmp":
+        continue  # Skip the tmp directory
+    s = os.path.join(HF_EXPORT_DIR, item)
+    d = os.path.join(GCS_DIR, item)
+    if os.path.isfile(s):
+        shutil.copy2(s, d)
+    elif os.path.isdir(s):
+        shutil.copytree(s, d, dirs_exist_ok=True)
 
-# Copy the archive to GCS_DIR
-gcs_archive_path = os.path.join(GCS_DIR, archive_name)
-shutil.copy2(archive_path, gcs_archive_path)
+print(f"Copied all files from {HF_EXPORT_DIR} to {GCS_DIR}")
 
-print(f"Compressed all files from {HF_EXPORT_DIR} into {archive_name}")
-print(f"Copied {archive_name} to {gcs_archive_path}")
+# # Create a tar.gz archive of all files in HF_EXPORT_DIR
+# archive_name = f"{os.path.basename(HF_EXPORT_DIR)}.tar.gz"
+# archive_path = os.path.join(os.path.dirname(HF_EXPORT_DIR), archive_name)
 
-# Remove the local archive to save space
-os.remove(archive_path)
+# with tarfile.open(archive_path, "w:gz") as tar:
+#     tar.add(HF_EXPORT_DIR, arcname=os.path.basename(HF_EXPORT_DIR))
+
+# # Copy the archive to GCS_DIR
+# gcs_archive_path = os.path.join(GCS_DIR, archive_name)
+# shutil.copy2(archive_path, gcs_archive_path)
+
+# print(f"Compressed all files from {HF_EXPORT_DIR} into {archive_name}")
+# print(f"Copied {archive_name} to {gcs_archive_path}")
+
+# # Remove the local archive to save space
+# os.remove(archive_path)
