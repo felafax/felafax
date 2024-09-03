@@ -1,6 +1,9 @@
 """Checkpoints JAX models efficiently, will replace with Orbax soon!"""
+import asyncio
 import os
+import shutil
 
+import aiofiles
 import flax
 import jax
 import jax.numpy as jnp
@@ -16,10 +19,6 @@ from ml_collections import ConfigDict
 
 from . import jax_utils, utils
 
-import asyncio
-import aiofiles
-import os
-import shutil
 
 async def async_copy_directory(src, dst):
     """Asynchronously copy a directory from src to dst."""
@@ -48,7 +47,11 @@ async def async_copy_directory(src, dst):
 def copy_directory(src, dst):
     """Synchronous wrapper for async_copy_directory."""
     print("copying directory ", src, " to ", dst)
-    asyncio.run(async_copy_directory(src, dst))
+    loop = asyncio.get_event_loop()  # Get the current event loop
+    if loop.is_running():
+        loop.create_task(async_copy_directory(src, dst))  # Schedule the coroutine on the running loop
+    else:
+        loop.run_until_complete(async_copy_directory(src, dst))  # This is for non-interactive environments
     print(f"Copied all files from {src} to {dst}")
 
 def get_float_dtype_by_name(dtype):
