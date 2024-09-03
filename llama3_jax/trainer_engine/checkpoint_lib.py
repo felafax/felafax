@@ -16,6 +16,40 @@ from ml_collections import ConfigDict
 
 from . import jax_utils, utils
 
+import asyncio
+import aiofiles
+import os
+import shutil
+
+async def async_copy_directory(src, dst):
+    """Asynchronously copy a directory from src to dst."""
+    async def copy_file(src, dst):
+        async with aiofiles.open(src, 'rb') as fsrc:
+            async with aiofiles.open(dst, 'wb') as fdst:
+                await fdst.write(await fsrc.read())
+
+    async def copy_item(src, dst):
+        print(f"Copying {src} to {dst}")
+        if os.path.isfile(src):
+            await copy_file(src, dst)
+        elif os.path.isdir(src):
+            print("skipping directory ", src)
+
+    tasks = []
+    for item in os.listdir(src):
+        if item == "tmp":
+            continue  # Skip the tmp directory
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        tasks.append(copy_item(s, d))
+    
+    await asyncio.gather(*tasks)
+
+def copy_directory(src, dst):
+    """Synchronous wrapper for async_copy_directory."""
+    print("copying directory ", src, " to ", dst)
+    asyncio.run(async_copy_directory(src, dst))
+    print(f"Copied all files from {src} to {dst}")
 
 def get_float_dtype_by_name(dtype):
     return {

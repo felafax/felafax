@@ -8,9 +8,10 @@ import sys
 import jax
 import jax.numpy as jnp
 
-# Add the parent directory of the current working directory to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '.')))
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '..')))
+# Add the current directory and its parent to the Python path.
+# This allows importing modules from these directories.
+sys.path.append(os.path.abspath(os.getcwd()))
+sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
 
 try:
     import llama3_jax
@@ -19,11 +20,14 @@ except ImportError as e:
     print(f"Error importing llama3_jax: {e}")
 
 from llama3_jax.trainer_engine import setup
-setup.setup_environment()
+
+setup.setup_environment(base_dir="/mnt/persistent-disk/")
 
 from llama3_jax import llama_config
-from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib, convert_lib,
-                             jax_utils, trainer_lib, utils)
+from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
+                                       convert_lib, jax_utils, trainer_lib,
+                                       utils)
+
 setup.reload_modules("llama3_jax")
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
@@ -35,27 +39,31 @@ import optax
 import torch
 from datasets import load_dataset
 from transformers import default_data_collator
-
-HUGGINGFACE_USERNAME = input(
-    "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
-HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
+from huggingface_hub import snapshot_download
+import shutil
+from datetime import datetime
+import gzip
+import os
 
 # Select a supported model from above list to use!
-MODEL_NAME = "Meta-Llama-3.1-8B"
+MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
 
 # Constants for paths
-FELAFAX_DIR = os.path.dirname(os.path.dirname(felafax.__file__))
-GCS_DIR = "/home/felafax-storage/"
+FELAFAX_DIR = "/mnt/persistent-disk" # os.path.dirname(os.path.dirname(llama3_jax.__file__))
+
 EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
-HF_COMPATIBLE_EXPORT_DIR = os.path.join(GCS_DIR, "hf_export")
-HF_REPO_ID = "felarof01/test_checkpoint"
+HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
+
+current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+GCS_DIR = f"/home/felafax-storage/checkpoints/{MODEL_NAME}/{current_datetime}/"
 
 # Ensure directories exist
 utils.makedirs(EXPORT_DIR, exist_ok=True)
-utils.makedirs(HF_COMPATIBLE_EXPORT_DIR, exist_ok=True)
+utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
+utils.makedirs(GCS_DIR, exist_ok=True)
 
-model_path, model, model_configurator, tokenizer = automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-    "llama-3.1-8B-JAX", HUGGINGFACE_TOKEN)
+model_path, model, model_configurator, tokenizer = (
+    automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
 
 
 def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
@@ -152,7 +160,7 @@ test_dataset_pipeline(tokenizer)
 class TrainingConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
-    max_steps: int | None = 5
+    max_steps: int | None = 1
     batch_size: int = 32
     seq_length: int = 64
     dataset_size_limit: int | None = 32
@@ -181,11 +189,36 @@ trainer = trainer_lib.CausalLMTrainer(
 
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
 
-export_path = os.path.join(EXPORT_DIR, "llama3.flax")
-trainer.save_checkpoint(state, path=export_path)
+flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
+trainer.save_checkpoint(state, path=flax_checkpoint_path)
 
-convert_lib.save_hf_compatible_checkpoint(f'flax_params::{export_path}',
-                                          HF_COMPATIBLE_EXPORT_DIR,
-                                          model_configurator)
+convert_lib.save_hf_compatible_checkpoint(
+    f'flax_params::{flax_checkpoint_path}', HF_EXPORT_DIR, model_configurator)
 
-# convert_lib.upload_checkpoint_to_hf(HF_COMPATIBLE_EXPORT_DIR, HF_REPO_ID, HUGGINGFACE_TOKEN)
+# Download and save the tokenizer
+tokenizer_repo = f"felafax/tokenizer-{MODEL_NAME}"
+tokenizer_dir = snapshot_download(repo_id=tokenizer_repo)
+
+# Move all files from tokenizer_dir to HF_EXPORT_DIR
+for item in os.listdir(tokenizer_dir):
+    s = os.path.join(tokenizer_dir, item)
+    d = os.path.join(HF_EXPORT_DIR, item)
+    if os.path.isfile(s):
+        shutil.copy2(s, d)
+        print(f"Copied {item} to {HF_EXPORT_DIR}")
+    elif os.path.isdir(s):
+        shutil.copytree(s, d, dirs_exist_ok=True)
+        print(f"Copied directory {item} to {HF_EXPORT_DIR}")
+print(f"All tokenizer files saved to {HF_EXPORT_DIR}")
+
+checkpoint_lib.copy_directory(HF_EXPORT_DIR, GCS_DIR)
+print(f"Checkpoint copied to {GCS_DIR}")
+
+# HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
+# HUGGINGFACE_USERNAME = input(
+#     "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
+# HUGGINGFACE_REPO_NAME = input(
+#     "INPUT: Please provide your HUGGINGFACE_REPO_NAME: ")
+# convert_lib.upload_checkpoint_to_hf(
+#     HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
+#     HUGGINGFACE_TOKEN)
