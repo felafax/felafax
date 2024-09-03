@@ -28,7 +28,7 @@ async def async_copy_directory(src, dst):
                 await fdst.write(await fsrc.read())
 
     async def copy_item(src, dst):
-        print(f"Copying {src} to {dst}")
+        # print(f"Copying {src} to {dst}")
         if os.path.isfile(src):
             await copy_file(src, dst)
         elif os.path.isdir(src):
