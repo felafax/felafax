@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "felafax"
-version = "1.0.2"
+version = "1.0.3"
 description = "felafax"
 authors = ["Nithin <nithin@felafax.ai>"]
 license = "Apache-2.0"
@@ -16,22 +16,28 @@ packages = [{include = "llama3_jax"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-cloudpickle = "^1.6.0"
+aiofiles = "*"
+cloudpickle = "*"
 datasets = "^2.18.0"
-einops = "^0.6.1"
-flax = {extras = ["all"], version = "^0.8.0"}
-gcsfs = "^2023.6.0"
-jax = {extras = ["tpu"], version = "^0.4.13"}
-ml_collections = "^0.1.1"
-optax = "^0.1.7"
-requests = "^2.31.0"
-sentencepiece = "^0.1.99"
-torch = "^2.0.1"
-tqdm = "^4.66.1"
-transformers = "^4.43.0"
+einops = "*"
+flax = {extras = ["all"], version = "*"}
+gcsfs = "*"
+jax = {extras = ["tpu"], version = "*"}
+ml_collections = "*"
+optax = "*"
+requests = "*"
+sentencepiece = "*"
+torch = {version = "*", source = "pytorch"}
+tqdm = "*"
+transformers = "^4.43.2"
 
 [tool.poetry.group.test.dependencies]
-pytest = "^8.0.0"
+pytest = "*"
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/felafax/felafax/issues"
