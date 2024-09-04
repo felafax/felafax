@@ -17,6 +17,7 @@ from jax.sharding import Mesh, NamedSharding
 from jax.sharding import PartitionSpec as PS
 from ml_collections import ConfigDict
 
+import pdb
 from . import jax_utils, utils
 
 
@@ -228,7 +229,7 @@ class Checkpointer(object):
         if remove_dict_prefix is not None:
             remove_dict_prefix = tuple(remove_dict_prefix)
         flattend_train_state = {}
-        with mlxu.open_file(path) as fin:
+        with utils.open_file(path) as fin:
             # 83886080 bytes = 80 MB, which is 16 blocks on GCS
             unpacker = msgpack.Unpacker(fin, read_size=83886080, max_buffer_size=0)
             for key, value in unpacker:
@@ -252,6 +253,7 @@ class Checkpointer(object):
                 if key not in flattend_train_state and value == empty_node:
                     flattend_train_state[key] = value
 
+        pdb.set_trace()
         train_state = unflatten_dict(flattend_train_state)
         if target is None:
             return train_state
@@ -300,6 +302,7 @@ class Checkpointer(object):
 
         if load_type == 'params':
             # Load the params in the streaming format
+            pdb.set_trace()
             restored_params = cls.load_checkpoint(
                 path=load_path,
                 target=params_target,

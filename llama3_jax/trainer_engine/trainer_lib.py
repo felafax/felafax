@@ -6,6 +6,7 @@ import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
+import pdb
 
 import chex
 import flax
@@ -93,8 +94,9 @@ class CausalLMTrainer(FelafaxTrainer):
         with self.mesh:
             print("Loading causal language model...")
             if self.model_params is None:
+                pdb.set_trace()
                 _, self.model_params = self.checkpointer.load_trainstate_checkpoint(
-                    "flax_params::" + self.model_ckpt_path, self.state_shapes,
+                    "params::" + self.model_ckpt_path, self.state_shapes,
                     self.shard_fns)
 
             if self.model_params is not None:
