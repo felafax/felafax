@@ -2,6 +2,7 @@
 import asyncio
 import os
 import shutil
+from concurrent.futures import Future
 
 import aiofiles
 import flax
@@ -46,14 +47,26 @@ async def async_copy_directory(src, dst):
     await asyncio.gather(*tasks)
 
 def copy_directory(src, dst):
-    """Synchronous wrapper for async_copy_directory."""
-    print("copying directory ", src, " to ", dst)
+    """Synchronous wrapper for async_copy_directory that returns a Future."""
+    print(f"Starting to copy directory {src} to {dst}")
     loop = asyncio.get_event_loop()  # Get the current event loop
+    future = Future()
+
+    async def copy_and_set_result():
+        try:
+            await async_copy_directory(src, dst)
+            print(f"Copied all files from {src} to {dst}")
+            future.set_result(None)
+        except Exception as e:
+            print(f"Error copying files from {src} to {dst}: {e}")
+            future.set_exception(e)
+
     if loop.is_running():
-        loop.create_task(async_copy_directory(src, dst))  # Schedule the coroutine on the running loop
+        loop.create_task(copy_and_set_result())
     else:
-        loop.run_until_complete(async_copy_directory(src, dst))  # This is for non-interactive environments
-    print(f"Copied all files from {src} to {dst}")
+        loop.run_until_complete(copy_and_set_result())
+
+    return future
 
 def get_float_dtype_by_name(dtype):
     return {
