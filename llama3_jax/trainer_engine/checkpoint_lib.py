@@ -253,7 +253,6 @@ class Checkpointer(object):
                 if key not in flattend_train_state and value == empty_node:
                     flattend_train_state[key] = value
 
-        pdb.set_trace()
         train_state = unflatten_dict(flattend_train_state)
         if target is None:
             return train_state
@@ -302,7 +301,6 @@ class Checkpointer(object):
 
         if load_type == 'params':
             # Load the params in the streaming format
-            pdb.set_trace()
             restored_params = cls.load_checkpoint(
                 path=load_path,
                 target=params_target,

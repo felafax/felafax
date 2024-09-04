@@ -94,7 +94,6 @@ class CausalLMTrainer(FelafaxTrainer):
         with self.mesh:
             print("Loading causal language model...")
             if self.model_params is None:
-                pdb.set_trace()
                 _, self.model_params = self.checkpointer.load_trainstate_checkpoint(
                     "params::" + self.model_ckpt_path, self.state_shapes,
                     self.shard_fns)
