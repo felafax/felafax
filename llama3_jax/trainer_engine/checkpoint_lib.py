@@ -41,7 +41,7 @@ async def async_copy_directory(src, dst):
         s = os.path.join(src, item)
         d = os.path.join(dst, item)
         tasks.append(copy_item(s, d))
-    
+
     await asyncio.gather(*tasks)
 
 def copy_directory(src, dst):
@@ -168,22 +168,103 @@ class Checkpointer(object):
                 flax.serialization.msgpack_serialize(
                     train_state.params["params"], in_place=True))
 
+    def save_checkpoint(self, train_state, filename, gather_fns=None):
+        if self.enable:
+            path = os.path.join(self.checkpoint_dir, filename)
+        else:
+            path = '/dev/null'
+        self.save_train_state_to_file(
+            train_state, path, gather_fns, self.config.float_dtype
+        )
+
     @staticmethod
-    def _load_flax_checkpoint(path, param_shapes=None, shard_fns=None):
-        """Load a standard flax checkpoint that's not saved with the
-        msgpack streaming format.
+    def save_train_state_to_file(train_state, path, gather_fns=None, float_dtype=None):
+        train_state = to_state_dict(train_state)
+        packer = msgpack.Packer()
+        flattend_train_state = flatten_dict(train_state)
+        if gather_fns is not None:
+            gather_fns = flatten_dict(to_state_dict(gather_fns))
 
-        Args:
-            path (str): Path to the checkpoint file.
-            param_shapes (Any, optional): Template object to restore the state into.
-            shard_fns (dict, optional): Functions to apply to each shard of the loaded state.
+        with mlxu.open_file(path, "wb") as fout:
+            for key, value in flattend_train_state.items():
+                if gather_fns is not None:
+                    value = gather_fns[key](value)
+                value = float_tensor_to_dtype(value, float_dtype)
+                fout.write(packer.pack((key, to_bytes(value))))
 
-        Returns:
-            The loaded and potentially reshaped state dictionary.
+    def save_pickle(self, obj, filename):
+        if self.enable:
+            path = os.path.join(self.checkpoint_dir, filename)
+        else:
+            path = '/dev/null'
+        mlxu.save_pickle(obj, path)
+
+    def save_all(self, train_state, gather_fns, metadata=None, dataset=None, milestone=False):
+        step = int(jax.device_get(train_state.step))
+        if self.config.save_optimizer_state:
+            checkpoint_state = train_state
+            checkpoint_name = 'streaming_train_state'
+            checkpoint_gather_fns = gather_fns
+        else:
+            checkpoint_state = train_state.params['params']
+            checkpoint_name = 'streaming_params'
+            checkpoint_gather_fns = gather_fns.params['params']
+
+        if milestone:
+            self.save_checkpoint(
+                checkpoint_state, f'{checkpoint_name}_{step}', checkpoint_gather_fns
+            )
+        else:
+            self.save_checkpoint(
+                checkpoint_state, f'{checkpoint_name}', checkpoint_gather_fns
+            )
+
+    @staticmethod
+    def load_checkpoint(path, target=None, shard_fns=None, remove_dict_prefix=None):
+        if shard_fns is not None:
+            shard_fns = flatten_dict(
+                to_state_dict(shard_fns)
+            )
+        if remove_dict_prefix is not None:
+            remove_dict_prefix = tuple(remove_dict_prefix)
+        flattend_train_state = {}
+        with mlxu.open_file(path) as fin:
+            # 83886080 bytes = 80 MB, which is 16 blocks on GCS
+            unpacker = msgpack.Unpacker(fin, read_size=83886080, max_buffer_size=0)
+            for key, value in unpacker:
+                key = tuple(key)
+                if remove_dict_prefix is not None:
+                    if key[:len(remove_dict_prefix)] == remove_dict_prefix:
+                        key = key[len(remove_dict_prefix):]
+                    else:
+                        continue
+
+                tensor = from_bytes(None, value)
+                if shard_fns is not None:
+                    tensor = shard_fns[key](tensor)
+                flattend_train_state[key] = tensor
+
+        if target is not None:
+            flattened_target = flatten_dict(
+                to_state_dict(target), keep_empty_nodes=True
+            )
+            for key, value in flattened_target.items():
+                if key not in flattend_train_state and value == empty_node:
+                    flattend_train_state[key] = value
+
+        train_state = unflatten_dict(flattend_train_state)
+        if target is None:
+            return train_state
+
+        return from_state_dict(target, train_state)
+
+    @staticmethod
+    def load_flax_checkpoint(path, target=None, shard_fns=None):
+        """ Load a standard flax checkpoint that's not saved with the
+            msgpack streaming format.
         """
         with utils.open_file(path) as fin:
             encoded_bytes = fin.read()
-
         # Deserialize the checkpoint data using msgpack
         state_dict = flax.serialization.msgpack_restore(encoded_bytes)
 
@@ -192,56 +273,49 @@ class Checkpointer(object):
             shard_fns = to_state_dict(shard_fns)
             state_dict = tree_apply(shard_fns, state_dict)
 
-        if param_shapes is None:
+        if target is None:
             return state_dict
-
-        # Restore the state into the provided param_shapes structure
-        return from_state_dict(param_shapes, state_dict)
+        # Restore the state into the provided target structure
+        return from_state_dict(target, state_dict)
 
     @classmethod
-    def load_trainstate_checkpoint(
-        cls,
-        load_from,
-        state_shapes=None,
-        shard_fns=None,
-    ):
-        """
-        Load a checkpoint for the training state.
-
-        Args:
-            load_from (str): String specifying the checkpoint type and path.
-            state_shapes (Any, optional): Template of the expected training state structure.
-            shard_fns (dict, optional): Functions to reshape the loaded state.
-
-        Returns:
-            tuple: (train_state, restored_params)
-        """
-        # Extract the parameters param_shapes from the state_shapes if provided
-        if state_shapes is not None:
-            param_shapes = state_shapes.params["params"]
+    def load_trainstate_checkpoint(cls, load_from, trainstate_target=None,
+                                   trainstate_shard_fns=None,
+                                   disallow_trainstate=False):
+        if trainstate_target is not None:
+            params_target = trainstate_target.params['params']
         else:
-            param_shapes = None
+            params_target = None
 
-        # Extract the parameter shard functions if provided
-        if shard_fns is not None:
-            params_shard_fns = shard_fns.params["params"]
+        if trainstate_shard_fns is not None:
+            params_shard_fns = trainstate_shard_fns.params['params']
         else:
             params_shard_fns = None
 
-        # Split the load_from string into type and path
-        load_type, load_path = load_from.split("::", 1)
-
+        load_type, load_path = load_from.split('::', 1)
+        if disallow_trainstate:
+            assert load_type != 'trainstate', 'Loading full trainstate is not allowed!'
         train_state = None
         restored_params = None
 
-        if load_type == "flax_params":
-            # Load parameters in standard flax format (non-streaming)
-            restored_params = cls._load_flax_checkpoint(
+        if load_type == 'params':
+            # Load the params in the streaming format
+            restored_params = cls.load_checkpoint(
                 path=load_path,
-                param_shapes=param_shapes,
-                shard_fns=params_shard_fns)
-            restored_params = {"params": restored_params}
+                target=params_target,
+                shard_fns=params_shard_fns,
+            )
+            restored_params = {'params': restored_params}
+        elif load_type == 'flax_params':
+            # Load the params in the standard flax format (non-streaming)
+            # This requires the entire params to fit in memory
+            restored_params = cls.load_flax_checkpoint(
+                path=load_path,
+                target=params_target,
+                shard_fns=params_shard_fns
+            )
+            restored_params = {'params': restored_params}
         else:
-            raise ValueError(f"Invalid load_from type: {load_type}")
+            raise ValueError(f'Invalid load_from type: {load_type}')
 
         return train_state, restored_params
