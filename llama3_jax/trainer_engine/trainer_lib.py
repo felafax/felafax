@@ -6,6 +6,7 @@ import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
+import pdb
 
 import chex
 import flax
@@ -58,8 +59,9 @@ class CausalLMTrainer(FelafaxTrainer):
             optimizer,
             training_config,
             mesh,
-            model_params=None,
-            compiled_train_step_path=None,  # New parameter
+            model_name: str = None,
+            model_params: Dict[str, Any] = None,
+            compiled_train_step_path: str = None,  # New parameter
     ):
         self.model = model
         self.model_ckpt_path = model_ckpt_path
@@ -67,6 +69,7 @@ class CausalLMTrainer(FelafaxTrainer):
         self.optimizer = optimizer
         self.training_config = training_config
         self.mesh = mesh
+        self.model_name = model_name
         self.model_params = model_params
         self.compiled_train_step_path = compiled_train_step_path or "/mnt/persistent-disk/compiled/compiled_train_step.pkl"
 
@@ -93,9 +96,18 @@ class CausalLMTrainer(FelafaxTrainer):
         with self.mesh:
             print("Loading causal language model...")
             if self.model_params is None:
-                _, self.model_params = self.checkpointer.load_trainstate_checkpoint(
-                    "flax_params::" + self.model_ckpt_path, self.state_shapes,
-                    self.shard_fns)
+                if self.model_name is None or self.model_name in [
+                        "llama-3.1-8B-Instruct-JAX", "llama-3.1-8B-JAX"
+                ]:
+                    _, self.model_params = (
+                        self.checkpointer.load_trainstate_checkpoint(
+                            "flax_params::" + self.model_ckpt_path,
+                            self.state_shapes, self.shard_fns))
+                else:
+                    _, self.model_params = (
+                        self.checkpointer.load_trainstate_checkpoint(
+                            "params::" + self.model_ckpt_path,
+                            self.state_shapes, self.shard_fns))
 
             if self.model_params is not None:
                 self.train_state = self.create_train_state_from_params(
