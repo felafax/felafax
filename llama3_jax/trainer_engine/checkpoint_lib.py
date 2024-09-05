@@ -199,39 +199,12 @@ class Checkpointer(object):
         if gather_fns is not None:
             gather_fns = flatten_dict(to_state_dict(gather_fns))
 
-        with mlxu.open_file(path, "wb") as fout:
+        with utils.open_file(path, "wb") as fout:
             for key, value in flattend_train_state.items():
                 if gather_fns is not None:
                     value = gather_fns[key](value)
                 value = float_tensor_to_dtype(value, float_dtype)
                 fout.write(packer.pack((key, to_bytes(value))))
-
-    def save_pickle(self, obj, filename):
-        if self.enable:
-            path = os.path.join(self.checkpoint_dir, filename)
-        else:
-            path = '/dev/null'
-        mlxu.save_pickle(obj, path)
-
-    def save_all(self, train_state, gather_fns, metadata=None, dataset=None, milestone=False):
-        step = int(jax.device_get(train_state.step))
-        if self.config.save_optimizer_state:
-            checkpoint_state = train_state
-            checkpoint_name = 'streaming_train_state'
-            checkpoint_gather_fns = gather_fns
-        else:
-            checkpoint_state = train_state.params['params']
-            checkpoint_name = 'streaming_params'
-            checkpoint_gather_fns = gather_fns.params['params']
-
-        if milestone:
-            self.save_checkpoint(
-                checkpoint_state, f'{checkpoint_name}_{step}', checkpoint_gather_fns
-            )
-        else:
-            self.save_checkpoint(
-                checkpoint_state, f'{checkpoint_name}', checkpoint_gather_fns
-            )
 
     @staticmethod
     def load_checkpoint(path, target=None, shard_fns=None, remove_dict_prefix=None):
