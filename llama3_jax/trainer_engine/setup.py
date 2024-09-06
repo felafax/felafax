@@ -17,6 +17,12 @@ def setup_environment(base_dir):
     os.system(f"export HF_HOME={hf_dir}")
     os.system("export TOKENIZERS_PARALLELISM=false")
 
+    import jax
+    import jax.numpy as jnp
+    jax.config.update("jax_compilation_cache_dir", "/mnt/persistent-disk/jax_cache/")
+    jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)
+    jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
+
 
 def clear_cache():
     # Clear Python's import cache
