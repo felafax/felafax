@@ -62,6 +62,7 @@ utils.makedirs(EXPORT_DIR, exist_ok=True)
 utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
 utils.makedirs(GCS_DIR, exist_ok=True)
 
+
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
 
@@ -157,46 +158,46 @@ test_dataset_pipeline(tokenizer)
 
 
 @chex.dataclass(frozen=True)
-class TrainingConfig:
+class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
-    max_steps: int | None = 1
+    max_steps: int | None = 100
     batch_size: int = 32
     seq_length: int = 64
-    dataset_size_limit: int | None = 32
-    print_every_n_steps: int = 1
+    dataset_size_limit: int | None = None
+    print_every_n_steps: int = 5
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
 
 
-training_cfg = TrainingConfig()
-optimizer = optax.sgd(training_cfg.learning_rate)
+trainer_config = TrainerConfig()
+optimizer = optax.sgd(trainer_config.learning_rate)
 
 # Prepare dataset
 train_dataloader, val_dataloader = get_dataset(
     tokenizer=tokenizer,
-    seq_length=training_cfg.seq_length,
-    max_examples=training_cfg.dataset_size_limit,
+    seq_length=trainer_config.seq_length,
+    max_examples=trainer_config.dataset_size_limit,
 )
 
 # Calculate and print training steps information
 total_samples = len(train_dataloader.dataset)
-batch_size = training_cfg.batch_size
+batch_size = trainer_config.batch_size
 steps_per_epoch = (total_samples + batch_size - 1) // batch_size
-total_steps = steps_per_epoch * training_cfg.num_epochs
+total_steps = steps_per_epoch * trainer_config.num_epochs
 
-if training_cfg.max_steps:
-    total_steps = min(total_steps, training_cfg.max_steps)
+if trainer_config.max_steps:
+    total_steps = min(total_steps, trainer_config.max_steps)
 
 print("\nTraining Configuration Summary:")
 print(f"Total samples: {total_samples}")
 print(f"Batch size: {batch_size}")
-print(f"Number of epochs: {training_cfg.num_epochs}")
+print(f"Number of epochs: {trainer_config.num_epochs}")
 print(f"Steps per epoch: {steps_per_epoch}")
 print(f"Total training steps: {total_steps}")
-if training_cfg.max_steps and total_steps == training_cfg.max_steps:
+if trainer_config.max_steps and total_steps == trainer_config.max_steps:
     print(
-        f"*Note*: Total steps limited by max_steps setting ({training_cfg.max_steps})"
+        f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
     )
 
 trainer = trainer_lib.CausalLMTrainer(
@@ -204,11 +205,21 @@ trainer = trainer_lib.CausalLMTrainer(
     model_ckpt_path=model_path,
     model_configurator=model_configurator,
     optimizer=optimizer,
-    training_config=training_cfg,
+    training_config=trainer_config,
     mesh=jax_utils.MESH,
+    model_name=MODEL_NAME,
 )
 
+import time
+start_time = time.time()
+print(f"Start time: {start_time:.4f}")
+
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
+
+end_time = time.time()
+print(f"End time: {end_time:.4f}")
+elapsed_time = end_time - start_time
+print(f"Execution time: {elapsed_time:.4f} seconds")
 
 flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
 trainer.save_checkpoint(state, path=flax_checkpoint_path)
