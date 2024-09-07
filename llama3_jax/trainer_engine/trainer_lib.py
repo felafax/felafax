@@ -139,8 +139,8 @@ class CausalLMTrainer(FelafaxTrainer):
             self.train_step,
             in_shardings=(
                 self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS()),  # batch
-                NamedSharding(self.mesh, PS())  # rng
+                NamedSharding(self.mesh, PS("dp")),  # batch
+                NamedSharding(self.mesh, PS()),  # rng
             ),
             out_shardings=(
                 self.state_shapes_partitioned,  # updated state
@@ -205,8 +205,8 @@ class CausalLMTrainer(FelafaxTrainer):
             self.train_step,
             in_shardings=(
                 self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS()),  # batch
-                NamedSharding(self.mesh, PS())  # rng
+                NamedSharding(self.mesh, PS("dp")),  # batch
+                NamedSharding(self.mesh, PS()),  # rng
             ),
             out_shardings=(
                 self.state_shapes_partitioned,  # updated state
