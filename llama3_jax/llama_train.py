@@ -146,7 +146,7 @@ def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
 def test_dataset_pipeline(tokenizer):
     """Print shapes of first batch to verify dataset pipeline."""
     train_loader, _ = get_dataset(tokenizer=tokenizer,
-                                  batch_size=1,
+                                  batch_size=4,
                                   seq_length=32,
                                   max_examples=32)
     batch = next(iter(train_loader))
@@ -155,7 +155,6 @@ def test_dataset_pipeline(tokenizer):
 
 
 test_dataset_pipeline(tokenizer)
-
 
 @chex.dataclass(frozen=True)
 class TrainerConfig:
@@ -176,6 +175,7 @@ optimizer = optax.sgd(trainer_config.learning_rate)
 # Prepare dataset
 train_dataloader, val_dataloader = get_dataset(
     tokenizer=tokenizer,
+    batch_size=trainer_config.batch_size,
     seq_length=trainer_config.seq_length,
     max_examples=trainer_config.dataset_size_limit,
 )
