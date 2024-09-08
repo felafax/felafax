@@ -22,7 +22,7 @@ except ImportError as e:
 
 from llama3_jax.trainer_engine import setup
 
-setup.setup_environment(base_dir="/mnt/persistent-disk/")
+setup.setup_environment(base_dir="/mnt/persistent-disk")
 
 from llama3_jax import llama_config
 from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,

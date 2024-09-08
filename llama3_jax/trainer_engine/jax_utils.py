@@ -74,6 +74,11 @@ DEVICE_MESH = mesh_utils.create_device_mesh(
 MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
 
 
+def apply_sharding_constraint(x, partition_spec):
+    return jax.lax.with_sharding_constraint(
+        x, NamedSharding(MESH, partition_spec))
+
+
 def tree_path_to_string(path, sep=None):
     """Converts a JAX tree path to a string representation.
     

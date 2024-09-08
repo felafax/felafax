@@ -285,7 +285,7 @@ class CausalLMTrainer(FelafaxTrainer):
 
             for step, train_batch in enumerate(train_dataloader):
                 # Reshape the batch for data parallelism
-                train_batch = jax.device_put(train_batch, NamedSharding(self.mesh, PS("dp", None, None)))
+                train_batch = jax.device_put(train_batch, NamedSharding(self.mesh, PS("dp", None)))
 
                 sharded_rng = jax_utils.next_rng()
 
