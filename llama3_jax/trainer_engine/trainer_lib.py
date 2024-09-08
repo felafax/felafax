@@ -218,9 +218,12 @@ class CausalLMTrainer(FelafaxTrainer):
 
         def loss_and_accuracy(params):
             # Reshape the input tensors to combine the data parallel dimension with the batch dimension
-            input_tokens = batch["input_tokens"].reshape(-1, batch["input_tokens"].shape[-1])
-            target_tokens = batch["target_tokens"].reshape(-1, batch["target_tokens"].shape[-1])
-            loss_masks = batch["loss_masks"].reshape(-1, batch["loss_masks"].shape[-1])
+            input_tokens = batch["input_tokens"].reshape(
+                -1, batch["input_tokens"].shape[-1])
+            target_tokens = batch["target_tokens"].reshape(
+                -1, batch["target_tokens"].shape[-1])
+            loss_masks = batch["loss_masks"].reshape(
+                -1, batch["loss_masks"].shape[-1])
 
             logits = state.apply_fn(
                 params,
@@ -232,12 +235,10 @@ class CausalLMTrainer(FelafaxTrainer):
 
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
         (loss, accuracy), grads = grad_fn(state.params)
-        
+
         # Gather gradients from all devices
-        # grads = jax.lax.all_gather(grads, axis_name='dp', axis=0)
-        # grads = jax.tree_map(lambda x: jnp.mean(x, axis=0), grads)
         (loss, accuracy), grads = grad_fn(state.params)
-        
+
         state = state.apply_gradients(grads=grads)
         metrics = dict(
             loss=loss,
@@ -284,8 +285,7 @@ class CausalLMTrainer(FelafaxTrainer):
 
             for step, train_batch in enumerate(train_dataloader):
                 # Reshape the batch for data parallelism
-                train_batch = jax.tree_map(lambda x: x.reshape((self.mesh.shape['dp'], -1) + x.shape[1:]), train_batch)
-                train_batch = jax.device_put(train_batch, NamedSharding(self.mesh, PS("dp")))
+                train_batch = jax.device_put(train_batch, NamedSharding(self.mesh, PS("dp", None, None)))
 
                 sharded_rng = jax_utils.next_rng()
 
@@ -296,18 +296,19 @@ class CausalLMTrainer(FelafaxTrainer):
                     state, sharded_rng, metrics = self.jitted_train_step(
                         state, train_batch, sharded_rng)
                 else:
-                    state, sharded_rng, metrics = self.train_step(state, train_batch, sharded_rng)
+                    state, sharded_rng, metrics = self.train_step(
+                        state, train_batch, sharded_rng)
 
                 if step % self.training_config.print_every_n_steps == 0:
                     print(
                         f"Epoch {epoch}, Step {step}, Train Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
                     )
 
-                if step % self.training_config.eval_every_n_steps == 0:
-                    eval_metrics = self.evaluate(state, eval_dataloader)
-                    print(
-                        f"Epoch {epoch}, Step {step}, Eval Loss: {eval_metrics['loss']:.4f}, Accuracy: {eval_metrics['accuracy']:.4f}"
-                    )
+                # if step % self.training_config.eval_every_n_steps == 0:
+                #     eval_metrics = self.evaluate(state, eval_dataloader)
+                #     print(
+                #         f"Epoch {epoch}, Step {step}, Eval Loss: {eval_metrics['loss']:.4f}, Accuracy: {eval_metrics['accuracy']:.4f}"
+                #     )
 
                 if (self.training_config.max_steps
                         and step >= self.training_config.max_steps):

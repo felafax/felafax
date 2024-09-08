@@ -69,13 +69,9 @@ class NextRNG(object):
 # TODO: avoid defining mesh globally.
 DEVICES = jax.devices()
 DEVICE_COUNT = len(DEVICES)
-DEVICE_MESH = mesh_utils.create_device_mesh((DEVICE_COUNT, 1, 1))
+DEVICE_MESH = mesh_utils.create_device_mesh(
+    (DEVICE_COUNT // 2, DEVICE_COUNT // 2, 1))
 MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
-
-
-def apply_sharding_constraint(x, partition_spec):
-    return jax.lax.with_sharding_constraint(
-        x, NamedSharding(MESH, partition_spec))
 
 
 def tree_path_to_string(path, sep=None):
