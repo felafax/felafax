@@ -224,11 +224,14 @@ class CausalLMTrainer(FelafaxTrainer):
                 deterministic=False,
                 rngs=rng_generator(('params', 'dropout', 'fcm')),
             ).logits
-            return self.compute_loss(logits, batch["target_tokens"],
-                                     batch["loss_masks"])
+            return self.compute_loss(logits, batch["target_tokens"], batch["loss_masks"])
 
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
         (loss, accuracy), grads = grad_fn(state.params)
+        
+        # Average gradients across devices
+        grads = jax.lax.pmean(grads, axis_name='dp')
+        
         state = state.apply_gradients(grads=grads)
         metrics = dict(
             loss=loss,
@@ -273,8 +276,9 @@ class CausalLMTrainer(FelafaxTrainer):
             print(f"Starting epoch {epoch} of training...")
 
             for step, train_batch in enumerate(train_dataloader):
-                train_batch = jax.device_put(train_batch,
-                                             NamedSharding(self.mesh, PS()))
+                # Reshape the batch for data parallelism
+                train_batch = jax.tree_map(lambda x: x.reshape((self.mesh.shape['dp'], -1) + x.shape[1:]), train_batch)
+                train_batch = jax.device_put(train_batch, NamedSharding(self.mesh, PS("dp")))
 
                 sharded_rng = jax_utils.next_rng()
 

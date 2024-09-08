@@ -162,7 +162,7 @@ class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
     max_steps: int | None = 100
-    batch_size: int = 32
+    batch_size: int = 4
     seq_length: int = 64
     dataset_size_limit: int | None = None
     print_every_n_steps: int = 5
@@ -200,6 +200,7 @@ if trainer_config.max_steps and total_steps == trainer_config.max_steps:
     print(
         f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
     )
+pdb.set_trace()
 
 trainer = trainer_lib.CausalLMTrainer(
     model=model,
@@ -215,12 +216,14 @@ import time
 start_time = time.time()
 print(f"Start time: {start_time:.4f}")
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
 
 end_time = time.time()
 print(f"End time: {end_time:.4f}")
 elapsed_time = end_time - start_time
 print(f"Execution time: {elapsed_time:.4f} seconds")
+
+pdb.set_trace()
 
 flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
 trainer.save_checkpoint(state, path=flax_checkpoint_path)
