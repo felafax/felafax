@@ -4,6 +4,7 @@
 import importlib
 import os
 import sys
+import pdb
 
 import jax
 import jax.numpy as jnp
@@ -21,7 +22,7 @@ except ImportError as e:
 
 from llama3_jax.trainer_engine import setup
 
-setup.setup_environment(base_dir="/mnt/persistent-disk/")
+setup.setup_environment(base_dir="/mnt/persistent-disk")
 
 from llama3_jax import llama_config
 from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
@@ -61,6 +62,7 @@ GCS_DIR = f"/home/felafax-storage/checkpoints/{MODEL_NAME}/{current_datetime}/"
 utils.makedirs(EXPORT_DIR, exist_ok=True)
 utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
 utils.makedirs(GCS_DIR, exist_ok=True)
+
 
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
@@ -145,7 +147,7 @@ def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
 def test_dataset_pipeline(tokenizer):
     """Print shapes of first batch to verify dataset pipeline."""
     train_loader, _ = get_dataset(tokenizer=tokenizer,
-                                  batch_size=1,
+                                  batch_size=4,
                                   seq_length=32,
                                   max_examples=32)
     batch = next(iter(train_loader))
@@ -155,60 +157,73 @@ def test_dataset_pipeline(tokenizer):
 
 test_dataset_pipeline(tokenizer)
 
-
 @chex.dataclass(frozen=True)
-class TrainingConfig:
+class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
-    max_steps: int | None = 1
-    batch_size: int = 32
+    max_steps: int | None = 100
+    batch_size: int = 16
     seq_length: int = 64
-    dataset_size_limit: int | None = 32
-    print_every_n_steps: int = 1
+    dataset_size_limit: int | None = None
+    print_every_n_steps: int = 5
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
 
 
-training_cfg = TrainingConfig()
-optimizer = optax.sgd(training_cfg.learning_rate)
+trainer_config = TrainerConfig()
+optimizer = optax.sgd(trainer_config.learning_rate)
 
 # Prepare dataset
 train_dataloader, val_dataloader = get_dataset(
     tokenizer=tokenizer,
-    seq_length=training_cfg.seq_length,
-    max_examples=training_cfg.dataset_size_limit,
+    batch_size=trainer_config.batch_size,
+    seq_length=trainer_config.seq_length,
+    max_examples=trainer_config.dataset_size_limit,
 )
 
 # Calculate and print training steps information
 total_samples = len(train_dataloader.dataset)
-batch_size = training_cfg.batch_size
+batch_size = trainer_config.batch_size
 steps_per_epoch = (total_samples + batch_size - 1) // batch_size
-total_steps = steps_per_epoch * training_cfg.num_epochs
+total_steps = steps_per_epoch * trainer_config.num_epochs
 
-if training_cfg.max_steps:
-    total_steps = min(total_steps, training_cfg.max_steps)
+if trainer_config.max_steps:
+    total_steps = min(total_steps, trainer_config.max_steps)
 
 print("\nTraining Configuration Summary:")
 print(f"Total samples: {total_samples}")
 print(f"Batch size: {batch_size}")
-print(f"Number of epochs: {training_cfg.num_epochs}")
+print(f"Number of epochs: {trainer_config.num_epochs}")
 print(f"Steps per epoch: {steps_per_epoch}")
 print(f"Total training steps: {total_steps}")
-if training_cfg.max_steps and total_steps == training_cfg.max_steps:
+if trainer_config.max_steps and total_steps == trainer_config.max_steps:
     print(
-        f"*Note*: Total steps limited by max_steps setting ({training_cfg.max_steps})"
+        f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
     )
+pdb.set_trace()
 
 trainer = trainer_lib.CausalLMTrainer(
     model=model,
     model_ckpt_path=model_path,
     model_configurator=model_configurator,
     optimizer=optimizer,
-    training_config=training_cfg,
+    training_config=trainer_config,
     mesh=jax_utils.MESH,
+    model_name=MODEL_NAME,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
+import time
+start_time = time.time()
+print(f"Start time: {start_time:.4f}")
+
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
+
+end_time = time.time()
+print(f"End time: {end_time:.4f}")
+elapsed_time = end_time - start_time
+print(f"Execution time: {elapsed_time:.4f} seconds")
+
+pdb.set_trace()
 
 flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
 trainer.save_checkpoint(state, path=flax_checkpoint_path)

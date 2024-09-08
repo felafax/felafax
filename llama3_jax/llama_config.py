@@ -57,6 +57,9 @@ class LlamaFactory:
             # output head
             ("transformer/ln_f/kernel", PS(None)),
             ("lm_head/kernel", PS("fsdp", "mp")),
+            # Add rules for batch-specific parameters (if any)
+            ("batch_stats/.*", PS("dp")),
+            # Keep the catch-all rule at the end
             (".*", PS(None)),
         )
 
