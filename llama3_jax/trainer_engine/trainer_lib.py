@@ -218,19 +218,26 @@ class CausalLMTrainer(FelafaxTrainer):
         rng_generator = jax_utils.NextRNG(rng)
 
         def loss_and_accuracy(params):
+            # Reshape the input tensors to combine the data parallel dimension with the batch dimension
+            input_tokens = batch["input_tokens"].reshape(-1, batch["input_tokens"].shape[-1])
+            target_tokens = batch["target_tokens"].reshape(-1, batch["target_tokens"].shape[-1])
+            loss_masks = batch["loss_masks"].reshape(-1, batch["loss_masks"].shape[-1])
+
             logits = state.apply_fn(
                 params,
-                batch["input_tokens"],
+                input_tokens,
                 deterministic=False,
                 rngs=rng_generator(('params', 'dropout', 'fcm')),
             ).logits
-            return self.compute_loss(logits, batch["target_tokens"], batch["loss_masks"])
+            return self.compute_loss(logits, target_tokens, loss_masks)
 
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
         (loss, accuracy), grads = grad_fn(state.params)
         
-        # Average gradients across devices
-        grads = jax.lax.pmean(grads, axis_name='dp')
+        # Gather gradients from all devices
+        grads = jax.lax.all_gather(grads, axis_name='dp', axis=0)
+        # Average the gradients
+        grads = jax.tree_map(lambda x: jnp.mean(x, axis=0), grads)
         
         state = state.apply_gradients(grads=grads)
         metrics = dict(
@@ -245,7 +252,8 @@ class CausalLMTrainer(FelafaxTrainer):
             self.eval_step,
             in_shardings=(
                 self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS()),  # batch
+                NamedSharding(self.mesh, PS("dp")),  # batch
+                NamedSharding(self.mesh, PS()),  # rng
             ),
             out_shardings=NamedSharding(self.mesh, PS())  # metrics
         )
@@ -272,6 +280,13 @@ class CausalLMTrainer(FelafaxTrainer):
               run_aot=False):
         state = self.train_state
 
+        def average_metrics(metrics):
+            # Gather metrics from all devices
+            gathered_metrics = jax.lax.all_gather(metrics, axis_name='dp', axis=0)
+            # Average the gathered metrics
+            return jax.tree_map(lambda x: jnp.mean(x, axis=0), gathered_metrics)
+
+
         for epoch in range(self.training_config.num_epochs):
             print(f"Starting epoch {epoch} of training...")
 
@@ -289,8 +304,9 @@ class CausalLMTrainer(FelafaxTrainer):
                     state, sharded_rng, metrics = self.jitted_train_step(
                         state, train_batch, sharded_rng)
                 else:
-                    state, sharded_rng, metrics = self.train_step(
-                        state, train_batch, sharded_rng)
+                    state, sharded_rng, metrics = self.train_step(state, train_batch, sharded_rng)
+
+                metrics = average_metrics(metrics)
 
                 if step % self.training_config.print_every_n_steps == 0:
                     print(
