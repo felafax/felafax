@@ -50,7 +50,7 @@ from transformers import default_data_collator
 MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
 
 # Constants for paths
-FELAFAX_DIR = "/mnt/persistent-disk" # os.path.dirname(os.path.dirname(llama3_jax.__file__))
+FELAFAX_DIR = "/mnt/persistent-disk"
 
 EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
 HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
