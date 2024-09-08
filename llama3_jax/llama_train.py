@@ -200,7 +200,6 @@ if trainer_config.max_steps and total_steps == trainer_config.max_steps:
     print(
         f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
     )
-pdb.set_trace()
 
 trainer = trainer_lib.CausalLMTrainer(
     model=model,
@@ -222,8 +221,6 @@ end_time = time.time()
 print(f"End time: {end_time:.4f}")
 elapsed_time = end_time - start_time
 print(f"Execution time: {elapsed_time:.4f} seconds")
-
-pdb.set_trace()
 
 flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
 trainer.save_checkpoint(state, path=flax_checkpoint_path)
