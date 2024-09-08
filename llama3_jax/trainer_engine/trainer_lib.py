@@ -183,7 +183,6 @@ class CausalLMTrainer(FelafaxTrainer):
     def initialize_state(rng, model, model_config, seq_length, optimizer):
         rng_generator = jax_utils.NextRNG(rng)
 
-        # TODO(ntnsonti): The batch is probably hardcoded to 4 because of the 4 TPU cores, but it can be 1 as well.
         params = model.init(
             input_ids=jnp.zeros((4, seq_length), dtype=jnp.int32),
             position_ids=jnp.zeros((4, seq_length), dtype=jnp.int32),
@@ -235,9 +234,9 @@ class CausalLMTrainer(FelafaxTrainer):
         (loss, accuracy), grads = grad_fn(state.params)
         
         # Gather gradients from all devices
-        grads = jax.lax.all_gather(grads, axis_name='dp', axis=0)
-        # Average the gradients
-        grads = jax.tree_map(lambda x: jnp.mean(x, axis=0), grads)
+        # grads = jax.lax.all_gather(grads, axis_name='dp', axis=0)
+        # grads = jax.tree_map(lambda x: jnp.mean(x, axis=0), grads)
+        (loss, accuracy), grads = grad_fn(state.params)
         
         state = state.apply_gradients(grads=grads)
         metrics = dict(
@@ -280,13 +279,6 @@ class CausalLMTrainer(FelafaxTrainer):
               run_aot=False):
         state = self.train_state
 
-        def average_metrics(metrics):
-            # Gather metrics from all devices
-            gathered_metrics = jax.lax.all_gather(metrics, axis_name='dp', axis=0)
-            # Average the gathered metrics
-            return jax.tree_map(lambda x: jnp.mean(x, axis=0), gathered_metrics)
-
-
         for epoch in range(self.training_config.num_epochs):
             print(f"Starting epoch {epoch} of training...")
 
@@ -305,8 +297,6 @@ class CausalLMTrainer(FelafaxTrainer):
                         state, train_batch, sharded_rng)
                 else:
                     state, sharded_rng, metrics = self.train_step(state, train_batch, sharded_rng)
-
-                metrics = average_metrics(metrics)
 
                 if step % self.training_config.print_every_n_steps == 0:
                     print(
