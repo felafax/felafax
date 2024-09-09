@@ -163,8 +163,7 @@ class TrainerConfig:
 def train_and_save_checkpoint(
     *,
     model_name, model_path, model, model_configurator, tokenizer,
-    trainer_config, flax_checkpoint_path, data_source,
-    base_dir
+    trainer_config, flax_checkpoint_path, data_source    
 ):
     optimizer = optax.sgd(trainer_config.learning_rate)
 
@@ -226,7 +225,7 @@ def export_and_convert(
     *,
     model_name, model_configurator,
     flax_checkpoint_path, hf_export_dir, gcs_dir,
-    base_dir
+
 ):
     convert_lib.save_hf_compatible_checkpoint(
         f'flax_params::{flax_checkpoint_path}', hf_export_dir,
@@ -303,7 +302,6 @@ def main(argv):
             trainer_config=trainer_config,
             flax_checkpoint_path=flax_checkpoint_path,
             data_source=FLAGS.data_source,
-            base_dir=FLAGS.base_dir
         )
 
     if FLAGS.export:
@@ -313,7 +311,6 @@ def main(argv):
             flax_checkpoint_path=flax_checkpoint_path,
             hf_export_dir=hf_export_dir,
             gcs_dir=gcs_dir,
-            base_dir=FLAGS.base_dir
         )
 
     if FLAGS.upload_to_hf:
