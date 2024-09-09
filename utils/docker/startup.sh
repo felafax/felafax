@@ -22,6 +22,7 @@ echo 'export PJRT_DEVICE=TPU' >>~/.bashrc
 
 if [ "$UID" != "0" ]; then
   gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/"
 fi
 
 # Start Jupyter Lab

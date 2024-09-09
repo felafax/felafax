@@ -67,6 +67,7 @@ RUN chmod 600 /home/.gcloud_key/storage_key.json
 # Authenticate gcloud
 RUN gcloud auth activate-service-account --key-file=/home/.gcloud_key/storage_key.json
 RUN mkdir "/home/felafax-storage/"
+RUN mkdir "/home/felafax-storage-eu/"
 
 
 # Create startup script
