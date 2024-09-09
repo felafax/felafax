@@ -1,17 +1,15 @@
-from absl import app
-from absl import flags
+# Standard library imports
 import os
 import sys
 import pdb
-
-import jax
-import jax.numpy as jnp
-
 import gzip
-import os
 import shutil
+import time
 from datetime import datetime
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
+# Third-party imports
+from absl import app, flags
 import chex
 import jax
 import jax.numpy as jnp
@@ -26,6 +24,7 @@ from transformers import default_data_collator
 sys.path.append(os.path.abspath(os.getcwd()))
 sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
 
+# Local imports
 try:
     import llama3_jax
     print("felafax package imported successfully")
@@ -45,6 +44,8 @@ flags.DEFINE_string("base_dir", "/mnt/persistent-disk",
 flags.DEFINE_string("model_name", "llama-3.1-8B-Instruct-JAX", "Model name")
 flags.DEFINE_boolean("train", False, "Run training and save checkpoint")
 flags.DEFINE_boolean("export", False, "Export and convert model")
+flags.DEFINE_boolean("test_dataset", False, "Run dataset pipeline test")
+flags.DEFINE_boolean("timeit", False, "Time the run")
 
 
 def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
@@ -150,14 +151,8 @@ class TrainerConfig:
     max_eval_steps: int | None = 1
 
 
-def train_and_save_checkpoint(base_dir, model_name):
-    setup.setup_environment(base_dir=base_dir)
-    setup.reload_modules("llama3_jax")
-
-    model_path, model, model_configurator, tokenizer = (
-        automodel_lib.AutoJAXModelForCausalLM.from_pretrained(model_name))
-
-    trainer_config = TrainerConfig()
+def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
+                              model_configurator, tokenizer, trainer_config):
     optimizer = optax.sgd(trainer_config.learning_rate)
 
     train_dataloader, val_dataloader = get_dataset(
@@ -166,6 +161,26 @@ def train_and_save_checkpoint(base_dir, model_name):
         seq_length=trainer_config.seq_length,
         max_examples=trainer_config.dataset_size_limit,
     )
+
+    # Calculate and print training steps information
+    total_samples = len(train_dataloader.dataset)
+    batch_size = trainer_config.batch_size
+    steps_per_epoch = (total_samples + batch_size - 1) // batch_size
+    total_steps = steps_per_epoch * trainer_config.num_epochs
+
+    if trainer_config.max_steps:
+        total_steps = min(total_steps, trainer_config.max_steps)
+
+    print("\nTraining Configuration Summary:")
+    print(f"Total samples: {total_samples}")
+    print(f"Batch size: {batch_size}")
+    print(f"Number of epochs: {trainer_config.num_epochs}")
+    print(f"Steps per epoch: {steps_per_epoch}")
+    print(f"Total training steps: {total_steps}")
+    if trainer_config.max_steps and total_steps == trainer_config.max_steps:
+        print(
+            f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
+        )
 
     trainer = trainer_lib.CausalLMTrainer(
         model=model,
@@ -176,16 +191,17 @@ def train_and_save_checkpoint(base_dir, model_name):
         mesh=jax_utils.MESH,
         model_name=model_name,
     )
-
     start_time = time.time()
-    print(f"Start time: {start_time:.4f}")
+    if FLAGS.timeit:
+        print(f"Start time: {start_time:.4f}")
 
     state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
 
-    end_time = time.time()
-    print(f"End time: {end_time:.4f}")
-    elapsed_time = end_time - start_time
-    print(f"Execution time: {elapsed_time:.4f} seconds")
+    if FLAGS.timeit:
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        print(f"End time: {end_time:.4f}")
+        print(f"Execution time: {elapsed_time:.4f} seconds")
 
     export_dir = os.path.join(base_dir, "export")
     utils.makedirs(export_dir, exist_ok=True)
@@ -195,7 +211,7 @@ def train_and_save_checkpoint(base_dir, model_name):
     print(f"Checkpoint saved to {flax_checkpoint_path}")
 
 
-def export_and_convert(base_dir, model_name):
+def export_and_convert(*, base_dir, model_name, model_configurator):
     export_dir = os.path.join(base_dir, "export")
     hf_export_dir = os.path.join(base_dir, "hf_export")
 
@@ -233,11 +249,32 @@ def export_and_convert(base_dir, model_name):
 def main(argv):
     del argv  # Unused
 
+    setup.setup_environment(base_dir=FLAGS.base_dir)
+    setup.reload_modules("llama3_jax")
+
+    model_path, model, model_configurator, tokenizer = (
+        automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+            FLAGS.model_name))
+
+    trainer_config = TrainerConfig()
+
+    if FLAGS.test_dataset:
+        test_dataset_pipeline(tokenizer)
+        return
+
     if FLAGS.train:
-        train_and_save_checkpoint(FLAGS.base_dir, FLAGS.model_name)
+        train_and_save_checkpoint(base_dir=FLAGS.base_dir,
+                                  model_name=FLAGS.model_name,
+                                  model_path=model_path,
+                                  model=model,
+                                  model_configurator=model_configurator,
+                                  tokenizer=tokenizer,
+                                  trainer_config=trainer_config)
 
     if FLAGS.export:
-        export_and_convert(FLAGS.base_dir, FLAGS.model_name)
+        export_and_convert(base_dir=FLAGS.base_dir,
+                           model_name=FLAGS.model_name,
+                           model_configurator=model_configurator)
 
 
 # HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
