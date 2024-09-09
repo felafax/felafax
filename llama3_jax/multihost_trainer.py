@@ -39,21 +39,24 @@ from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string("base_dir", "/mnt/persistent-disk",
-                    "Base directory for data")
+# Grouped flags
+flags.DEFINE_string("base_dir", "/mnt/persistent-disk", "Base directory for data")
 flags.DEFINE_string("model_name", "llama-3.1-8B-Instruct-JAX", "Model name")
+flags.DEFINE_string("data_source", None, "Path to local JSON data file or Hugging Face dataset name")
+
 flags.DEFINE_boolean("train", False, "Run training and save checkpoint")
 flags.DEFINE_boolean("export", False, "Export and convert model")
+flags.DEFINE_boolean("upload_to_hf", False, "Upload checkpoint to Hugging Face")
+
 flags.DEFINE_boolean("test_dataset", False, "Run dataset pipeline test")
 flags.DEFINE_boolean("timeit", False, "Time the run")
+
 flags.DEFINE_string("hf_token", None, "Hugging Face API token")
 flags.DEFINE_string("hf_username", None, "Hugging Face username")
 flags.DEFINE_string("hf_repo_name", None, "Hugging Face repository name")
-flags.DEFINE_boolean("upload_to_hf", False, "Upload checkpoint to Hugging Face")
-flags.DEFINE_string("data_source", None, "Path to local JSON data file or Hugging Face dataset name")
 
 
-def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None, data_source):
+def get_dataset(*, tokenizer, data_source, batch_size=1, seq_length=32, max_examples=None):
     # Define Alpaca prompt template
     alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
     
@@ -157,9 +160,12 @@ class TrainerConfig:
     max_eval_steps: int | None = 1
 
 
-def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
-                              model_configurator, tokenizer, trainer_config,
-                              flax_checkpoint_path, data_source):
+def train_and_save_checkpoint(
+    *,
+    model_name, model_path, model, model_configurator, tokenizer,
+    trainer_config, flax_checkpoint_path, data_source,
+    base_dir
+):
     optimizer = optax.sgd(trainer_config.learning_rate)
 
     train_dataloader, val_dataloader = get_dataset(
@@ -167,7 +173,7 @@ def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
         batch_size=trainer_config.batch_size,
         seq_length=trainer_config.seq_length,
         max_examples=trainer_config.dataset_size_limit,
-        data_source=data_source,
+        data_source=data_source
     )
 
     # Calculate and print training steps information
@@ -216,8 +222,12 @@ def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
     print(f"Checkpoint saved to {flax_checkpoint_path}")
 
 
-def export_and_convert(*, base_dir, model_name, model_configurator,
-                       flax_checkpoint_path, hf_export_dir, gcs_dir):
+def export_and_convert(
+    *,
+    model_name, model_configurator,
+    flax_checkpoint_path, hf_export_dir, gcs_dir,
+    base_dir
+):
     convert_lib.save_hf_compatible_checkpoint(
         f'flax_params::{flax_checkpoint_path}', hf_export_dir,
         model_configurator)
@@ -284,31 +294,37 @@ def main(argv):
         return
 
     if FLAGS.train:
-        train_and_save_checkpoint(base_dir=FLAGS.base_dir,
-                                  model_name=FLAGS.model_name,
-                                  model_path=model_path,
-                                  model=model,
-                                  model_configurator=model_configurator,
-                                  tokenizer=tokenizer,
-                                  trainer_config=trainer_config,
-                                  flax_checkpoint_path=flax_checkpoint_path,
-                                  data_source=FLAGS.data_source)
+        train_and_save_checkpoint(
+            model_name=FLAGS.model_name,
+            model_path=model_path,
+            model=model,
+            model_configurator=model_configurator,
+            tokenizer=tokenizer,
+            trainer_config=trainer_config,
+            flax_checkpoint_path=flax_checkpoint_path,
+            data_source=FLAGS.data_source,
+            base_dir=FLAGS.base_dir
+        )
 
     if FLAGS.export:
-        export_and_convert(base_dir=FLAGS.base_dir,
-                           model_name=FLAGS.model_name,
-                           model_configurator=model_configurator,
-                           flax_checkpoint_path=flax_checkpoint_path,
-                           hf_export_dir=hf_export_dir,
-                           gcs_dir=gcs_dir)
+        export_and_convert(
+            model_name=FLAGS.model_name,
+            model_configurator=model_configurator,
+            flax_checkpoint_path=flax_checkpoint_path,
+            hf_export_dir=hf_export_dir,
+            gcs_dir=gcs_dir,
+            base_dir=FLAGS.base_dir
+        )
 
     if FLAGS.upload_to_hf:
         if not all([FLAGS.hf_token, FLAGS.hf_username, FLAGS.hf_repo_name]):
             raise ValueError("Hugging Face credentials are required for upload.")
-        upload_to_huggingface(hf_export_dir=hf_export_dir,
-                              hf_username=FLAGS.hf_username,
-                              hf_repo_name=FLAGS.hf_repo_name,
-                              hf_token=FLAGS.hf_token)
+        upload_to_huggingface(
+            hf_export_dir=hf_export_dir,
+            hf_username=FLAGS.hf_username,
+            hf_repo_name=FLAGS.hf_repo_name,
+            hf_token=FLAGS.hf_token
+        )
 
 
 if __name__ == "__main__":
