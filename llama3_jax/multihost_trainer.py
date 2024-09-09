@@ -359,7 +359,7 @@ def main(argv):
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
     gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
                f"{current_datetime}/")
-    
+
     flax_checkpoint_path = os.path.join(export_dir, FLAGS.model_name)
 
     # Create necessary directories
