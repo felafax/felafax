@@ -6,7 +6,7 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_flax_outputs import (FlaxBaseModelOutput,
                                                 FlaxCausalLMOutput)
 
-from .trainer_engine import utils
+from . import utils
 
 
 class LlamaFactory:

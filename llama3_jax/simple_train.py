@@ -21,14 +21,11 @@ except ImportError as e:
     print(f"Error importing llama3_jax: {e}")
 
 from llama3_jax.trainer_engine import setup
-
 setup.setup_environment(base_dir="/mnt/persistent-disk")
 
-from llama3_jax import llama_config
 from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
-                                       convert_lib, jax_utils, trainer_lib,
-                                       utils)
-
+                                       convert_lib, jax_utils, llama_config,
+                                       trainer_lib, utils)
 setup.reload_modules("llama3_jax")
 
 import gzip

@@ -12,7 +12,7 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_flax_outputs import (FlaxBaseModelOutput,
                                                 FlaxCausalLMOutput)
 
-from .trainer_engine import jax_utils
+from . import jax_utils
 
 
 class RMSNorm(nn.Module):

@@ -5,8 +5,8 @@ import jax.numpy as jnp
 from huggingface_hub import snapshot_download
 from transformers import AutoConfig, AutoTokenizer
 
-from .. import llama_model
-from ..llama_config import (Llama3_1_8B_Configurator,
+from . import llama_model
+from .llama_config import (Llama3_1_8B_Configurator,
                             Llama3_1_70B_Configurator, LlamaTestConfigurator,
                             create_llama_model)
 
