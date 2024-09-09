@@ -47,13 +47,13 @@ flags.DEFINE_string("data_source", None, "Path to local JSON data file or Huggin
 flags.DEFINE_boolean("train", False, "Run training and save checkpoint")
 flags.DEFINE_boolean("export", False, "Export and convert model")
 flags.DEFINE_boolean("upload_to_hf", False, "Upload checkpoint to Hugging Face")
-
 flags.DEFINE_boolean("test_dataset", False, "Run dataset pipeline test")
-flags.DEFINE_boolean("timeit", False, "Time the run")
 
 flags.DEFINE_string("hf_token", None, "Hugging Face API token")
 flags.DEFINE_string("hf_username", None, "Hugging Face username")
 flags.DEFINE_string("hf_repo_name", None, "Hugging Face repository name")
+
+flags.DEFINE_boolean("timeit", False, "Time the run")
 
 
 def get_dataset(*, tokenizer, data_source, batch_size=1, seq_length=32, max_examples=None):
