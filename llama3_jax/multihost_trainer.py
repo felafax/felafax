@@ -46,14 +46,14 @@ flags.DEFINE_boolean("train", False, "Run training and save checkpoint")
 flags.DEFINE_boolean("export", False, "Export and convert model")
 flags.DEFINE_boolean("test_dataset", False, "Run dataset pipeline test")
 flags.DEFINE_boolean("timeit", False, "Time the run")
-
 flags.DEFINE_string("hf_token", None, "Hugging Face API token")
 flags.DEFINE_string("hf_username", None, "Hugging Face username")
 flags.DEFINE_string("hf_repo_name", None, "Hugging Face repository name")
 flags.DEFINE_boolean("upload_to_hf", False, "Upload checkpoint to Hugging Face")
+flags.DEFINE_string("data_source", None, "Path to local JSON data file or Hugging Face dataset name")
 
 
-def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
+def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None, data_source):
     # Define Alpaca prompt template
     alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
     
@@ -105,10 +105,11 @@ def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
         return jax_batch
 
     # Load and preprocess the dataset
-    dataset = load_dataset(
-        "json",
-        data_files="/home/alpaca-cleaned/alpaca_data_cleaned.json",
-        split="train")
+    if os.path.isfile(data_source):
+        dataset = load_dataset("json", data_files=data_source, split="train")
+    else:
+        dataset = load_dataset(data_source, split="train")
+
     if max_examples:
         dataset = dataset.select(range(max_examples))
     dataset = dataset.map(_format_prompts, batched=True)
@@ -158,7 +159,7 @@ class TrainerConfig:
 
 def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
                               model_configurator, tokenizer, trainer_config,
-                              flax_checkpoint_path):
+                              flax_checkpoint_path, data_source):
     optimizer = optax.sgd(trainer_config.learning_rate)
 
     train_dataloader, val_dataloader = get_dataset(
@@ -166,6 +167,7 @@ def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
         batch_size=trainer_config.batch_size,
         seq_length=trainer_config.seq_length,
         max_examples=trainer_config.dataset_size_limit,
+        data_source=data_source,
     )
 
     # Calculate and print training steps information
@@ -274,6 +276,9 @@ def main(argv):
     utils.makedirs(hf_export_dir, exist_ok=True)
     utils.makedirs(gcs_dir, exist_ok=True)
 
+    if not FLAGS.data_source:
+        raise ValueError("--data_source must be provided")
+
     if FLAGS.test_dataset:
         test_dataset_pipeline(tokenizer)
         return
@@ -286,7 +291,8 @@ def main(argv):
                                   model_configurator=model_configurator,
                                   tokenizer=tokenizer,
                                   trainer_config=trainer_config,
-                                  flax_checkpoint_path=flax_checkpoint_path)
+                                  flax_checkpoint_path=flax_checkpoint_path,
+                                  data_source=FLAGS.data_source)
 
     if FLAGS.export:
         export_and_convert(base_dir=FLAGS.base_dir,
