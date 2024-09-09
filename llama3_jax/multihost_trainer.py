@@ -47,6 +47,11 @@ flags.DEFINE_boolean("export", False, "Export and convert model")
 flags.DEFINE_boolean("test_dataset", False, "Run dataset pipeline test")
 flags.DEFINE_boolean("timeit", False, "Time the run")
 
+flags.DEFINE_string("hf_token", None, "Hugging Face API token")
+flags.DEFINE_string("hf_username", None, "Hugging Face username")
+flags.DEFINE_string("hf_repo_name", None, "Hugging Face repository name")
+flags.DEFINE_boolean("upload_to_hf", False, "Upload checkpoint to Hugging Face")
+
 
 def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
     # Define Alpaca prompt template
@@ -142,7 +147,7 @@ def test_dataset_pipeline(tokenizer):
 class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
-    max_steps: int | None = 100
+    max_steps: int | None = 5
     batch_size: int = 16
     seq_length: int = 64
     dataset_size_limit: int | None = None
@@ -235,6 +240,13 @@ def export_and_convert(*, base_dir, model_name, model_configurator,
     print(f"Checkpoint copied to {gcs_dir}")
 
 
+def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name, hf_token):
+    """Upload checkpoint to Hugging Face."""
+    convert_lib.upload_checkpoint_to_hf(
+        hf_export_dir, f"{hf_username}/{hf_repo_name}", hf_token)
+    print(f"Checkpoint uploaded to Hugging Face: {hf_username}/{hf_repo_name}")
+
+
 def main(argv):
     del argv  # Unused
 
@@ -284,15 +296,14 @@ def main(argv):
                            hf_export_dir=hf_export_dir,
                            gcs_dir=gcs_dir)
 
+    if FLAGS.upload_to_hf:
+        if not all([FLAGS.hf_token, FLAGS.hf_username, FLAGS.hf_repo_name]):
+            raise ValueError("Hugging Face credentials are required for upload.")
+        upload_to_huggingface(hf_export_dir=hf_export_dir,
+                              hf_username=FLAGS.hf_username,
+                              hf_repo_name=FLAGS.hf_repo_name,
+                              hf_token=FLAGS.hf_token)
 
-# HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
-# HUGGINGFACE_USERNAME = input(
-#     "INPUT: Please provide your HUGGINGFACE_USERNAME: ")
-# HUGGINGFACE_REPO_NAME = input(
-#     "INPUT: Please provide your HUGGINGFACE_REPO_NAME: ")
-# convert_lib.upload_checkpoint_to_hf(
-#     HF_EXPORT_DIR, f"{HUGGINGFACE_USERNAME}/{HUGGINGFACE_REPO_NAME}",
-#     HUGGINGFACE_TOKEN)
 
 if __name__ == "__main__":
     app.run(main)
