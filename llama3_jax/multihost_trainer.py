@@ -152,7 +152,8 @@ class TrainerConfig:
 
 
 def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
-                              model_configurator, tokenizer, trainer_config):
+                              model_configurator, tokenizer, trainer_config,
+                              flax_checkpoint_path):
     optimizer = optax.sgd(trainer_config.learning_rate)
 
     train_dataloader, val_dataloader = get_dataset(
@@ -191,6 +192,7 @@ def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
         mesh=jax_utils.MESH,
         model_name=model_name,
     )
+
     start_time = time.time()
     if FLAGS.timeit:
         print(f"Start time: {start_time:.4f}")
@@ -203,25 +205,12 @@ def train_and_save_checkpoint(*, base_dir, model_name, model_path, model,
         print(f"End time: {end_time:.4f}")
         print(f"Execution time: {elapsed_time:.4f} seconds")
 
-    export_dir = os.path.join(base_dir, "export")
-    utils.makedirs(export_dir, exist_ok=True)
-
-    flax_checkpoint_path = os.path.join(export_dir, model_name)
     trainer.save_checkpoint(state, path=flax_checkpoint_path)
     print(f"Checkpoint saved to {flax_checkpoint_path}")
 
 
-def export_and_convert(*, base_dir, model_name, model_configurator):
-    export_dir = os.path.join(base_dir, "export")
-    hf_export_dir = os.path.join(base_dir, "hf_export")
-
-    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-    gcs_dir = f"/home/felafax-storage/checkpoints/{model_name}/{current_datetime}/"
-
-    utils.makedirs(hf_export_dir, exist_ok=True)
-    utils.makedirs(gcs_dir, exist_ok=True)
-
-    flax_checkpoint_path = os.path.join(export_dir, model_name)
+def export_and_convert(*, base_dir, model_name, model_configurator,
+                       flax_checkpoint_path, hf_export_dir, gcs_dir):
     convert_lib.save_hf_compatible_checkpoint(
         f'flax_params::{flax_checkpoint_path}', hf_export_dir,
         model_configurator)
@@ -258,6 +247,21 @@ def main(argv):
 
     trainer_config = TrainerConfig()
 
+    # Define directories and paths
+    export_dir = os.path.join(FLAGS.base_dir, "export")
+    hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
+    
+    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+    gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
+               f"{current_datetime}/")
+    
+    flax_checkpoint_path = os.path.join(export_dir, FLAGS.model_name)
+
+    # Create necessary directories
+    utils.makedirs(export_dir, exist_ok=True)
+    utils.makedirs(hf_export_dir, exist_ok=True)
+    utils.makedirs(gcs_dir, exist_ok=True)
+
     if FLAGS.test_dataset:
         test_dataset_pipeline(tokenizer)
         return
@@ -269,12 +273,16 @@ def main(argv):
                                   model=model,
                                   model_configurator=model_configurator,
                                   tokenizer=tokenizer,
-                                  trainer_config=trainer_config)
+                                  trainer_config=trainer_config,
+                                  flax_checkpoint_path=flax_checkpoint_path)
 
     if FLAGS.export:
         export_and_convert(base_dir=FLAGS.base_dir,
                            model_name=FLAGS.model_name,
-                           model_configurator=model_configurator)
+                           model_configurator=model_configurator,
+                           flax_checkpoint_path=flax_checkpoint_path,
+                           hf_export_dir=hf_export_dir,
+                           gcs_dir=gcs_dir)
 
 
 # HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
