@@ -337,6 +337,24 @@ def main(argv):
     # Define directories and paths
     export_dir = os.path.join(FLAGS.base_dir, "export")
     hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
+
+    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+    gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
+               f"{current_datetime}/")
+
+    flax_checkpoint_path = os.path.join(export_dir, FLAGS.model_name)
+
+    # Create necessary directories
+    utils.makedirs(export_dir, exist_ok=True)
+    utils.makedirs(hf_export_dir, exist_ok=True)
+    utils.makedirs(gcs_dir, exist_ok=True)
+
+    if not FLAGS.data_source:
+        raise ValueError("--data_source must be provided")
+
+    # Define directories and paths
+    export_dir = os.path.join(FLAGS.base_dir, "export")
+    hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
     
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
     gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
@@ -348,6 +366,9 @@ def main(argv):
     utils.makedirs(export_dir, exist_ok=True)
     utils.makedirs(hf_export_dir, exist_ok=True)
     utils.makedirs(gcs_dir, exist_ok=True)
+
+    if not FLAGS.data_source:
+        raise ValueError("--data_source must be provided")
 
     if FLAGS.test_dataset:
         test_dataset_pipeline(tokenizer)
