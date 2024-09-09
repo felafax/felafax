@@ -1,4 +1,5 @@
 # Standard library imports
+import json
 import os
 import sys
 import pdb
@@ -54,6 +55,8 @@ flags.DEFINE_string("hf_username", None, "Hugging Face username")
 flags.DEFINE_string("hf_repo_name", None, "Hugging Face repository name")
 
 flags.DEFINE_boolean("timeit", False, "Time the run")
+
+flags.DEFINE_string("trainer_config_json", None, "Path to JSON file containing trainer configuration")
 
 
 def get_dataset(*, tokenizer, data_source, batch_size=1, seq_length=32, max_examples=None):
@@ -147,7 +150,7 @@ def test_dataset_pipeline(tokenizer):
     print("Target mask shape:", batch['target_tokens'].shape)
 
 
-@chex.dataclass(frozen=True)
+@chex.dataclass(frozen=False)
 class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
@@ -158,6 +161,12 @@ class TrainerConfig:
     print_every_n_steps: int = 5
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
+
+    @classmethod
+    def from_json(cls, json_path: str):
+        with open(json_path, 'r') as f:
+            config_dict = json.load(f)
+        return cls(**config_dict)
 
 
 def train_and_save_checkpoint(
@@ -268,7 +277,11 @@ def main(argv):
         automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
             FLAGS.model_name))
 
-    trainer_config = TrainerConfig()
+    # Initialize TrainerConfig
+    if FLAGS.trainer_config_json:
+        trainer_config = TrainerConfig.from_json(FLAGS.trainer_config_json)
+    else:
+        trainer_config = TrainerConfig()
 
     # Define directories and paths
     export_dir = os.path.join(FLAGS.base_dir, "export")
