@@ -11,6 +11,7 @@ Felafax is a framework for continued-training and fine-tuning open source LLMs u
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
 
 ## Currently supported models
+<<<<<<< HEAD
 - **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
   - Converted from PyTorch to JAX for improved performance
   - Supports 2-way data parallel and 2-way model parallel training
@@ -23,6 +24,19 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 - **Gemma2 Models (2B, 9B, 27B)**
   - Optimized for Cloud TPUs
   - Fast full-precision training
+=======
+- LLaMa-3.1 JAX. $${\color{red}New!}$$	 
+  - Translated the model from PyTorch to JAX.
+  - Implements 2-way data parallel and 2-way model parallel training.
+  - The multi-GPU training works on NVIDIA GPUs and TPUs!
+  - Supports full-precision training.
+  
+- LLaMa-3/3.1 PyTorch XLA.
+  - Supports LoRA and full-precision training.
+
+- Gemma2 2B, 9B, 27B on Cloud TPUs. 
+  - Supports fast full-precision training.
+>>>>>>> 065bd01 (updated README)
   
 - LLaMa-3.1 405B will be available on our cloud platform at felafax.ai -- sign-up for the [waitlist](https://tally.so/r/mRLeaQ)!
 
