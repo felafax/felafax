@@ -11,10 +11,9 @@ Felafax is a framework for continued-training and fine-tuning open source LLMs u
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
 
 ## Currently supported models
-<<<<<<< HEAD
 - **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
   - Converted from PyTorch to JAX for improved performance
-  - Supports 2-way data parallel and 2-way model parallel training
+  - By default, runs 2-way data parallel and 2-way model parallel training (2 data parallel model copies and each model copy is sharded across two TPU chips).
   - Compatible with NVIDIA GPUs and TPUs
   - Full-precision training support
 
@@ -24,26 +23,12 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 - **Gemma2 Models (2B, 9B, 27B)**
   - Optimized for Cloud TPUs
   - Fast full-precision training
-=======
-- LLaMa-3.1 JAX. $${\color{red}New!}$$	 
-  - Translated the model from PyTorch to JAX.
-  - Implements 2-way data parallel and 2-way model parallel training.
-  - The multi-GPU training works on NVIDIA GPUs and TPUs!
-  - Supports full-precision training.
-  
-- LLaMa-3/3.1 PyTorch XLA.
-  - Supports LoRA and full-precision training.
-
-- Gemma2 2B, 9B, 27B on Cloud TPUs. 
-  - Supports fast full-precision training.
->>>>>>> 065bd01 (updated README)
-  
-- LLaMa-3.1 405B will be available on our cloud platform at felafax.ai -- sign-up for the [waitlist](https://tally.so/r/mRLeaQ)!
-
 
 ## Setup
 
 **For a hosted version with a seamless workflow, please visit [app.felafax.ai](https://app.felafax.ai)** 🦊. 
+
+We are also **onboarding people to try out Google's latest generation TPUs**, if you are interested sign up to the waitlist [here](https://tally.so/r/mRLeaQ).
 
 If you prefer a self-hosted training version, follow the instructions below. These steps will guide you through launching a TPU VM on your Google Cloud account and starting a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
