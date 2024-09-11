@@ -285,7 +285,12 @@ class CausalLMTrainer(FelafaxTrainer):
 
             for step, train_batch in enumerate(train_dataloader):
                 # Reshape the batch for data parallelism
-                train_batch = jax.device_put(train_batch, NamedSharding(self.mesh, PS("dp", None)))
+                train_batch = jax.tree_map(
+                    lambda x: x.reshape(
+                        (self.mesh.shape['dp'], -1) + x.shape[1:]),
+                    train_batch)
+                train_batch = jax.device_put(
+                    train_batch, NamedSharding(self.mesh, PS("dp", None)))
 
                 sharded_rng = jax_utils.next_rng()
 
@@ -326,8 +331,11 @@ class CausalLMTrainer(FelafaxTrainer):
             if self.training_config.max_eval_steps and step >= self.training_config.max_eval_steps:
                 break
 
-            eval_batch = jax.device_put(eval_batch,
-                                        NamedSharding(self.mesh, PS()))
+            eval_batch = jax.tree_map(
+                lambda x: x.reshape((self.mesh.shape['dp'], -1) + x.shape[1:]),
+                eval_batch)
+            eval_batch = jax.device_put(
+                eval_batch, NamedSharding(self.mesh, PS("dp", None)))
 
             if run_jitted:
                 metrics = self.jitted_eval_step(state, eval_batch)
