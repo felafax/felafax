@@ -2,7 +2,7 @@
 
 ![image](./utils/assets/image.jpg)
 
-Felafax is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of neceessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
+RoadRunnerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of necessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use.
 - Easy to configure all aspects of training (designed for ML researchers and hackers).
 - Easy to scale training from a single TPU VM with 8 cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
