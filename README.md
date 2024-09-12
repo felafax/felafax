@@ -26,9 +26,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 
 ## Setup
 
-**For a hosted version with a seamless workflow, please visit [app.felafax.ai](https://app.felafax.ai)** 🦊. 
-
-We are also **onboarding people to try out Google's latest generation TPUs**, if you are interested sign up to the waitlist [here](https://tally.so/r/mRLeaQ).
+**For a hosted version with a seamless workflow, please request access [here](https://tally.so/r/mRLeaQ). Here is a demo of our platform ([demo](https://www.loom.com/share/0b4bb303513d44a1bc5d01d2c22f1a85?sid=01c6b9c4-a94e-4959-b135-b5adaf792e68)) 🦊.**
 
 If you prefer a self-hosted training version, follow the instructions below. These steps will guide you through launching a TPU VM on your Google Cloud account and starting a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
