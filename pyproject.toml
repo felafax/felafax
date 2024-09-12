@@ -1,0 +1,43 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "felafax"
+version = "1.0.8"
+description = "felafax"
+authors = ["Nithin <nithin@felafax.ai>"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/felafax/felafax"
+repository = "https://github.com/felafax/felafax"
+documentation = "https://github.com/felafax/felafax"
+packages = [{include = "llama3_jax"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+aiofiles = "*"
+cloudpickle = "*"
+datasets = "^2.18.0"
+einops = "*"
+flax = {extras = ["all"], version = "*"}
+gcsfs = "*"
+jax = {extras = ["tpu"], version = "*"}
+ml_collections = "*"
+optax = "*"
+requests = "*"
+sentencepiece = "*"
+torch = {version = "*", source = "pytorch"}
+tqdm = "*"
+transformers = "^4.43.2"
+
+[tool.poetry.group.test.dependencies]
+pytest = "*"
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/felafax/felafax/issues"

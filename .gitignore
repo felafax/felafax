@@ -1,5 +1,7 @@
 .vscode/*
 **/.ipynb_checkpoints/*
+export/
+hf_export/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -136,6 +138,7 @@ cython_debug/
 
 # macOS
 .DS_Store
+**/.DS_Store
 
 # Windows
 Thumbs.db

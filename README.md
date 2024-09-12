@@ -1,28 +1,34 @@
-# RoadrunnerX -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
+# Felafax -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
 
 ![image](./utils/assets/image.jpg)
 
 RoadRunnerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of necessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use.
 - Easy to configure all aspects of training (designed for ML researchers and hackers).
-- Easy to scale training from a single VM with 8 TPU cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
+- Easy to scale training from a single TPU VM with 8 cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
 
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
 
 ## Currently supported models
+- **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
+  - Converted from PyTorch to JAX for improved performance
+  - By default, runs 2-way data parallel and 2-way model parallel training (2 data parallel model copies and each model copy is sharded across two TPU chips).
+  - Compatible with NVIDIA GPUs and TPUs
+  - Full-precision training support
 
-- LLaMa-3/3.1 8B, 70B on Google Cloud TPUs. 
-  - Supports LoRA and full-precision training.
-  - Tested on TPU v3, v5p.
-- LLaMa-3.1 405B will be available on our cloud platform at felafax.ai -- sign-up for the [waitlist](https://tally.so/r/mRLeaQ)!
-- Gemma2 2B, 9B, 27B on Cloud TPUs. $${\color{red}New!}$$	 
-  - Supports fast full-precision training.
-  - Tested on TPU v3, v5p.
+- **LLaMa-3/3.1 PyTorch XLA**
+  - LoRA and full-precision training support
+
+- **Gemma2 Models (2B, 9B, 27B)**
+  - Optimized for Cloud TPUs
+  - Fast full-precision training
 
 ## Setup
 
 **For a hosted version with a seamless workflow, please visit [app.felafax.ai](https://app.felafax.ai)** 🦊. 
+
+We are also **onboarding people to try out Google's latest generation TPUs**, if you are interested sign up to the waitlist [here](https://tally.so/r/mRLeaQ).
 
 If you prefer a self-hosted training version, follow the instructions below. These steps will guide you through launching a TPU VM on your Google Cloud account and starting a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
@@ -56,8 +62,21 @@ If you prefer a self-hosted training version, follow the instructions below. The
     ```
     Keep an eye on the terminal -- you might be asked to input SSH key password and need to put in your HuggingFace token. 
 
+3. Clone the repo and install dependencies
+
+    ```bash
+    git clone https://github.com/felafax/felafax.git
+    cd felafax
+    pip install -r requirements.txt
+    ```
+
 3. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
 
 ## Credits:
+- Google Deepmind's [Gemma repo](https://github.com/google-deepmind/gemma).
+- [EasyLM](https://github.com/young-geng/EasyLM) for great work on llama models in JAX
 - PyTorch XLA FSDP and SPMD testing done by [HeegyuKim](https://github.com/HeegyuKim/torch-xla-SPMD).
 - Examples from [PyTorch-XLA](https://github.com/pytorch/xla/) repo.
+
+## Contact
+If you have any questions, please contact us at founders@felafax.ai.
