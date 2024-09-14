@@ -213,26 +213,6 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
             f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
         )
 
-    # Calculate and print training steps information
-    total_samples = len(train_dataloader.dataset)
-    batch_size = trainer_config.batch_size
-    steps_per_epoch = (total_samples + batch_size - 1) // batch_size
-    total_steps = steps_per_epoch * trainer_config.num_epochs
-
-    if trainer_config.max_steps:
-        total_steps = min(total_steps, trainer_config.max_steps)
-
-    print("\nTraining Configuration Summary:")
-    print(f"Total samples: {total_samples}")
-    print(f"Batch size: {batch_size}")
-    print(f"Number of epochs: {trainer_config.num_epochs}")
-    print(f"Steps per epoch: {steps_per_epoch}")
-    print(f"Total training steps: {total_steps}")
-    if trainer_config.max_steps and total_steps == trainer_config.max_steps:
-        print(
-            f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
-        )
-
     trainer = trainer_lib.CausalLMTrainer(
         model=model,
         model_ckpt_path=model_path,
