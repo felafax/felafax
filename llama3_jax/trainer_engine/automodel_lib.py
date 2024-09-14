@@ -78,8 +78,8 @@ class AutoJAXModelForCausalLM:
 
         model = llama_model.CausalLlamaModule(
             llama_model_hf_config,
-            dtype=jnp.float32,
-            param_dtype=jnp.float32,
+            dtype=jnp.float8,
+            param_dtype=jnp.float8,
         )
 
         return model_path, model, llama_model_configurator, tokenizer

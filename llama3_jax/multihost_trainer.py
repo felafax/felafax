@@ -185,7 +185,6 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
                               model_configurator, tokenizer, trainer_config,
                               flax_checkpoint_path, data_source):
     optimizer = optax.sgd(trainer_config.learning_rate)
-
     train_dataloader, val_dataloader = get_dataset(
         tokenizer=tokenizer,
         batch_size=trainer_config.batch_size,
