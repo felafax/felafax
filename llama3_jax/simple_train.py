@@ -40,19 +40,6 @@ model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
 
 
-# Constants for paths to storage
-FELAFAX_DIR = "/mnt/persistent-disk"
-EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
-HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
-
-current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-GCS_DIR = f"/home/felafax-storage/checkpoints/{MODEL_NAME}/{current_datetime}/"
-
-utils.makedirs(EXPORT_DIR, exist_ok=True)
-utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
-utils.makedirs(GCS_DIR, exist_ok=True)
-
-
 @chex.dataclass(frozen=True)
 class TrainerConfig:
     learning_rate: float = 1e-4
@@ -122,30 +109,46 @@ print(f"End time: {end_time:.4f}")
 elapsed_time = end_time - start_time
 print(f"Execution time: {elapsed_time:.4f} seconds")
 
-# flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
-# trainer.save_checkpoint(state, path=flax_checkpoint_path)
+pdb.set_trace()
 
-# convert_lib.save_hf_compatible_checkpoint(
-#     f'flax_params::{flax_checkpoint_path}', HF_EXPORT_DIR, model_configurator)
+########################################################
+# Exporting fine-tuned model
+########################################################
+# Constants for paths to storage
+FELAFAX_DIR = "/mnt/persistent-disk"
+EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
+HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
+current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+GCS_DIR = f"/home/felafax-storage/checkpoints/{MODEL_NAME}/{current_datetime}/"
 
-# # Download and save the tokenizer
-# tokenizer_repo = f"felafax/tokenizer-{MODEL_NAME}"
-# tokenizer_dir = snapshot_download(repo_id=tokenizer_repo)
+utils.makedirs(EXPORT_DIR, exist_ok=True)
+utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
+utils.makedirs(GCS_DIR, exist_ok=True)
 
-# # Move all files from tokenizer_dir to HF_EXPORT_DIR
-# for item in os.listdir(tokenizer_dir):
-#     s = os.path.join(tokenizer_dir, item)
-#     d = os.path.join(HF_EXPORT_DIR, item)
-#     if os.path.isfile(s):
-#         shutil.copy2(s, d)
-#         print(f"Copied {item} to {HF_EXPORT_DIR}")
-#     elif os.path.isdir(s):
-#         shutil.copytree(s, d, dirs_exist_ok=True)
-#         print(f"Copied directory {item} to {HF_EXPORT_DIR}")
-# print(f"All tokenizer files saved to {HF_EXPORT_DIR}")
+flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
+trainer.save_checkpoint(state, path=flax_checkpoint_path)
 
-# checkpoint_lib.copy_directory(HF_EXPORT_DIR, GCS_DIR)
-# print(f"Checkpoint copied to {GCS_DIR}")
+convert_lib.save_hf_compatible_checkpoint(
+    f'flax_params::{flax_checkpoint_path}', HF_EXPORT_DIR, model_configurator)
+
+# Download and save the tokenizer
+tokenizer_repo = f"felafax/tokenizer-{MODEL_NAME}"
+tokenizer_dir = snapshot_download(repo_id=tokenizer_repo)
+
+# Move all files from tokenizer_dir to HF_EXPORT_DIR
+for item in os.listdir(tokenizer_dir):
+    s = os.path.join(tokenizer_dir, item)
+    d = os.path.join(HF_EXPORT_DIR, item)
+    if os.path.isfile(s):
+        shutil.copy2(s, d)
+        print(f"Copied {item} to {HF_EXPORT_DIR}")
+    elif os.path.isdir(s):
+        shutil.copytree(s, d, dirs_exist_ok=True)
+        print(f"Copied directory {item} to {HF_EXPORT_DIR}")
+print(f"All tokenizer files saved to {HF_EXPORT_DIR}")
+
+checkpoint_lib.copy_directory(HF_EXPORT_DIR, GCS_DIR)
+print(f"Checkpoint copied to {GCS_DIR}")
 
 # HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
 # HUGGINGFACE_USERNAME = input(
