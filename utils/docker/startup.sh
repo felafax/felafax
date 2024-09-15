@@ -32,5 +32,9 @@ fi
 mkdir -p "/home/felafax-config/"
 gcsfuse --implicit-dirs felafax-config "/home/felafax-config/"
 
+# model storage
+mkdir -p "/home/felafax-models/"
+gcsfuse --implicit-dirs --only-dir "MODEL_STORAGE" felafax-storage-eu "/home/felafax-models/"
+
 # Start Jupyter Lab
 exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
