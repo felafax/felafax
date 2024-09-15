@@ -21,12 +21,20 @@ fi
 echo 'export PJRT_DEVICE=TPU' >>~/.bashrc
 
 if [ "$UID" != "0" ]; then
-  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/"
-  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/"
-fi
+  mkdir -p "/home/felafax-storage/$UID"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/$UID/"
 
-# mount config
-gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-config/"
+  mkdir -p "/home/felafax-storage-eu/$UID"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/$UID/"
+
+  # mount config
+  mkdir -p "/home/felafax-config/$UID"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-config "/home/felafax-config/$UID/"
+else
+  # mount config config
+  mkdir -p "/home/felafax-config/"
+  gcsfuse --implicit-dirs felafax-config "/home/felafax-config/"
+fi
 
 # Start Jupyter Lab
 exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
