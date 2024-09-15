@@ -70,12 +70,17 @@ RUN chmod 600 /home/.gcloud_key/storage_key.json
 RUN gcloud auth activate-service-account --key-file=/home/.gcloud_key/storage_key.json
 RUN mkdir "/home/felafax-storage/"
 RUN mkdir "/home/felafax-storage-eu/"
+RUN mkdir "/home/felafax-config/"
 
 
 # Create startup script
 RUN mkdir /scripts
 COPY utils/docker/startup.sh /scripts/startup.sh
 RUN chmod +x /scripts/startup.sh
+
+RUN mkdir /ansible
+COPY utils/ansible/ /ansible/
+
 
 # Command to run when the container starts
 CMD ["/scripts/startup.sh"]

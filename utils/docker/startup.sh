@@ -25,5 +25,8 @@ if [ "$UID" != "0" ]; then
   gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/"
 fi
 
+# mount config
+gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-config/"
+
 # Start Jupyter Lab
 exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
