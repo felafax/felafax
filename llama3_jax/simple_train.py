@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-
 import importlib
 import os
 import sys
@@ -98,18 +97,8 @@ trainer = trainer_lib.CausalLMTrainer(
     model_name=MODEL_NAME,
 )
 
-import time
-start_time = time.time()
-print(f"Start time: {start_time:.4f}")
-
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
 
-end_time = time.time()
-print(f"End time: {end_time:.4f}")
-elapsed_time = end_time - start_time
-print(f"Execution time: {elapsed_time:.4f} seconds")
-
-pdb.set_trace()
 
 ########################################################
 # Exporting fine-tuned model
