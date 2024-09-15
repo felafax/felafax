@@ -26,20 +26,13 @@ sys.path.append(os.path.abspath(os.getcwd()))
 sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
 
 # Local imports
-try:
-    import llama3_jax
-    print("felafax package imported successfully")
-except ImportError as e:
-    print(f"Error importing llama3_jax: {e}")
-
+import llama3_jax
 from llama3_jax.trainer_engine import setup
 from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
                                        convert_lib, jax_utils, llama_config,
-                                       trainer_lib, utils)
+                                       trainer_lib, utils, dataset_lib)
 
 FLAGS = flags.FLAGS
-
-# Grouped flags
 flags.DEFINE_string("base_dir", "/mnt/persistent-disk",
                     "Base directory for data")
 flags.DEFINE_string("model_name", "llama-3.1-8B-Instruct-JAX", "Model name")
@@ -66,102 +59,6 @@ flags.DEFINE_string("trainer_config_json", None,
                     "Path to JSON file containing trainer configuration")
 
 
-def get_dataset(*,
-                tokenizer,
-                data_source,
-                batch_size=1,
-                seq_length=32,
-                max_examples=None):
-    # Define Alpaca prompt template
-    alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
-    
-    ### Instruction: {}
-    
-    ### Input: {}
-    
-    ### Response: {}"""
-
-    EOS_TOKEN = tokenizer.eos_token
-
-    # Defines formatting function.
-    def _format_prompts(examples):
-        instructions = examples["instruction"]
-        inputs = examples["input"]
-        outputs = examples["output"]
-        texts = []
-        for instruction, input, output in zip(instructions, inputs, outputs):
-            text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
-            texts.append(text)
-        return {"text": texts}
-
-    def _tokenize(examples):
-        tokenized = tokenizer(examples["text"],
-                              truncation=True,
-                              padding="max_length",
-                              max_length=seq_length + 1)
-        return {
-            'input_tokens':
-            [input_id[:-1] for input_id in tokenized['input_ids']],
-            'target_tokens':
-            [input_id[1:] for input_id in tokenized['input_ids']],
-            'loss_masks':
-            [input_id[1:] for input_id in tokenized['attention_mask']]
-        }
-
-    def _custom_collate_fn(
-            batch: List[Dict[str, Any]]) -> Dict[str, jnp.ndarray]:
-        """
-        Collates batch items and converts PyTorch tensors to JAX arrays.
-        Applies default_data_collator, then converts tensors to JAX format.
-        """
-        collated = default_data_collator(batch)
-        jax_batch = {}
-        for key, value in collated.items():
-            jax_batch[key] = jnp.array(value.numpy()) if isinstance(
-                value, torch.Tensor) else value
-
-        return jax_batch
-
-    # Load and preprocess the dataset
-    if os.path.isfile(data_source):
-        dataset = load_dataset("json", data_files=data_source, split="train")
-    else:
-        dataset = load_dataset(data_source, split="train")
-
-    if max_examples:
-        dataset = dataset.select(range(max_examples))
-    dataset = dataset.map(_format_prompts, batched=True)
-
-    # Create train and test dataset.
-    ds = dataset.train_test_split(test_size=0.15)
-    for split in ['train', 'test']:
-        ds[split] = ds[split].map(_tokenize,
-                                  batched=True,
-                                  remove_columns=dataset.column_names)
-
-    # Create DataLoaders
-    dataloader_args = dict(shuffle=True,
-                           batch_size=batch_size,
-                           collate_fn=_custom_collate_fn)
-    train_dataloader = torch.utils.data.DataLoader(ds['train'],
-                                                   **dataloader_args)
-    test_dataloader = torch.utils.data.DataLoader(ds['test'],
-                                                  **dataloader_args)
-
-    return train_dataloader, test_dataloader
-
-
-def test_dataset_pipeline(tokenizer):
-    """Print shapes of first batch to verify dataset pipeline."""
-    train_loader, _ = get_dataset(tokenizer=tokenizer,
-                                  batch_size=4,
-                                  seq_length=32,
-                                  max_examples=32)
-    batch = next(iter(train_loader))
-    print("Input tokens shape:", batch['input_tokens'].shape)
-    print("Target mask shape:", batch['target_tokens'].shape)
-
-
 @chex.dataclass(frozen=False)
 class TrainerConfig:
     learning_rate: float = 1e-4
@@ -185,12 +82,16 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
                               model_configurator, tokenizer, trainer_config,
                               flax_checkpoint_path, data_source):
     optimizer = optax.sgd(trainer_config.learning_rate)
-    train_dataloader, val_dataloader = get_dataset(
-        tokenizer=tokenizer,
+    
+    # Create Dataset instance
+    dataset = dataset_lib.Dataset(tokenizer)
+    
+    train_dataloader, val_dataloader = dataset.get_dataset(
+        data_source=data_source,
         batch_size=trainer_config.batch_size,
         seq_length=trainer_config.seq_length,
-        max_examples=trainer_config.dataset_size_limit,
-        data_source=data_source)
+        max_examples=trainer_config.dataset_size_limit
+    )
 
     # Calculate and print training steps information
     total_samples = len(train_dataloader.dataset)
@@ -313,46 +214,6 @@ def main(argv):
     if not FLAGS.data_source:
         raise ValueError("--data_source must be provided")
 
-    # Define directories and paths
-    export_dir = os.path.join(FLAGS.base_dir, "export")
-    hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
-
-    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-    gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
-               f"{current_datetime}/")
-
-    flax_checkpoint_path = os.path.join(export_dir, FLAGS.model_name)
-
-    # Create necessary directories
-    utils.makedirs(export_dir, exist_ok=True)
-    utils.makedirs(hf_export_dir, exist_ok=True)
-    utils.makedirs(gcs_dir, exist_ok=True)
-
-    if not FLAGS.data_source:
-        raise ValueError("--data_source must be provided")
-
-    # Define directories and paths
-    export_dir = os.path.join(FLAGS.base_dir, "export")
-    hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
-    
-    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-    gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
-               f"{current_datetime}/")
-
-    flax_checkpoint_path = os.path.join(export_dir, FLAGS.model_name)
-
-    # Create necessary directories
-    utils.makedirs(export_dir, exist_ok=True)
-    utils.makedirs(hf_export_dir, exist_ok=True)
-    utils.makedirs(gcs_dir, exist_ok=True)
-
-    if not FLAGS.data_source:
-        raise ValueError("--data_source must be provided")
-
-    if FLAGS.test_dataset:
-        test_dataset_pipeline(tokenizer)
-        return
-
     if FLAGS.train or FLAGS.train_and_export:
         train_and_save_checkpoint(
             model_name=FLAGS.model_name,
@@ -382,6 +243,10 @@ def main(argv):
                               hf_username=FLAGS.hf_username,
                               hf_repo_name=FLAGS.hf_repo_name,
                               hf_token=FLAGS.hf_token)
+
+    if FLAGS.test_dataset:
+        dataset_lib.test_dataset_pipeline(tokenizer, FLAGS.data_source)
+        return
 
 
 if __name__ == "__main__":
