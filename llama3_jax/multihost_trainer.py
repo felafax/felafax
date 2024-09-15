@@ -125,7 +125,7 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
     if FLAGS.timeit:
         print(f"Start time: {start_time:.4f}")
 
-    state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
+    state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
 
     if FLAGS.timeit:
         end_time = time.time()

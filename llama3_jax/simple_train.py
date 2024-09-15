@@ -97,7 +97,7 @@ trainer = trainer_lib.CausalLMTrainer(
     model_name=MODEL_NAME,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
 
 
 ########################################################
