@@ -1,11 +1,26 @@
 # Felafax -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
-
+<div align="center">
+    <div>
+        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Storia-AI/sage?logo=github" />
+        <img alt="GitHub License" src="https://img.shields.io/github/license/Storia-AI/sage"></img>
+    </div>
+    <br />
+</div>
+          
 ![image](./utils/assets/image.jpg)
 
-RoadRunnerX is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of necessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
+Felafax is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of necessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use.
 - Easy to configure all aspects of training (designed for ML researchers and hackers).
 - Easy to scale training from a single TPU VM with 8 cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
+
+## ✨ Finetune for Free
+
+Add your dataset, click "Run All", and you'll run on free TPU resource on Google Colab!
+
+| Felafax supports | Free Notebooks |
+|-------------------|-----------------|
+| **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/drive/1SV6Er4jOV7f37eMnZ8Dx__WEmgo9JBYn?usp=sharing) |
 
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
