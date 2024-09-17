@@ -89,83 +89,26 @@ class CausalLMTrainer(FelafaxTrainer):
             enable_checkpointer=jax.process_index() == 0,
         )
 
-        self.state_shapes = self.get_state_shapes()
+        state_shapes = self.get_state_shapes()
         self.state_shapes_partitioned = jax_utils.match_partition_rules(
-            self.model_configurator.get_partition_rules(), self.state_shapes)
+            self.model_configurator.get_partition_rules(), state_shapes)
 
         self.shard_fns, self.gather_fns = checkpoint_lib.make_shard_and_gather_fns(
-            self.state_shapes_partitioned, self.state_shapes)
+            self.state_shapes_partitioned, state_shapes)
 
         jax_utils.init_rng(99)
         jax_utils.next_rng()
 
         print("Loading causal language model...")
         if self.model_params is None:
-            if self.model_name is None or self.model_name in [
-                    "llama-3.1-8B-Instruct-JAX", "llama-3.1-8B-JAX"
-            ]:
-                _, variables = (
-                    self.checkpointer.load_trainstate_checkpoint(
-                        "flax_params::" + self.model_ckpt_path,
-                        self.state_shapes, self.shard_fns))
-            else:
-                _, variables = (
-                    self.checkpointer.load_trainstate_checkpoint(
-                        "params::" + self.model_ckpt_path,
-                        self.state_shapes, self.shard_fns))
-
-            # Separate constants and trainable parameters
-            self.params, self.lora_params = variables.pop(
-                'params'), variables.pop('lora_params')
+            params, lora_params = self.load_checkpoint(self.model_ckpt_path,
+                                                       state_shapes)
         else:
-            self.params, self.lora_params = self.model_params.pop(
+            params, lora_params = self.model_params.pop(
                 'params'), self.model_params.pop('lora_params')
 
         self.train_state = self.create_train_state_from_params(
-            self.model.apply, self.params, self.lora_params)
-
-        # self.load_or_compile_train_step()
-
-    def load_or_compile_train_step(self):
-        try:
-            self.compiled_train_step = utils.load_pickle(
-                self.compiled_train_step_path)
-            print(
-                f"Loaded compiled train step from {self.compiled_train_step_path}"
-            )
-        except FileNotFoundError:
-            print(
-                f"Compiled train step not found at {self.compiled_train_step_path}. Compiling now..."
-            )
-            self.compile_train_step()
-
-    def compile_train_step(self):
-        print("Compiling train step...")
-        dummy_state = self.create_train_state_from_params(
-            self.model.apply, self.params, self.lora_params)
-        dummy_batch = self.get_dummy_batch()
-
-        jitted_train_step = jax.jit(
-            self.train_step,
-            in_shardings=(
-                self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
-                NamedSharding(self.mesh, PS()),  # rng
-            ),
-            out_shardings=(
-                self.state_shapes_partitioned,  # updated state
-                NamedSharding(self.mesh, PS()),  # new rng
-                NamedSharding(self.mesh, PS())  # metrics
-            ))
-
-        # AOT
-        self.compiled_train_step = jitted_train_step.lower(
-            dummy_state, dummy_batch, jax.random.PRNGKey(0)).compile()
-
-        # Save the compiled function
-        utils.save_pickle(self.compiled_train_step,
-                          self.compiled_train_step_path)
-        print(f"Compiled train step saved to {self.compiled_train_step_path}")
+            self.model.apply, params, lora_params)
 
     def get_dummy_batch(self):
         # Create a dummy batch matching your expected input structure
@@ -237,7 +180,7 @@ class CausalLMTrainer(FelafaxTrainer):
                 -1, batch["target_tokens"].shape[-1])
             loss_masks = batch["loss_masks"].reshape(
                 -1, batch["loss_masks"].shape[-1])
-            
+
             variables = {'params': state.params, 'lora_params': lora_params}
             logits = state.apply_fn(
                 variables,
@@ -365,8 +308,20 @@ class CausalLMTrainer(FelafaxTrainer):
 
         return {'loss': avg_loss, 'accuracy': avg_accuracy}
 
-    def load_checkpoint(self, path):
-        pass
+    def load_checkpoint(self, path, state_shapes):
+        if self.model_name is None or self.model_name in [
+                "llama-3.1-8B-Instruct-JAX", "llama-3.1-8B-JAX"
+        ]:
+            _, variables = (self.checkpointer.load_trainstate_checkpoint(
+                "flax_params::" + path, state_shapes, self.shard_fns))
+        else:
+            _, variables = (self.checkpointer.load_trainstate_checkpoint(
+                "params::" + path, state_shapes, self.shard_fns))
+
+        # Separate model params and trainable lora params
+        params, lora_params = (variables.pop('params'),
+                               variables.pop('lora_params'))
+        return params, lora_params
 
     def save_checkpoint(self, state, path):
         print(f"Saving checkpoint to {path}...")
@@ -376,6 +331,47 @@ class CausalLMTrainer(FelafaxTrainer):
 
     def compute_loss(self, logits, labels, mask):
         return cross_entropy_loss_and_accuracy(logits, labels, mask)
+
+    def _load_or_compile_train_step(self, params, lora_params):
+        try:
+            self.compiled_train_step = utils.load_pickle(
+                self.compiled_train_step_path)
+            print(
+                f"Loaded compiled train step from {self.compiled_train_step_path}"
+            )
+        except FileNotFoundError:
+            print(
+                f"Compiled train step not found at {self.compiled_train_step_path}. Compiling now..."
+            )
+            self._compile_train_step(params, lora_params)
+
+    def _compile_train_step(self, params, lora_params):
+        print("Compiling train step...")
+        dummy_state = self.create_train_state_from_params(
+            self.model.apply, params, lora_params)
+        dummy_batch = self.get_dummy_batch()
+
+        jitted_train_step = jax.jit(
+            self.train_step,
+            in_shardings=(
+                self.state_shapes_partitioned,  # state
+                NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
+                NamedSharding(self.mesh, PS()),  # rng
+            ),
+            out_shardings=(
+                self.state_shapes_partitioned,  # updated state
+                NamedSharding(self.mesh, PS()),  # new rng
+                NamedSharding(self.mesh, PS())  # metrics
+            ))
+
+        # AOT
+        self.compiled_train_step = jitted_train_step.lower(
+            dummy_state, dummy_batch, jax.random.PRNGKey(0)).compile()
+
+        # Save the compiled function
+        utils.save_pickle(self.compiled_train_step,
+                          self.compiled_train_step_path)
+        print(f"Compiled train step saved to {self.compiled_train_step_path}")
 
 
 def pprint_training_pipeline(train_dataloader, training_config):

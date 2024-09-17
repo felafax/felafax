@@ -55,11 +55,6 @@ class LoRADense(Module):
         else:
             bias = None
 
-        # lora_a = self.param('lora_a', default_kernel_init,
-        #                     (jnp.shape(inputs)[-1], self.lora_rank),
-        #                     self.param_dtype)
-        # lora_b = self.param('lora_b', zeros_init(),
-        #                     (self.lora_rank, self.features), self.param_dtype)
         lora_a = self.variable(
                 'lora_params', 'lora_a',
                 self.bias_init,
