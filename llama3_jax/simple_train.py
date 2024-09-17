@@ -41,6 +41,8 @@ model_path, model, model_configurator, tokenizer = (
         MODEL_NAME,
         dtype=jnp.bfloat16,
         param_dtype=jnp.bfloat16,
+        lora_rank=8,
+        lora_alpha=16,
     )
 )
 

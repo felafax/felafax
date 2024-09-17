@@ -41,6 +41,8 @@ class AutoJAXModelForCausalLM:
         huggingface_token: Optional[str] = None,
         dtype: jnp.dtype = jnp.float32,
         param_dtype: jnp.dtype = jnp.float32,
+        lora_rank: int = 8,
+        lora_alpha: float = 16,
         **kwargs,
     ) -> Tuple[str, llama_model.CausalLlamaModule, LlamaConfigType,
                AutoTokenizer]:
@@ -82,6 +84,8 @@ class AutoJAXModelForCausalLM:
             llama_model_hf_config,
             dtype=dtype,
             param_dtype=param_dtype,
+            lora_rank=lora_rank,
+            lora_alpha=lora_alpha,
         )
 
         return model_path, model, llama_model_configurator, tokenizer
