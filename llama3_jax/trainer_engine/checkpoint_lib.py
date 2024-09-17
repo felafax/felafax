@@ -97,33 +97,59 @@ def float_tensor_to_dtype(tensor, dtype):
     return tensor
 
 
-def make_shard_and_gather_fns(partition_specs,
-                              dtype_specs=None,
-                              dtype=jnp.float32):
-    def make_shard_fn(partition_spec):
+def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
+    """Creates pytree of sharding and gathering functions from pytree of partition specs."""
+
+    float_dtypes = (jnp.bfloat16, jnp.float16, jnp.float32, jnp.float64)
+
+    def make_to_dtype_fn(dtype_spec):
+        def to_dtype(tensor):
+            if dtype_specs in float_dtypes and getattr(tensor, 'dtype',
+                                                       None) in float_dtypes:
+                # Convert all float tensors to the same dtype
+                return tensor.astype(dtype_specs)
+            elif hasattr(dtype_spec, 'dtype') and hasattr(tensor, 'dtype'):
+                return tensor.astype(dtype_spec.dtype)
+            return tensor
+        return to_dtype
+
+    def make_shard_fn(partition_spec, dtype_spec=None):
+        # Check if partition_spec is already a NamedSharding
         if isinstance(partition_spec, NamedSharding):
             out_sharding = partition_spec
         else:
             out_sharding = NamedSharding(jax_utils.MESH, partition_spec)
-
+        jax_shard_function = jax.jit(make_to_dtype_fn(dtype_spec),
+                                     in_shardings=None,
+                                     out_shardings=out_sharding)
         def shard_fn(tensor):
-            return jax.device_put(tensor.astype(dtype),
-                                  out_sharding).block_until_ready()
+            return jax_shard_function(tensor).block_until_ready()
         return shard_fn
 
-    def make_gather_fn(partition_spec):
+    def make_gather_fn(partition_spec, dtype_spec=None):
+        # Check if partition_spec is already a NamedSharding
         if isinstance(partition_spec, NamedSharding):
             in_sharding = partition_spec
         else:
             in_sharding = NamedSharding(jax_utils.MESH, partition_spec)
+        jax_gather_fn = jax.jit(make_to_dtype_fn(dtype_spec),
+                                in_shardings=in_sharding,
+                                out_shardings=None)
 
         def gather_fn(tensor):
-            return jax.device_get(tensor.astype(dtype))
+            return jax.device_get(jax_gather_fn(tensor))
         return gather_fn
 
-    shard_fns = jax.tree_util.tree_map(make_shard_fn, partition_specs)
-    gather_fns = jax.tree_util.tree_map(make_gather_fn, partition_specs)
+    if dtype_specs is None or dtype_specs in float_dtypes:
+        shard_fns = jax.tree_util.tree_map(make_shard_fn, partition_specs)
+        gather_fns = jax.tree_util.tree_map(make_gather_fn, partition_specs)
+    else:
+        shard_fns = jax.tree_util.tree_map(make_shard_fn, partition_specs,
+                                           dtype_specs)
+        gather_fns = jax.tree_util.tree_map(make_gather_fn, partition_specs,
+                                            dtype_specs)
     return shard_fns, gather_fns
+
 
 
 class Checkpointer(object):

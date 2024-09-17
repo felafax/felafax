@@ -87,7 +87,7 @@ trainer = trainer_lib.CausalLMTrainer(
     dtype=jnp.bfloat16,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
 
 save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
 if save_checkpoint != 'y':

@@ -96,7 +96,7 @@ class CausalLMTrainer(FelafaxTrainer):
             self.model_configurator.get_partition_rules(), state_shapes)
 
         self.shard_fns, self.gather_fns = checkpoint_lib.make_shard_and_gather_fns(
-            self.state_shapes_partitioned, state_shapes, dtype=self.dtype)
+            self.state_shapes_partitioned, state_shapes)
 
         jax_utils.init_rng(99)
         jax_utils.next_rng()
@@ -176,12 +176,9 @@ class CausalLMTrainer(FelafaxTrainer):
 
         def loss_and_accuracy(lora_params):
             # Reshape the input tensors to combine the data parallel dimension with the batch dimension
-            input_tokens = batch["input_tokens"].reshape(
-                -1, batch["input_tokens"].shape[-1])
-            target_tokens = batch["target_tokens"].reshape(
-                -1, batch["target_tokens"].shape[-1])
-            loss_masks = batch["loss_masks"].reshape(
-                -1, batch["loss_masks"].shape[-1])
+            input_tokens = batch["input_tokens"]
+            target_tokens = batch["target_tokens"]
+            loss_masks = batch["loss_masks"]
 
             variables = {'params': state.params, 'lora_params': lora_params}
             logits = state.apply_fn(
