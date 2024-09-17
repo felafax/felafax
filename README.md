@@ -20,7 +20,7 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 
 | Felafax supports | Free Notebooks |
 |-------------------|-----------------|
-| **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/drive/1SV6Er4jOV7f37eMnZ8Dx__WEmgo9JBYn?usp=sharing) |
+| **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/github/felarof99/roadrunner-fork/blob/main/%F0%9F%A6%8A__Llama3_1_8b_on_Free_Colab_TPU.ipynb) |
 
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
