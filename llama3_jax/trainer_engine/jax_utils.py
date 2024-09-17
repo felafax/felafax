@@ -69,8 +69,16 @@ class NextRNG(object):
 # TODO: avoid defining mesh globally.
 DEVICES = jax.devices()
 DEVICE_COUNT = len(DEVICES)
-DEVICE_MESH = mesh_utils.create_device_mesh(
-    (DEVICE_COUNT // 2, DEVICE_COUNT // 2, 1))
+
+if DEVICE_COUNT == 1:
+    DEVICE_MESH = mesh_utils.create_device_mesh((1, 1, 1))
+elif DEVICE_COUNT == 4:
+    DEVICE_MESH = mesh_utils.create_device_mesh((2, 2, 1))
+elif DEVICE_COUNT == 8:
+    DEVICE_MESH = mesh_utils.create_device_mesh((1, 8, 1))
+else:
+    DEVICE_MESH = mesh_utils.create_device_mesh((1, DEVICE_COUNT, 1))
+
 MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
 
 

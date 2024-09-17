@@ -103,7 +103,6 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
     float_dtypes = (jnp.bfloat16, jnp.float16, jnp.float32, jnp.float64)
 
     def make_to_dtype_fn(dtype_spec):
-
         def to_dtype(tensor):
             if dtype_specs in float_dtypes and getattr(tensor, 'dtype',
                                                        None) in float_dtypes:
@@ -112,7 +111,6 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
             elif hasattr(dtype_spec, 'dtype') and hasattr(tensor, 'dtype'):
                 return tensor.astype(dtype_spec.dtype)
             return tensor
-
         return to_dtype
 
     def make_shard_fn(partition_spec, dtype_spec=None):
@@ -121,14 +119,11 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
             out_sharding = partition_spec
         else:
             out_sharding = NamedSharding(jax_utils.MESH, partition_spec)
-
         jax_shard_function = jax.jit(make_to_dtype_fn(dtype_spec),
                                      in_shardings=None,
                                      out_shardings=out_sharding)
-
         def shard_fn(tensor):
             return jax_shard_function(tensor).block_until_ready()
-
         return shard_fn
 
     def make_gather_fn(partition_spec, dtype_spec=None):
@@ -137,14 +132,12 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
             in_sharding = partition_spec
         else:
             in_sharding = NamedSharding(jax_utils.MESH, partition_spec)
-
         jax_gather_fn = jax.jit(make_to_dtype_fn(dtype_spec),
                                 in_shardings=in_sharding,
                                 out_shardings=None)
 
         def gather_fn(tensor):
             return jax.device_get(jax_gather_fn(tensor))
-
         return gather_fn
 
     if dtype_specs is None or dtype_specs in float_dtypes:
@@ -156,6 +149,7 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
         gather_fns = jax.tree_util.tree_map(make_gather_fn, partition_specs,
                                             dtype_specs)
     return shard_fns, gather_fns
+
 
 
 class Checkpointer(object):
@@ -207,6 +201,51 @@ class Checkpointer(object):
                 fout.write(packer.pack((key, to_bytes(value))))
 
     @staticmethod
+    def initialize_lora_params(lora_params_target, lora_params_shard_fns):
+        """Initialize LoRA parameters if they're not present in the checkpoint."""
+        lora_params = {}
+        flattened_target = flatten_dict(to_state_dict(lora_params_target),
+                                        keep_empty_nodes=True)
+        if lora_params_shard_fns is not None:
+            lora_params_shard_fns = flatten_dict(to_state_dict(lora_params_shard_fns))
+
+        rng_generator = jax_utils.NextRNG(jax.random.PRNGKey(99))
+
+        for key, value in flattened_target.items():
+            if 'lora_a' in key[-1]:
+                shape = value.shape
+                dtype = value.dtype
+                # Initialize lora_a with small random values
+                if key in lora_params_shard_fns:
+                    lora_params[key] = lora_params_shard_fns[key](
+                        jax.random.normal(rng_generator(), shape) * 0.02
+                    )
+                else:
+                    lora_params[key] = jax.random.normal(rng_generator(), shape) * 0.02
+            elif 'lora_b' in key[-1]:
+                shape = value.shape
+                dtype = value.dtype
+                # Initialize lora_b with zeros
+                if key in lora_params_shard_fns:
+                    lora_params[key] = lora_params_shard_fns[key](
+                        jnp.zeros(shape, dtype)
+                    )
+                else:
+                    lora_params[key] = jnp.zeros(shape, dtype)
+            elif value == empty_node:
+                lora_params[key] = value
+            else:
+                print(
+                    f"Warning: Unexpected key in lora_params: {key}. Using target value."
+                )
+                if key in lora_params_shard_fns:
+                    lora_params[key] = lora_params_shard_fns[key](value)
+                else:
+                    lora_params[key] = value
+
+        return unflatten_dict(lora_params)
+
+    @staticmethod
     def load_checkpoint(path, target=None, shard_fns=None, remove_dict_prefix=None):
         if shard_fns is not None:
             shard_fns = flatten_dict(
@@ -227,17 +266,24 @@ class Checkpointer(object):
                         continue
 
                 tensor = from_bytes(None, value)
-                if shard_fns is not None:
+
+                # Check if the key exists in shard_fns
+                if shard_fns is not None and key in shard_fns:
                     tensor = shard_fns[key](tensor)
+                elif shard_fns is not None:
+                    print(f"Warning: Key {key} not found in shard_fns. Skipping sharding for this tensor.")
+
                 flattend_train_state[key] = tensor
 
         if target is not None:
-            flattened_target = flatten_dict(
-                to_state_dict(target), keep_empty_nodes=True
-            )
+            flattened_target = flatten_dict(to_state_dict(target), keep_empty_nodes=True)
             for key, value in flattened_target.items():
-                if key not in flattend_train_state and value == empty_node:
-                    flattend_train_state[key] = value
+                if key not in flattend_train_state:
+                    if value == empty_node:
+                        flattend_train_state[key] = value
+                    else:
+                        print(f"Warning: Key {key} not found in checkpoint. Using target value.")
+                        flattend_train_state[key] = value
 
         train_state = unflatten_dict(flattend_train_state)
         if target is None:
@@ -270,38 +316,45 @@ class Checkpointer(object):
                                    trainstate_shard_fns=None,
                                    disallow_trainstate=False):
         if trainstate_target is not None:
-            params_target = trainstate_target.params['params']
+            params_target = trainstate_target.params
+            lora_params_target = trainstate_target.lora_params
         else:
             params_target = None
+            lora_params_target = None
 
         if trainstate_shard_fns is not None:
-            params_shard_fns = trainstate_shard_fns.params['params']
+            params_shard_fns = trainstate_shard_fns.params
+            lora_params_shard_fns = trainstate_shard_fns.lora_params
         else:
             params_shard_fns = None
+            lora_params_shard_fns = None
 
         load_type, load_path = load_from.split('::', 1)
         if disallow_trainstate:
             assert load_type != 'trainstate', 'Loading full trainstate is not allowed!'
         train_state = None
-        restored_params = None
+        restored_params = {}
 
-        if load_type == 'params':
-            # Load the params in the streaming format
-            restored_params = cls.load_checkpoint(
-                path=load_path,
-                target=params_target,
-                shard_fns=params_shard_fns,
-            )
-            restored_params = {'params': restored_params}
-        elif load_type == 'flax_params':
-            # Load the params in the standard flax format (non-streaming)
-            # This requires the entire params to fit in memory
-            restored_params = cls.load_flax_checkpoint(
-                path=load_path,
-                target=params_target,
-                shard_fns=params_shard_fns
-            )
-            restored_params = {'params': restored_params}
+        if load_type in ['params', 'flax_params']:
+            # Load or initialize params
+            if load_type == 'params':
+                params = cls.load_checkpoint(
+                    path=load_path,
+                    target=params_target,
+                    shard_fns=params_shard_fns,
+                )
+            else:  # load_type == 'flax_params'
+                params = cls.load_flax_checkpoint(
+                    path=load_path,
+                    target=params_target,
+                    shard_fns=params_shard_fns
+                )
+            restored_params['params'] = params
+
+            # Initialize lora_params if not present in the checkpoint
+            if lora_params_target is not None:
+                lora_params = cls.initialize_lora_params(lora_params_target, lora_params_shard_fns)
+                restored_params['lora_params'] = lora_params
         else:
             raise ValueError(f'Invalid load_from type: {load_type}')
 
