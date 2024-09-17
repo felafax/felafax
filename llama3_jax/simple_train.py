@@ -37,7 +37,12 @@ from transformers import default_data_collator
 
 MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
 model_path, model, model_configurator, tokenizer = (
-    automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
+    automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.bfloat16,
+    )
+)
 
 
 @chex.dataclass(frozen=True)
@@ -79,6 +84,7 @@ trainer = trainer_lib.CausalLMTrainer(
     training_config=trainer_config,
     mesh=jax_utils.MESH,
     model_name=MODEL_NAME,
+    dtype=jnp.bfloat16,
 )
 
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)

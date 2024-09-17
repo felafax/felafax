@@ -24,7 +24,6 @@ from typing import Any, Callable
 
 default_kernel_init = jax.nn.initializers.lecun_normal()
 
-
 class LoRADense(Module):
     features: int
     use_bias: bool = True
