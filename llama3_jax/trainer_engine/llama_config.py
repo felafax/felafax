@@ -59,6 +59,11 @@ class LlamaFactory:
             ("lm_head/kernel", PS("fsdp", "mp")),
             # Add rules for batch-specific parameters (if any)
             ("batch_stats/.*", PS("dp")),
+            
+            # New rules for LoRA parameters
+            (".*lora_a", PS("fsdp", "mp")),  # LoRA A matrices
+            (".*lora_b", PS("mp", "fsdp")),  # LoRA B matrices
+            
             # Keep the catch-all rule at the end
             (".*", PS(None)),
         )
