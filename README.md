@@ -1,8 +1,8 @@
 # Felafax -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
 <div align="center">
     <div>
-        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Storia-AI/sage?logo=github" />
-        <img alt="GitHub License" src="https://img.shields.io/github/license/Storia-AI/sage"></img>
+        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/felafax/felafax?logo=github" />
+        <img alt="GitHub License" src="https://img.shields.io/github/license/felafax/felafax"></img>
     </div>
     <br />
 </div>
