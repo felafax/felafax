@@ -4,6 +4,7 @@ import importlib
 import os
 import sys
 import pdb
+BASE_DIR = "/mnt/persistent-disk"
 
 # Add the current directory and its parent to the Python path.
 # This allows importing modules from these directories.
@@ -12,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
 
 import llama3_jax
 from llama3_jax.trainer_engine import setup
-setup.setup_environment(base_dir="/mnt/persistent-disk")
+setup.setup_environment(base_dir=BASE_DIR)
 
 from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
                                        convert_lib, dataset_lib, jax_utils, llama_config,
@@ -41,7 +42,7 @@ model_path, model, model_configurator, tokenizer = (
 
 @chex.dataclass(frozen=True)
 class TrainerConfig:
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-3
     num_epochs: int = 1
     max_steps: int | None = 20
     batch_size: int = 16
@@ -92,7 +93,7 @@ print("Proceeding with checkpoint saving...")
 # Exporting fine-tuned model
 ########################################################
 # Constants for paths to storage
-FELAFAX_DIR = "/mnt/persistent-disk"
+FELAFAX_DIR = BASE_DIR
 EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
 HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
 current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
