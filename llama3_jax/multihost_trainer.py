@@ -172,15 +172,25 @@ def main(argv):
     setup.setup_environment(base_dir=FLAGS.base_dir)
     setup.reload_modules("llama3_jax")
 
-    model_path, model, model_configurator, tokenizer = (
-        automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-            FLAGS.model_name,
-            dtype=jnp.bfloat16,
-            param_dtype=jnp.bfloat16,
-            lora_rank=8,
-            lora_alpha=16,
+    # Load model on host 0 only
+    if jax.process_index() == 0:
+        model_path, model, model_configurator, tokenizer = (
+            automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+                FLAGS.model_name,
+                dtype=jnp.bfloat16,
+                param_dtype=jnp.bfloat16,
+                lora_rank=8,
+                lora_alpha=16,
+            )
         )
-    )
+    else:
+        model_path, model, model_configurator, tokenizer = None, None, None, None
+
+    # Broadcast the model components to all hosts
+    model_path = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), model_path))
+    model = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), model))
+    model_configurator = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), model_configurator))
+    tokenizer = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), tokenizer))
 
     # Initialize TrainerConfig
     if FLAGS.trainer_config_json:
