@@ -164,6 +164,12 @@ def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
 
 def main(argv):
     del argv  # Unused
+    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    jax.distributed.initialize()
+    
+    FLAGS.base_dir = f"/home/felafax-storage/{current_datetime}"
+    os.makedirs(FLAGS.base_dir, exist_ok=True)
 
     setup.setup_environment(base_dir=FLAGS.base_dir)
     setup.reload_modules("llama3_jax")
@@ -188,7 +194,6 @@ def main(argv):
     export_dir = os.path.join(FLAGS.base_dir, "export")
     hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
 
-    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
     gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
                f"{current_datetime}/")
 
