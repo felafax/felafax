@@ -24,6 +24,11 @@ MODEL_NAME_TO_DOWNLOAD_CONFIG = {
         "felafax_model_name": "felafax/llama-3.1-8B-Instruct-JAX",
         "chkpt_filename": "llama-3.1-8B-Instruct-JAX.flax",
     },
+    "llama-3.1-70B-Instruct-JAX": {
+        "hf_model_name": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+        "felafax_model_name": "felafax/llama-3.1-70B-Instruct-JAX",
+        "chkpt_filename": "llama3.1_70b.flax",
+    },
     "colab-llama-3.1-8B-Instruct-JAX": {
         "hf_model_name": "meta-llama/Meta-Llama-3.1-8B-Instruct",
         "felafax_model_name": "felafax/colab-llama-3.1-8B-Instruct-JAX",
@@ -73,7 +78,7 @@ class AutoJAXModelForCausalLM:
             tokenizer.pad_token = tokenizer.eos_token
 
         print(f"{model_name} was downloaded to {model_path}.")
-
+        import pdb; pdb.set_trace()
         # Create LlamaFactory and model
         llama_model_configurator = create_llama_model(model_name)
         llama_model_config = llama_model_configurator.get_model_config()
