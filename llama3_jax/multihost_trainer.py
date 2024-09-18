@@ -1,21 +1,19 @@
 # Standard library imports
-import json
 import os
 import sys
 import pdb
-import gzip
-import shutil
-import time
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 # Third-party imports
 from absl import app, flags
-import chex
+
 import jax
+jax.distributed.initialize()
+
 import jax.numpy as jnp
+import chex
 import optax
-import torch
 from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from transformers import default_data_collator
@@ -165,8 +163,6 @@ def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
 def main(argv):
     del argv  # Unused
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    jax.distributed.initialize()
     
     FLAGS.base_dir = f"/home/felafax-storage/{current_datetime}"
     os.makedirs(FLAGS.base_dir, exist_ok=True)
