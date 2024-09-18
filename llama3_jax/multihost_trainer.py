@@ -58,6 +58,7 @@ flags.DEFINE_boolean("timeit", False, "Time the run")
 flags.DEFINE_string("trainer_config_json", None,
                     "Path to JSON file containing trainer configuration")
 
+flags.DEFINE_boolean("download_model", False, "Download the model on process index 0")
 
 @chex.dataclass(frozen=True)
 class TrainerConfig:
@@ -162,6 +163,23 @@ def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
     print(f"Checkpoint uploaded to Hugging Face: {hf_username}/{hf_repo_name}")
 
 
+def download_model(model_name):
+    if jax.process_index() == 0:
+        print(f"Downloading model {model_name} on process 0...")
+        model_path, model, model_configurator, tokenizer = (
+            automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+                model_name,
+                dtype=jnp.bfloat16,
+                param_dtype=jnp.bfloat16,
+                lora_rank=8,
+                lora_alpha=16,
+            )
+        )
+        print("Model download complete.")
+        return model_path, model, model_configurator, tokenizer
+    return None, None, None, None
+
+
 def main(argv):
     del argv  # Unused
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -172,8 +190,9 @@ def main(argv):
     setup.setup_environment(base_dir=FLAGS.base_dir)
     setup.reload_modules("llama3_jax")
 
-    # Load model on host 0 only
-    if jax.process_index() == 0:
+    if FLAGS.download_model:
+        model_path, model, model_configurator, tokenizer = download_model(FLAGS.model_name)
+    else:
         model_path, model, model_configurator, tokenizer = (
             automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
                 FLAGS.model_name,
@@ -183,14 +202,6 @@ def main(argv):
                 lora_alpha=16,
             )
         )
-    else:
-        model_path, model, model_configurator, tokenizer = None, None, None, None
-
-    # Broadcast the model components to all hosts
-    model_path = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), model_path))
-    model = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), model))
-    model_configurator = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), model_configurator))
-    tokenizer = jax.device_get(jax.tree_map(lambda x: jax.device_put(x, jax.devices()[0]), tokenizer))
 
     # Initialize TrainerConfig
     if FLAGS.trainer_config_json:
