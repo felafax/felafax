@@ -3,21 +3,13 @@ cloudpickle
 datasets>=2.18.0
 einops
 flax[all]
-# fastapi
 gcsfs
-# gradio
-jax
-# jax-lorax
 jax[tpu]
 ml_collections
 optax
-# pydantic
-# qax
 requests
 sentencepiece
 torch --index-url https://download.pytorch.org/whl/cpu
 tqdm
 transformers>=4.43
-
 absl-py
-# uvicorn
