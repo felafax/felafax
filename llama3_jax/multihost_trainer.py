@@ -59,11 +59,11 @@ flags.DEFINE_string("trainer_config_json", None,
                     "Path to JSON file containing trainer configuration")
 
 
-@chex.dataclass(frozen=False)
+@chex.dataclass(frozen=True)
 class TrainerConfig:
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-3
     num_epochs: int = 1
-    max_steps: int | None = 5
+    max_steps: int | None = 20
     batch_size: int = 16
     seq_length: int = 64
     dataset_size_limit: int | None = None
@@ -102,6 +102,7 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
         training_config=trainer_config,
         mesh=jax_utils.MESH,
         model_name=model_name,
+        dtype=jnp.bfloat16,
     )
 
     start_time = time.time()
@@ -169,7 +170,13 @@ def main(argv):
 
     model_path, model, model_configurator, tokenizer = (
         automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-            FLAGS.model_name))
+            FLAGS.model_name,
+            dtype=jnp.bfloat16,
+            param_dtype=jnp.bfloat16,
+            lora_rank=8,
+            lora_alpha=16,
+        )
+    )
 
     # Initialize TrainerConfig
     if FLAGS.trainer_config_json:
