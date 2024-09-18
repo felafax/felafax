@@ -364,7 +364,6 @@ class Checkpointer(object):
         if load_type in ['params', 'flax_params']:
             # Load or initialize params
             if load_type == 'params':
-                pdb.set_trace()
                 params = cls.load_checkpoint(
                     path=load_path,
                     target=params_target,

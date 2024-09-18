@@ -78,7 +78,7 @@ class AutoJAXModelForCausalLM:
             tokenizer.pad_token = tokenizer.eos_token
 
         print(f"{model_name} was downloaded to {model_path}.")
-        import pdb; pdb.set_trace()
+
         # Create LlamaFactory and model
         llama_model_configurator = create_llama_model(model_name)
         llama_model_config = llama_model_configurator.get_model_config()
