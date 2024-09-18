@@ -184,7 +184,7 @@ def main(argv):
     del argv  # Unused
     current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    FLAGS.base_dir = f"/home/felafax-storage/{current_datetime}"
+    FLAGS.base_dir = f"/home/felafax-storage-eu/{current_datetime}"
     os.makedirs(FLAGS.base_dir, exist_ok=True)
 
     setup.setup_environment(base_dir=FLAGS.base_dir)
