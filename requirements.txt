@@ -4,7 +4,7 @@ datasets>=2.18.0
 einops
 flax[all]
 gcsfs
-jax[tpu] --no-deps
+jax
 jaxlib
 ml_collections
 optax
