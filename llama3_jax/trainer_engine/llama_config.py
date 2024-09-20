@@ -59,11 +59,11 @@ class LlamaFactory:
             ("lm_head/kernel", PS("fsdp", "mp")),
             # Add rules for batch-specific parameters (if any)
             ("batch_stats/.*", PS("dp")),
-            
+
             # New rules for LoRA parameters
             (".*lora_a", PS("fsdp", "mp")),  # LoRA A matrices
             (".*lora_b", PS("mp", "fsdp")),  # LoRA B matrices
-            
+
             # Keep the catch-all rule at the end
             (".*", PS(None)),
         )
@@ -115,6 +115,23 @@ class Llama3_1_70B_Configurator(LlamaFactory):
             "rope_theta": 5e5,
         })
 
+
+class Llama3_1_405B_Configurator(LlamaFactory):
+
+    def __init__(self):
+        super().__init__()
+        self.model_config.update({
+            "base_model": "llama3.1_405b",
+            "vocab_size": 128256,  # LLAMA3_VOCAB_SIZE
+            "hidden_size": 16384,  # dim
+            "intermediate_size": 57344,
+            "num_hidden_layers": 126,
+            "num_attention_heads": 128,
+            "num_key_value_heads": 8,
+            "max_position_embeddings": 8192,  # Assuming same as 70B model
+            "rms_norm_eps": 1e-5,
+            "rope_theta": 5e5,
+        })
 
 def create_llama_model(
     model_name: str

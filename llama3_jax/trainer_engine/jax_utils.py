@@ -66,18 +66,22 @@ class NextRNG(object):
 ###################################################
 # Utils for JAX sharding
 ###################################################
-# TODO: avoid defining mesh globally.
 DEVICES = jax.devices()
 DEVICE_COUNT = len(DEVICES)
 
-if DEVICE_COUNT == 1:
-    DEVICE_MESH = mesh_utils.create_device_mesh((1, 1, 1))
-elif DEVICE_COUNT == 4:
-    DEVICE_MESH = mesh_utils.create_device_mesh((2, 2, 1))
-elif DEVICE_COUNT == 8:
-    DEVICE_MESH = mesh_utils.create_device_mesh((1, 8, 1))
+# We'll keep this flexible to accommodate different device counts
+if DEVICE_COUNT == 32:  # v3-32 TPU pod
+    DEVICE_MESH = mesh_utils.create_device_mesh((4, 4, 2))
 else:
-    DEVICE_MESH = mesh_utils.create_device_mesh((1, DEVICE_COUNT, 1))
+    # Fallback to the original logic
+    if DEVICE_COUNT == 1:
+        DEVICE_MESH = mesh_utils.create_device_mesh((1, 1, 1))
+    elif DEVICE_COUNT == 4:
+        DEVICE_MESH = mesh_utils.create_device_mesh((2, 2, 1))
+    elif DEVICE_COUNT == 8:
+        DEVICE_MESH = mesh_utils.create_device_mesh((1, 8, 1))
+    else:
+        DEVICE_MESH = mesh_utils.create_device_mesh((1, DEVICE_COUNT, 1))
 
 MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
 

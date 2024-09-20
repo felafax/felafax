@@ -35,7 +35,7 @@ from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from transformers import default_data_collator
 
-MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
+MODEL_NAME = "llama-3.1-70B-Instruct-JAX"
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
         MODEL_NAME,
@@ -54,7 +54,7 @@ class TrainerConfig:
     max_steps: int | None = 20
     batch_size: int = 16
     seq_length: int = 64
-    dataset_size_limit: int | None = None 
+    dataset_size_limit: int | None = None
     print_every_n_steps: int = 5
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
