@@ -7,7 +7,7 @@
     <br />
 </div>
           
-![image](./utils/assets/image.jpg)
+![image](./misc/assets/image.jpg)
 
 Felafax is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of necessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use.
