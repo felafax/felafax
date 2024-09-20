@@ -388,16 +388,9 @@ class CausalLMTrainer(FelafaxTrainer):
                 current_step = self.current_step
                 timestamp = time.time()
                 try:
-                    output = subprocess.check_output(["rocm-smi", "--csv"]).decode().strip()
-                    # Parse the output to extract GPU utilization and memory usage
-                    lines = output.split('\n')
-                    if len(lines) > 1:  # Ensure we have data
-                        data = lines[1].split(',')  # Skip header, use first GPU data
-                        gpu_util = data[2].strip('%')  # GPU utilization
-                        mem_used = data[3].split()[0]  # Memory used
-                        mem_total = data[4].split()[0]  # Total memory
-                        with open(log_file, "a") as f:
-                            f.write(f"{timestamp},{current_step},{gpu_util},{mem_used},{mem_total}\n")
+                    output = subprocess.check_output(["rocm-smi", "--showuse", "--showmemuse", "--csv"]).decode()
+                    with open(log_file, "a") as f:
+                        f.write(f"{timestamp},{current_step},{output}")
                 except subprocess.CalledProcessError:
                     print("Failed to run rocm-smi")
                 time.sleep(interval)
