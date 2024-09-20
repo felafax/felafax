@@ -268,10 +268,10 @@ class Checkpointer(object):
                 chunk_path = f"{path}.{chunk_index:03d}"
                 if not os.path.exists(chunk_path):
                     break
-                with utils.open_file(chunk_path) as fin:
+                with utils.open_file(chunk_path, 'rb') as fin:
                     unpacker = msgpack.Unpacker(fin,
-                                                read_size=83886080,
-                                                max_buffer_size=0)
+                                                read_size=10 * 1024 * 1024,  # Increased to 10MB
+                                                max_buffer_size=1024 * 1024 * 1024)  # Set to 1GB
                     for key, value in unpacker:
                         key = tuple(key)
                         tensor = from_bytes(None, value)
