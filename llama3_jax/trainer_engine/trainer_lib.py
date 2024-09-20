@@ -382,7 +382,7 @@ class CausalLMTrainer(FelafaxTrainer):
                           self.compiled_train_step_path)
         print(f"Compiled train step saved to {self.compiled_train_step_path}")
 
-    def run_rocm_smi(self, log_file, interval=1):
+    def run_rocm_smi(self, log_file, interval=5):
         def log_gpu_stats():
             while not self.stop_logging:
                 current_step = self.current_step

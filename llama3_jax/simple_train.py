@@ -50,8 +50,8 @@ model_path, model, model_configurator, tokenizer = (
 @chex.dataclass(frozen=True)
 class TrainerConfig:
     learning_rate: float = 1e-3
-    num_epochs: int = 1
-    max_steps: int | None = 20
+    num_epochs: int = 10
+    max_steps: int | None = None
     batch_size: int = 16
     seq_length: int = 64
     dataset_size_limit: int | None = None
@@ -91,11 +91,11 @@ trainer = trainer_lib.CausalLMTrainer(
 
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
 
-save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
-if save_checkpoint != 'y':
-    print("Checkpoint saving skipped.")
-    sys.exit()
-print("Proceeding with checkpoint saving...")
+# save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
+# if save_checkpoint != 'y':
+#     print("Checkpoint saving skipped.")
+#     sys.exit()
+# print("Proceeding with checkpoint saving...")
 
 ########################################################
 # Exporting fine-tuned model
