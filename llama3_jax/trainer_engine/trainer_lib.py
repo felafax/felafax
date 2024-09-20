@@ -7,6 +7,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 import pdb
+import subprocess
+import threading
+import time
 
 import chex
 import flax
@@ -236,39 +239,46 @@ class CausalLMTrainer(FelafaxTrainer):
               run_jitted=True,
               run_aot=False):
 
-        for epoch in range(self.training_config.num_epochs):
-            print(f"Starting epoch {epoch} of training...")
+        log_file = "rocm_smi_logs.csv"
+        with open(log_file, "w") as f:
+            f.write("timestamp,step,gpu_utilization,memory_used,memory_total\n")
+        
+        logging_thread = self.run_rocm_smi(log_file)
 
-            for step, train_batch in enumerate(train_dataloader):
-                train_batch = jax.device_put(
-                    train_batch, NamedSharding(self.mesh, PS("dp", "fsdp")))
+        try:
+            for epoch in range(self.training_config.num_epochs):
+                print(f"Starting epoch {epoch} of training...")
 
-                sharded_rng = jax_utils.next_rng()
+                for step, train_batch in enumerate(train_dataloader):
+                    self.current_step = epoch * len(train_dataloader) + step
 
-                if run_aot and self.compiled_train_step is not None:
-                    self.train_state, sharded_rng, metrics = self.compiled_train_step(
-                        self.train_state, train_batch, sharded_rng)
-                elif run_jitted:
-                    self.train_state, sharded_rng, metrics = self.jitted_train_step(
-                        self.train_state, train_batch, sharded_rng)
-                else:
-                    self.train_state, sharded_rng, metrics = self.train_step(
-                        self.train_state, train_batch, sharded_rng)
+                    train_batch = jax.device_put(
+                        train_batch, NamedSharding(self.mesh, PS("dp", "fsdp")))
 
-                if step % self.training_config.print_every_n_steps == 0:
-                    print(
-                        f"Epoch {epoch}, Step {step}, Train Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
-                    )
+                    sharded_rng = jax_utils.next_rng()
 
-                # if step % self.training_config.eval_every_n_steps == 0:
-                #     eval_metrics = self.evaluate(state, eval_dataloader)
-                #     print(
-                #         f"Epoch {epoch}, Step {step}, Eval Loss: {eval_metrics['loss']:.4f}, Accuracy: {eval_metrics['accuracy']:.4f}"
-                #     )
+                    if run_aot and self.compiled_train_step is not None:
+                        self.train_state, sharded_rng, metrics = self.compiled_train_step(
+                            self.train_state, train_batch, sharded_rng)
+                    elif run_jitted:
+                        self.train_state, sharded_rng, metrics = self.jitted_train_step(
+                            self.train_state, train_batch, sharded_rng)
+                    else:
+                        self.train_state, sharded_rng, metrics = self.train_step(
+                            self.train_state, train_batch, sharded_rng)
 
-                if (self.training_config.max_steps
-                        and step >= self.training_config.max_steps):
-                    break
+                    if step % self.training_config.print_every_n_steps == 0:
+                        print(
+                            f"Epoch {epoch}, Step {step}, Train Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
+                        )
+
+                    if (self.training_config.max_steps
+                            and step >= self.training_config.max_steps):
+                        break
+        finally:
+            self.stop_logging = True
+            logging_thread.join()
+
         return self.train_state
 
     def evaluate(self, state, eval_dataloader, run_jitted=True):
@@ -371,6 +381,32 @@ class CausalLMTrainer(FelafaxTrainer):
         utils.save_pickle(self.compiled_train_step,
                           self.compiled_train_step_path)
         print(f"Compiled train step saved to {self.compiled_train_step_path}")
+
+    def run_rocm_smi(self, log_file, interval=1):
+        def log_gpu_stats():
+            while not self.stop_logging:
+                current_step = self.current_step
+                timestamp = time.time()
+                try:
+                    output = subprocess.check_output(["rocm-smi", "--showuse", "--showmemuse", "--csv"]).decode().strip()
+                    # Parse the output to extract GPU utilization and memory usage
+                    lines = output.split('\n')
+                    if len(lines) > 1:  # Ensure we have data
+                        data = lines[1].split(',')  # Skip header, use first GPU data
+                        gpu_util = data[2].strip('%')  # GPU utilization
+                        mem_used = data[3].split()[0]  # Memory used
+                        mem_total = data[4].split()[0]  # Total memory
+                        with open(log_file, "a") as f:
+                            f.write(f"{timestamp},{current_step},{gpu_util},{mem_used},{mem_total}\n")
+                except subprocess.CalledProcessError:
+                    print("Failed to run rocm-smi")
+                time.sleep(interval)
+
+        self.stop_logging = False
+        self.current_step = 0
+        thread = threading.Thread(target=log_gpu_stats)
+        thread.start()
+        return thread
 
 
 def pprint_training_pipeline(train_dataloader, training_config):
