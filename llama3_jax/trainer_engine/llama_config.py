@@ -142,6 +142,8 @@ def create_llama_model(
         return Llama3_1_8B_Configurator()
     elif model_name in ("llama-3.1-70B-JAX", "llama-3.1-70B-Instruct-JAX"):
         return Llama3_1_70B_Configurator()
+    elif model_name in ("llama-3.1-405B-JAX", "llama-3.1-405B-Instruct-JAX"):
+        return Llama3_1_405B_Configurator()
     elif model_name == "llama_test":
         return LlamaFactory()
     else:
