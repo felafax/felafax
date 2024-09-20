@@ -124,7 +124,7 @@ class Llama3_1_405B_Configurator(LlamaFactory):
             "base_model": "llama3.1_405b",
             "vocab_size": 128256,  # LLAMA3_VOCAB_SIZE
             "hidden_size": 16384,  # dim
-            "intermediate_size": 57344,
+            "intermediate_size": 53248,
             "num_hidden_layers": 126,
             "num_attention_heads": 128,
             "num_key_value_heads": 8,
