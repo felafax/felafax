@@ -1,8 +1,8 @@
 # Felafax -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
 <div align="center">
     <div>
-        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Storia-AI/sage?logo=github" />
-        <img alt="GitHub License" src="https://img.shields.io/github/license/Storia-AI/sage"></img>
+        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/felafax/felafax?logo=github" />
+        <img alt="GitHub License" src="https://img.shields.io/github/license/felafax/felafax"></img>
     </div>
     <br />
 </div>
@@ -21,6 +21,8 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 | Felafax supports | Free Notebooks |
 |-------------------|-----------------|
 | **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/github/felarof99/roadrunner-fork/blob/main/%F0%9F%A6%8A__Llama3_1_8b_on_Free_Colab_TPU.ipynb) |
+
+🟧 If you want to ask questions about this repo, try **[sage.storia.ai/felafax](https://sage.storia.ai/felafax)**!
 
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
