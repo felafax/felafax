@@ -175,6 +175,7 @@ class CausalLMTrainer(FelafaxTrainer):
             ))
         print("Compilation done!")
         return jitted_train_step
+    
     def train_step(self, state, batch, rng):
         rng_generator = jax_utils.NextRNG(rng)
 
@@ -238,14 +239,17 @@ class CausalLMTrainer(FelafaxTrainer):
               train_dataloader,
               eval_dataloader,
               run_jitted=True,
-              run_aot=False):
+              run_aot=False,
+              is_amd=True):
 
-        log_file = "rocm_smi_logs.csv"
-        with open(log_file, "w") as f:
-            f.write(
-                "timestamp,step,gpu_utilization,memory_used,memory_total\n")
-
-        logging_thread = self.run_rocm_smi(log_file)
+        logging_thread = None
+        if is_amd:
+            # Log AMD GPU stats to file.
+            log_file = "rocm_smi_logs.csv"
+            with open(log_file, "w") as f:
+                f.write(
+                    "timestamp,step,gpu_utilization,memory_used,memory_total\n")
+            logging_thread = self._run_rocm_smi(log_file)
 
         total_training_time = 0
         total_steps = 0
@@ -298,8 +302,9 @@ class CausalLMTrainer(FelafaxTrainer):
                             and step >= self.training_config.max_steps):
                         break
         finally:
-            self.stop_logging = True
-            logging_thread.join()
+            if is_amd and logging_thread:
+                self.stop_logging = True
+                logging_thread.join()
 
         avg_steps_per_sec = total_steps / total_training_time
         print(f"Average Steps per Second: {avg_steps_per_sec:.2f}")
@@ -407,8 +412,8 @@ class CausalLMTrainer(FelafaxTrainer):
                           self.compiled_train_step_path)
         print(f"Compiled train step saved to {self.compiled_train_step_path}")
 
-    def run_rocm_smi(self, log_file, interval=1):
-
+    def _run_rocm_smi(self, log_file, interval=1):
+        """Runs rocm-smi to log GPU stats."""
         def log_gpu_stats():
             while not self.stop_logging:
                 current_step = self.current_step
