@@ -271,7 +271,7 @@ class Checkpointer(object):
                 with utils.open_file(chunk_path, 'rb') as fin:
                     unpacker = msgpack.Unpacker(fin,
                                                 read_size=10 * 1024 * 1024,  # Increased to 10MB
-                                                max_buffer_size=1024 * 1024 * 1024)  # Set to 1GB
+                                                max_buffer_size=10*1024 * 1024 * 1024)  # Set to 1GB
                     for key, value in unpacker:
                         key = tuple(key)
                         tensor = from_bytes(None, value)
