@@ -51,10 +51,10 @@ model_path, model, model_configurator, tokenizer = (
 @chex.dataclass(frozen=True)
 class TrainerConfig:
     learning_rate: float = 1e-3
-    num_epochs: int = 10
-    max_steps: int | None = None
+    num_epochs: int = 1
+    max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 64
+    seq_length: int = 2048 
     dataset_size_limit: int | None = None
     print_every_n_steps: int = 5
     eval_every_n_steps: int = 1000
@@ -90,7 +90,7 @@ trainer = trainer_lib.CausalLMTrainer(
     dtype=jnp.bfloat16,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
 
 # save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
 # if save_checkpoint != 'y':
