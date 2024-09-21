@@ -169,7 +169,6 @@ class CausalLMTrainer(FelafaxTrainer):
         if self._jitted_forward is None:
             self._jitted_forward = jax.jit(
                 self.forward_pass,
-                static_argnums=(0, ),
                 in_shardings=(
                     self.state_shapes_partitioned.params,
                     self.state_shapes_partitioned.lora_params,
@@ -189,7 +188,6 @@ class CausalLMTrainer(FelafaxTrainer):
         if self._jitted_backward is None:
             self._jitted_backward = jax.jit(
                 self.backward_pass,
-                static_argnums=(0, ),
                 in_shardings=(
                     self.state_shapes_partitioned.params,
                     self.state_shapes_partitioned.lora_params,
