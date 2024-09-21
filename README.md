@@ -1,13 +1,13 @@
 # Felafax -- tune LLaMa3.1 on Google Cloud TPUs for 30% lower cost and scale seamlessly!
 <div align="center">
     <div>
-        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Storia-AI/sage?logo=github" />
-        <img alt="GitHub License" src="https://img.shields.io/github/license/Storia-AI/sage"></img>
+        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/felafax/felafax?logo=github" />
+        <img alt="GitHub License" src="https://img.shields.io/github/license/felafax/felafax"></img>
     </div>
     <br />
 </div>
           
-![image](./utils/assets/image.jpg)
+![image](./misc/assets/image.jpg)
 
 Felafax is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of necessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use.
@@ -22,15 +22,17 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 |-------------------|-----------------|
 | **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/github/felarof99/roadrunner-fork/blob/main/%F0%9F%A6%8A__Llama3_1_8b_on_Free_Colab_TPU.ipynb) |
 
+🟧 If you want to ask questions about this repo, try **[sage.storia.ai/felafax](https://sage.storia.ai/felafax)**!
+
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
 
 ## Currently supported models
 - **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
   - Converted from PyTorch to JAX for improved performance
-  - By default, runs 2-way data parallel and 2-way model parallel training (2 data parallel model copies and each model copy is sharded across two TPU chips).
-  - Compatible with NVIDIA GPUs and TPUs
-  - Full-precision training support
+  - On TPU v4, v5, runs 2-way data parallel and 2-way model parallel training (2 data parallel model copies and each model copy is sharded across two TPU chips).
+  - On TPU v2, v3, runs 1 model copy sharded across 8 cores.
+  - Full-precision and LoRA training support
 
 - **LLaMa-3/3.1 PyTorch XLA**
   - LoRA and full-precision training support
@@ -41,7 +43,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 
 ## Setup
 
-**For a hosted version with a seamless workflow, please request access [here](https://tally.so/r/mRLeaQ). Here is a demo of our platform ([demo](https://www.loom.com/share/0b4bb303513d44a1bc5d01d2c22f1a85?sid=01c6b9c4-a94e-4959-b135-b5adaf792e68)) 🦊.**
+**For a hosted version with a seamless workflow, please request access [here](https://tally.so/r/mRLeaQ). 🦊.**
 
 If you prefer a self-hosted training version, follow the instructions below. These steps will guide you through launching a TPU VM on your Google Cloud account and starting a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
 
