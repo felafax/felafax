@@ -115,6 +115,11 @@ class CausalLMTrainer(FelafaxTrainer):
         self.train_state = self.create_train_state_from_params(
             self.model.apply, params, lora_params)
 
+        # Initialize JIT-compiled functions
+        self._jitted_forward = None
+        self._jitted_backward = None
+        self._jitted_train_step = None
+
     def get_dummy_batch(self):
         # Create a dummy batch matching your expected input structure
         return {
@@ -160,42 +165,99 @@ class CausalLMTrainer(FelafaxTrainer):
                                         tx=self.optimizer)
 
     @property
+    def jitted_forward(self):
+        if self._jitted_forward is None:
+            self._jitted_forward = jax.jit(
+                self.forward_pass,
+                static_argnums=(0, ),
+                in_shardings=(
+                    self.state_shapes_partitioned['params'],
+                    self.state_shapes_partitioned['lora_params'],
+                    NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
+                    NamedSharding(self.mesh, PS()),  # rng
+                ),
+                out_shardings=(
+                    NamedSharding(self.mesh, PS()),  # loss
+                    NamedSharding(self.mesh, PS()),  # accuracy
+                    NamedSharding(self.mesh, PS()),  # new_rng
+                ))
+            print("Jitted forward pass compiled.")
+        return self._jitted_forward
+
+    @property
+    def jitted_backward(self):
+        if self._jitted_backward is None:
+            self._jitted_backward = jax.jit(
+                self.backward_pass,
+                static_argnums=(0, ),
+                in_shardings=(
+                    self.state_shapes_partitioned['params'],
+                    self.state_shapes_partitioned['lora_params'],
+                    NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
+                    NamedSharding(self.mesh, PS()),  # rng
+                ),
+                out_shardings=(
+                    NamedSharding(self.mesh, PS()),  # loss
+                    NamedSharding(self.mesh, PS()),  # accuracy
+                    self.state_shapes_partitioned['lora_params'],  # grads
+                    NamedSharding(self.mesh, PS()),  # new_rng
+                ))
+            print("Jitted backward pass compiled.")
+        return self._jitted_backward
+
+    @property
     def jitted_train_step(self):
-        jitted_train_step = jax.jit(
-            self.train_step,
-            in_shardings=(
-                self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
-                NamedSharding(self.mesh, PS()),  # rng
-            ),
-            out_shardings=(
-                self.state_shapes_partitioned,  # updated state
-                NamedSharding(self.mesh, PS()),  # new rng
-                NamedSharding(self.mesh, PS())  # metrics
-            ))
-        print("Compilation done!")
-        return jitted_train_step
-    
-    def train_step(self, state, batch, rng):
+        if self._jitted_train_step is None:
+            self._jitted_train_step = jax.jit(
+                self.train_step,
+                in_shardings=(
+                    self.state_shapes_partitioned,  # state
+                    NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
+                    NamedSharding(self.mesh, PS()),  # rng
+                ),
+                out_shardings=(
+                    self.state_shapes_partitioned,  # updated state
+                    NamedSharding(self.mesh, PS()),  # new rng
+                    NamedSharding(self.mesh, PS())  # metrics
+                ))
+        return self._jitted_train_step
+
+    def forward_pass(self, params, lora_params, batch, rng):
         rng_generator = jax_utils.NextRNG(rng)
 
-        def loss_and_accuracy(lora_params):
-            # Reshape the input tensors to combine the data parallel dimension with the batch dimension
-            input_tokens = batch["input_tokens"]
-            target_tokens = batch["target_tokens"]
-            loss_masks = batch["loss_masks"]
+        input_tokens = batch["input_tokens"]
+        target_tokens = batch["target_tokens"]
+        loss_masks = batch["loss_masks"]
 
-            variables = {'params': state.params, 'lora_params': lora_params}
-            logits = state.apply_fn(
-                variables,
-                input_tokens,
-                deterministic=False,
-                rngs=rng_generator(('params', 'dropout', 'fcm')),
-            ).logits
-            return self.compute_loss(logits, target_tokens, loss_masks)
+        variables = {'params': params, 'lora_params': lora_params}
+        logits = self.model.apply(
+            variables,
+            input_tokens,
+            deterministic=False,
+            rngs=rng_generator(('params', 'dropout', 'fcm')),
+        ).logits
+        loss, accuracy = self.compute_loss(logits, target_tokens, loss_masks)
+        return loss, accuracy, rng_generator()
 
-        grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
-        (loss, accuracy), grads = grad_fn(state.lora_params)
+    def backward_pass(self, params, lora_params, batch, rng):
+        grad_fn = jax.value_and_grad(self.forward_pass,
+                                     argnums=1,
+                                     has_aux=True)
+        (loss, accuracy, new_rng), grads = grad_fn(params, lora_params, batch,
+                                                   rng)
+        return loss, accuracy, grads, new_rng
+
+    def train_step(self, state, batch, rng, run_jitted=False):
+        if run_jitted:
+            loss, accuracy, new_rng = self.jitted_forward(
+                state.params, state.lora_params, batch, rng)
+            loss, accuracy, grads, new_rng = self.jitted_backward(
+                state.params, state.lora_params, batch, new_rng)
+        else:
+            loss, accuracy, new_rng = self.forward_pass(
+                state.params, state.lora_params, batch, rng)
+            loss, accuracy, grads, new_rng = self.backward_pass(
+                state.params, state.lora_params, batch, new_rng)
 
         # Update using optax
         updates, new_opt_state = state.tx.update(grads, state.opt_state,
@@ -210,18 +272,7 @@ class CausalLMTrainer(FelafaxTrainer):
             loss=loss,
             accuracy=accuracy,
         )
-        return new_state, rng_generator(), metrics
-
-    @property
-    def jitted_eval_step(self):
-        return jax.jit(
-            self.eval_step,
-            in_shardings=(
-                self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS("dp")),  # batch
-            ),
-            out_shardings=NamedSharding(self.mesh, PS())  # metrics
-        )
+        return new_state, new_rng, metrics
 
     def eval_step(self, state, batch):
         variables = {'params': state.params, 'lora_params': state.lora_params}
@@ -248,7 +299,8 @@ class CausalLMTrainer(FelafaxTrainer):
             log_file = "rocm_smi_logs.csv"
             with open(log_file, "w") as f:
                 f.write(
-                    "timestamp,step,gpu_utilization,memory_used,memory_total\n")
+                    "timestamp,step,gpu_utilization,memory_used,memory_total\n"
+                )
             logging_thread = self._run_rocm_smi(log_file)
 
         total_training_time = 0
@@ -271,14 +323,21 @@ class CausalLMTrainer(FelafaxTrainer):
                     step_start_time = time.time()
 
                     if run_aot and self.compiled_train_step is not None:
-                        self.train_state, sharded_rng, metrics = self.compiled_train_step(
-                            self.train_state, train_batch, sharded_rng)
+                        self.train_state, sharded_rng, metrics = (
+                            self.compiled_train_step(self.train_state,
+                                                     train_batch, sharded_rng))
                     elif run_jitted:
-                        self.train_state, sharded_rng, metrics = self.jitted_train_step(
-                            self.train_state, train_batch, sharded_rng)
+                        self.train_state, sharded_rng, metrics = (
+                            self.train_step(self.train_state,
+                                            train_batch,
+                                            sharded_rng,
+                                            run_jitted=True))
                     else:
-                        self.train_state, sharded_rng, metrics = self.train_step(
-                            self.train_state, train_batch, sharded_rng)
+                        self.train_state, sharded_rng, metrics = (
+                            self.train_step(self.train_state,
+                                            train_batch,
+                                            sharded_rng,
+                                            run_jitted=False))
 
                     # End timing
                     step_end_time = time.time()
@@ -414,6 +473,7 @@ class CausalLMTrainer(FelafaxTrainer):
 
     def _run_rocm_smi(self, log_file, interval=1):
         """Runs rocm-smi to log GPU stats."""
+
         def log_gpu_stats():
             while not self.stop_logging:
                 current_step = self.current_step
