@@ -245,6 +245,9 @@ class CausalLMTrainer(FelafaxTrainer):
 
         logging_thread = self.run_rocm_smi(log_file)
 
+        total_training_time = 0
+        total_steps = 0
+
         try:
             for epoch in range(self.training_config.num_epochs):
                 print(f"Starting epoch {epoch} of training...")
@@ -257,6 +260,9 @@ class CausalLMTrainer(FelafaxTrainer):
 
                     sharded_rng = jax_utils.next_rng()
 
+                    # Start timing
+                    step_start_time = time.time()
+
                     if run_aot and self.compiled_train_step is not None:
                         self.train_state, sharded_rng, metrics = self.compiled_train_step(
                             self.train_state, train_batch, sharded_rng)
@@ -267,9 +273,24 @@ class CausalLMTrainer(FelafaxTrainer):
                         self.train_state, sharded_rng, metrics = self.train_step(
                             self.train_state, train_batch, sharded_rng)
 
+                    # End timing
+                    step_end_time = time.time()
+
+                    # Calculate step duration
+                    step_duration = step_end_time - step_start_time
+                    total_training_time += step_duration
+                    total_steps += 1
+
+                    # Calculate steps per second
+                    steps_per_sec = 1 / step_duration
+
                     if step % self.training_config.print_every_n_steps == 0:
                         print(
-                            f"Epoch {epoch}, Step {step}, Train Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
+                            f"Epoch {epoch}, Step {step}, "
+                            f"Train Loss: {metrics['loss']:.4f}, "
+                            f"Accuracy: {metrics['accuracy']:.4f}, "
+                            f"Step Time: {step_duration:.4f}s, "
+                            f"Steps/sec: {steps_per_sec:.2f}"
                         )
 
                     if (self.training_config.max_steps
@@ -278,6 +299,9 @@ class CausalLMTrainer(FelafaxTrainer):
         finally:
             self.stop_logging = True
             logging_thread.join()
+
+        avg_steps_per_sec = total_steps / total_training_time
+        print(f"Average Steps per Second: {avg_steps_per_sec:.2f}")
 
         return self.train_state
 
