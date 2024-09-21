@@ -35,8 +35,8 @@ from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from transformers import default_data_collator
 
-# MODEL_NAME = "llama-3.1-405B-Instruct-JAX"
-MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
+MODEL_NAME = "llama-3.1-405B-Instruct-JAX"
+# MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
         MODEL_NAME,
