@@ -161,7 +161,7 @@ class CausalLMTrainer(FelafaxTrainer):
 
     @property
     def jitted_train_step(self):
-        return jax.jit(
+        jitted_train_step = jax.jit(
             self.train_step,
             in_shardings=(
                 self.state_shapes_partitioned,  # state
@@ -173,7 +173,8 @@ class CausalLMTrainer(FelafaxTrainer):
                 NamedSharding(self.mesh, PS()),  # new rng
                 NamedSharding(self.mesh, PS())  # metrics
             ))
-
+        print("Compilation done!")
+        return jitted_train_step
     def train_step(self, state, batch, rng):
         rng_generator = jax_utils.NextRNG(rng)
 
