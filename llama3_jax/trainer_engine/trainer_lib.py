@@ -177,8 +177,8 @@ class CausalLMTrainer(FelafaxTrainer):
                 ),
                 out_shardings=(
                     NamedSharding(self.mesh, PS()),  # loss
-                    NamedSharding(self.mesh, PS()),  # accuracy
-                    NamedSharding(self.mesh, PS()),  # new_rng
+                    (NamedSharding(self.mesh, PS()),  # accuracy
+                     NamedSharding(self.mesh, PS())),  # new_rng
                 ))
             print("Jitted forward pass compiled.")
         return self._jitted_forward
@@ -235,24 +235,23 @@ class CausalLMTrainer(FelafaxTrainer):
             rngs=rng_generator(('params', 'dropout', 'fcm')),
         ).logits
         loss, accuracy = self.compute_loss(logits, target_tokens, loss_masks)
-        return loss, accuracy, rng_generator()
+        return loss, (accuracy, rng_generator())
 
     def backward_pass(self, params, lora_params, batch, rng):
         grad_fn = jax.value_and_grad(self.forward_pass,
                                      argnums=1,
                                      has_aux=True)
-        (loss, accuracy, new_rng), grads = grad_fn(params, lora_params, batch,
-                                                   rng)
+        (loss, (accuracy, new_rng)), grads = grad_fn(params, lora_params, batch, rng)
         return loss, accuracy, grads, new_rng
 
     def train_step(self, state, batch, rng, run_jitted=False):
         if run_jitted:
-            loss, accuracy, new_rng = self.jitted_forward(
+            loss, (accuracy, new_rng) = self.jitted_forward(
                 state.params, state.lora_params, batch, rng)
             loss, accuracy, grads, new_rng = self.jitted_backward(
                 state.params, state.lora_params, batch, new_rng)
         else:
-            loss, accuracy, new_rng = self.forward_pass(
+            loss, (accuracy, new_rng) = self.forward_pass(
                 state.params, state.lora_params, batch, rng)
             loss, accuracy, grads, new_rng = self.backward_pass(
                 state.params, state.lora_params, batch, new_rng)
