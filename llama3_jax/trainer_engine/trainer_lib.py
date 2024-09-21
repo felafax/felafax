@@ -171,8 +171,8 @@ class CausalLMTrainer(FelafaxTrainer):
                 self.forward_pass,
                 static_argnums=(0, ),
                 in_shardings=(
-                    self.state_shapes_partitioned['params'],
-                    self.state_shapes_partitioned['lora_params'],
+                    self.state_shapes_partitioned.params,
+                    self.state_shapes_partitioned.lora_params,
                     NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
                     NamedSharding(self.mesh, PS()),  # rng
                 ),
@@ -191,15 +191,15 @@ class CausalLMTrainer(FelafaxTrainer):
                 self.backward_pass,
                 static_argnums=(0, ),
                 in_shardings=(
-                    self.state_shapes_partitioned['params'],
-                    self.state_shapes_partitioned['lora_params'],
+                    self.state_shapes_partitioned.params,
+                    self.state_shapes_partitioned.lora_params,
                     NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
                     NamedSharding(self.mesh, PS()),  # rng
                 ),
                 out_shardings=(
                     NamedSharding(self.mesh, PS()),  # loss
                     NamedSharding(self.mesh, PS()),  # accuracy
-                    self.state_shapes_partitioned['lora_params'],  # grads
+                    self.state_shapes_partitioned.lora_params,  # grads
                     NamedSharding(self.mesh, PS()),  # new_rng
                 ))
             print("Jitted backward pass compiled.")
