@@ -241,7 +241,8 @@ class CausalLMTrainer(FelafaxTrainer):
 
         log_file = "rocm_smi_logs.csv"
         with open(log_file, "w") as f:
-            f.write("timestamp,step,gpu_utilization,memory_used,memory_total\n")
+            f.write(
+                "timestamp,step,gpu_utilization,memory_used,memory_total\n")
 
         logging_thread = self.run_rocm_smi(log_file)
 
@@ -256,7 +257,8 @@ class CausalLMTrainer(FelafaxTrainer):
                     self.current_step = epoch * len(train_dataloader) + step
 
                     train_batch = jax.device_put(
-                        train_batch, NamedSharding(self.mesh, PS("dp", "fsdp")))
+                        train_batch, NamedSharding(self.mesh, PS("dp",
+                                                                 "fsdp")))
 
                     sharded_rng = jax_utils.next_rng()
 
@@ -285,13 +287,11 @@ class CausalLMTrainer(FelafaxTrainer):
                     steps_per_sec = 1 / step_duration
 
                     if step % self.training_config.print_every_n_steps == 0:
-                        print(
-                            f"Epoch {epoch}, Step {step}, "
-                            f"Train Loss: {metrics['loss']:.4f}, "
-                            f"Accuracy: {metrics['accuracy']:.4f}, "
-                            f"Step Time: {step_duration:.4f}s, "
-                            f"Steps/sec: {steps_per_sec:.2f}"
-                        )
+                        print(f"Epoch {epoch}, Step {step}, "
+                              f"Train Loss: {metrics['loss']:.4f}, "
+                              f"Accuracy: {metrics['accuracy']:.4f}, "
+                              f"Step Time: {step_duration:.4f}s, "
+                              f"Steps/sec: {steps_per_sec:.2f}")
 
                     if (self.training_config.max_steps
                             and step >= self.training_config.max_steps):
@@ -406,8 +406,8 @@ class CausalLMTrainer(FelafaxTrainer):
                           self.compiled_train_step_path)
         print(f"Compiled train step saved to {self.compiled_train_step_path}")
 
-
     def run_rocm_smi(self, log_file, interval=1):
+
         def log_gpu_stats():
             while not self.stop_logging:
                 current_step = self.current_step
@@ -443,6 +443,7 @@ class CausalLMTrainer(FelafaxTrainer):
         thread = threading.Thread(target=log_gpu_stats)
         thread.start()
         return thread
+
 
 def pprint_training_pipeline(train_dataloader, training_config):
     total_samples = len(train_dataloader.dataset)
