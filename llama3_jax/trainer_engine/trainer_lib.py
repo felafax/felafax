@@ -242,7 +242,7 @@ class CausalLMTrainer(FelafaxTrainer):
         log_file = "rocm_smi_logs.csv"
         with open(log_file, "w") as f:
             f.write("timestamp,step,gpu_utilization,memory_used,memory_total\n")
-        
+
         logging_thread = self.run_rocm_smi(log_file)
 
         try:
@@ -382,15 +382,34 @@ class CausalLMTrainer(FelafaxTrainer):
                           self.compiled_train_step_path)
         print(f"Compiled train step saved to {self.compiled_train_step_path}")
 
-    def run_rocm_smi(self, log_file, interval=5):
+
+    def run_rocm_smi(self, log_file, interval=1):
         def log_gpu_stats():
             while not self.stop_logging:
                 current_step = self.current_step
                 timestamp = time.time()
                 try:
-                    output = subprocess.check_output(["rocm-smi", "--showuse", "--showmemuse", "--csv"]).decode()
+                    output = subprocess.check_output([
+                        "rocm-smi",
+                        "--alldevices",
+                        "--showuse",  # GPU Utilization
+                        "--showmemuse",  # Memory Usage
+                        "--showtemp",  # Temperature
+                        "--showpower",  # Power Consumption
+                        "--showclocks",  # Clock Frequencies
+                        "--showfan",  # Fan Speed
+                        "--showperflevel",  # Performance Level
+                        "--showvoltage",  # Voltage
+                        "--showbw",  # PCIe Bandwidth
+                        "--showpids",
+                        "verbose",  # Process Information
+                        "--csv"  # CSV Format
+                    ]).decode()
                     with open(log_file, "a") as f:
-                        f.write(f"{timestamp},{current_step},{output}")
+                        # Append the timestamp and step to each line of the output
+                        for line in output.strip().split('\n'):
+                            if line:  # Ensure the line is not empty
+                                f.write(f"{timestamp},{current_step},{line}\n")
                 except subprocess.CalledProcessError:
                     print("Failed to run rocm-smi")
                 time.sleep(interval)
@@ -400,7 +419,6 @@ class CausalLMTrainer(FelafaxTrainer):
         thread = threading.Thread(target=log_gpu_stats)
         thread.start()
         return thread
-
 
 def pprint_training_pipeline(train_dataloader, training_config):
     total_samples = len(train_dataloader.dataset)
