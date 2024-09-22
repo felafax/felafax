@@ -4,8 +4,8 @@ import importlib
 import os
 import sys
 import pdb
-# BASE_DIR = "/mnt/persistent-disk"
-BASE_DIR = "/home/felafax-storage-eu/"
+BASE_DIR = "/mnt/persistent-disk"
+# BASE_DIR = "/home/felafax-storage-eu/"
 
 # Add the current directory and its parent to the Python path.
 # This allows importing modules from these directories.
