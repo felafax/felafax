@@ -60,7 +60,7 @@ class TrainerConfig:
     max_steps: int | None = 100
     batch_size: int = 16
     seq_length: int = 2048
-    dataset_size_limit: int | None = None
+    dataset_size_limit: int | None = 64
     print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
