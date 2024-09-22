@@ -44,7 +44,7 @@ model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
         MODEL_NAME,
         dtype=jnp.bfloat16,
-        param_dtype=float8,
+        param_dtype=jnp.bfloat16,
         lora_rank=8,
         lora_alpha=16,
     )
