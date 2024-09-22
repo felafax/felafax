@@ -78,12 +78,12 @@ class LoRADense(Module):
         #     None if bias is None else bias,
         #     dtype=self.dtype)
     
-        inputs = inputs.astype(self.dtype)
-        kernel_value = kernel.astype(self.dtype)
-        lora_a_value = lora_a.value.astype(self.dtype)
-        lora_b_value = lora_b.value.astype(self.dtype)
+        inputs = inputs.astype(jnp.bfloat16)
+        kernel_value = kernel.astype(jnp.bfloat16)
+        lora_a_value = lora_a.value.astype(jnp.bfloat16)
+        lora_b_value = lora_b.value.astype(jnp.bfloat16)
         if bias is not None:
-            bias = bias.astype(self.dtype)
+            bias = bias.astype(jnp.bfloat16)
             
         y = lax.dot_general(
             inputs,
@@ -145,8 +145,8 @@ def apply_rotary_emb(
     theta: float = 10000.0,
 ):
     input_dtype = xq.dtype
-    xq = xq.astype(jnp.float32)
-    xk = xk.astype(jnp.float32)
+    xq = xq.astype(jnp.bfloat16)
+    xk = xk.astype(jnp.bfloat16)
 
     with jax.ensure_compile_time_eval():
         dim = xq.shape[-1]
@@ -252,7 +252,7 @@ class Attention(nn.Module):
         output_attentions: bool = False,
         fcm_mask=None,
     ):
-        hidden_states = hidden_states.astype(self.dtype)
+        hidden_states = hidden_states.astype(jnp.bfloat16)
         
         # Project input hidden states to query, key, and value
         xq, xk, xv = (
@@ -418,7 +418,7 @@ class FeedForward(nn.Module):
     def __call__(self,
                  x: jnp.ndarray,
                  deterministic: bool = True) -> jnp.ndarray:
-        x = x.astype(self.dtype)
+        x = x.astype(jnp.bfloat16)
         x = self.w2(nn.silu(self.w1(x)) * self.w3(x))
         x = self.dropout(x, deterministic=deterministic)
         return x.astype(self.dtype)
@@ -472,7 +472,7 @@ class TransformerBlock(nn.Module):
         output_attentions: bool = False,
         fcm_mask: Optional[jnp.ndarray] = None,
     ):
-        hidden_states = hidden_states.astype(self.dtype)
+        hidden_states = hidden_states.astype(jnp.bfloat16)
         
         attn_outputs = self.attention(
             self.attention_norm(hidden_states),
@@ -607,7 +607,7 @@ class LlamaModule(nn.Module):
         output_hidden_states: bool = False,
         return_dict: bool = True,
     ):
-        input_embeds = self.wte(input_ids.astype("i4")).astype(self.dtype)
+        input_embeds = self.wte(input_ids.astype("i4")).astype(jnp.bfloat16)
 
         hidden_states = self.dropout(input_embeds, deterministic=deterministic)
 
@@ -700,7 +700,7 @@ class CausalLlamaModule(nn.Module):
             return_dict=return_dict,
         )
 
-        hidden_states = outputs[0].astype(self.dtype)
+        hidden_states = outputs[0].astype(jnp.bfloat16)
         lm_logits = self.lm_head(hidden_states)
 
         if not return_dict:
