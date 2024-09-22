@@ -577,8 +577,8 @@ class LlamaModule(nn.Module):
             self.config.hidden_size,
             embedding_init=jax.nn.initializers.normal(
                 stddev=self.config.initializer_range),
-            dtype=self.dtype,
-            param_dtype=self.param_dtype,
+            dtype=jnp.bfloat16, # Embedding always use bfloat16 or float32
+            param_dtype=jnp.bfloat16, # Embedding always use bfloat16 or float32
         )
         self.dropout = nn.Dropout(rate=self.config.embedding_dropout)
         self.h = TransformerBlockCollection(
@@ -607,7 +607,8 @@ class LlamaModule(nn.Module):
         output_hidden_states: bool = False,
         return_dict: bool = True,
     ):
-        input_embeds = self.wte(input_ids.astype("i4")).astype(jnp.bfloat16)
+        input_embeds = self.wte(input_ids.astype("i4"))
+        input_embeds = input_embeds.astype(jnp.bfloat16)
 
         hidden_states = self.dropout(input_embeds, deterministic=deterministic)
 
