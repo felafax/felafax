@@ -69,14 +69,22 @@ class LoRADense(Module):
                 self.param_dtype
             )
 
-        inputs, kernel_value, lora_a_value, lora_b_value, bias_value = promote_dtype(
-            inputs,
-            kernel,
-            lora_a.value,
-            lora_b.value,
-            None if bias is None else bias,
-            dtype=self.dtype)
 
+        # inputs, kernel_value, lora_a_value, lora_b_value, bias_value = promote_dtype(
+        #     inputs,
+        #     kernel,
+        #     lora_a.value,
+        #     lora_b.value,
+        #     None if bias is None else bias,
+        #     dtype=self.dtype)
+    
+        inputs = inputs.astype(jnp.bfloat16)
+        kernel_value = kernel.astype(jnp.bfloat16)
+        lora_a_value = lora_a.value.astype(jnp.bfloat16)
+        lora_b_value = lora_b.value.astype(jnp.bfloat16)
+        if bias is not None:
+            bias = bias.astype(jnp.bfloat16)
+            
         y = lax.dot_general(
             inputs,
             jax.lax.stop_gradient(kernel_value),
@@ -99,9 +107,9 @@ class LoRADense(Module):
         )
         y += (self.lora_alpha / self.lora_rank) * lora_output
 
-        if bias_value is not None:
-            y += jnp.reshape(bias_value, (1, ) * (y.ndim - 1) + (-1, ))
-        return y
+        if bias is not None:
+            y += jnp.reshape(bias, (1, ) * (y.ndim - 1) + (-1, ))
+        return y.astype(self.dtype)
 
     
 class RMSNorm(nn.Module):
@@ -123,11 +131,11 @@ class RMSNorm(nn.Module):
             jnp.square(x).mean(-1, keepdims=True) + self.eps)
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-        x = x.astype(jnp.promote_types(self.dtype, jnp.float32))
-        output = self._norm(x).astype(self.dtype)
-        weight = jnp.asarray(self.weight, self.dtype)
-        return output * weight
-
+        x = x.astype(jnp.float32)
+        output = self._norm(x).astype(jnp.float32)
+        weight = jnp.asarray(self.weight, dtype=jnp.float32)
+        res = output * weight
+        return res.astype(self.dtype)
 
 def apply_rotary_emb(
     xq: jnp.ndarray,
@@ -137,6 +145,8 @@ def apply_rotary_emb(
     theta: float = 10000.0,
 ):
     input_dtype = xq.dtype
+    xq = xq.astype(jnp.bfloat16)
+    xk = xk.astype(jnp.bfloat16)
 
     with jax.ensure_compile_time_eval():
         dim = xq.shape[-1]
@@ -242,6 +252,8 @@ class Attention(nn.Module):
         output_attentions: bool = False,
         fcm_mask=None,
     ):
+        hidden_states = hidden_states.astype(jnp.bfloat16)
+        
         # Project input hidden states to query, key, and value
         xq, xk, xv = (
             self.wq(hidden_states),
@@ -352,8 +364,8 @@ class Attention(nn.Module):
                                          deterministic=deterministic)
 
         # Prepare output tuple
-        outputs = (attn_output,
-                   attn_weights) if output_attentions else (attn_output, )
+        outputs = (attn_output.astype(self.dtype),
+                   attn_weights) if output_attentions else (attn_output.astype(self.dtype), )
         return outputs
 
 
@@ -406,9 +418,10 @@ class FeedForward(nn.Module):
     def __call__(self,
                  x: jnp.ndarray,
                  deterministic: bool = True) -> jnp.ndarray:
+        x = x.astype(jnp.bfloat16)
         x = self.w2(nn.silu(self.w1(x)) * self.w3(x))
         x = self.dropout(x, deterministic=deterministic)
-        return x
+        return x.astype(self.dtype)
 
 
 class TransformerBlock(nn.Module):
@@ -459,6 +472,8 @@ class TransformerBlock(nn.Module):
         output_attentions: bool = False,
         fcm_mask: Optional[jnp.ndarray] = None,
     ):
+        hidden_states = hidden_states.astype(jnp.bfloat16)
+        
         attn_outputs = self.attention(
             self.attention_norm(hidden_states),
             attention_mask,
@@ -482,7 +497,7 @@ class TransformerBlock(nn.Module):
 
         hidden_states = hidden_states + feed_forward_hidden_states
 
-        return (hidden_states, ) + attn_outputs[1:]
+        return (hidden_states.astype(self.dtype), ) + attn_outputs[1:]
 
 
 class TransformerBlockCollection(nn.Module):
@@ -592,7 +607,7 @@ class LlamaModule(nn.Module):
         output_hidden_states: bool = False,
         return_dict: bool = True,
     ):
-        input_embeds = self.wte(input_ids.astype("i4"))
+        input_embeds = self.wte(input_ids.astype("i4")).astype(jnp.bfloat16)
 
         hidden_states = self.dropout(input_embeds, deterministic=deterministic)
 
@@ -610,10 +625,10 @@ class LlamaModule(nn.Module):
         hidden_states = self.ln_f(hidden_states)
 
         if output_hidden_states:
-            all_hidden_states = outputs[1] + (hidden_states, )
-            outputs = (hidden_states, all_hidden_states) + outputs[2:]
+            all_hidden_states = tuple(h.astype(self.dtype) for h in outputs[1]) + (hidden_states.astype(self.dtype), )
+            outputs = (hidden_states.astype(self.dtype), all_hidden_states) + outputs[2:]
         else:
-            outputs = (hidden_states, ) + outputs[1:]
+            outputs = (hidden_states.astype(self.dtype), ) + outputs[1:]
 
         if not return_dict:
             return tuple(v for v in outputs if v is not None)
@@ -685,14 +700,14 @@ class CausalLlamaModule(nn.Module):
             return_dict=return_dict,
         )
 
-        hidden_states = outputs[0]
+        hidden_states = outputs[0].astype(jnp.bfloat16)
         lm_logits = self.lm_head(hidden_states)
 
         if not return_dict:
-            return (lm_logits, ) + outputs[1:]
+            return (lm_logits.astype(self.dtype), ) + outputs[1:]
 
         return FlaxCausalLMOutput(
-            logits=lm_logits,
+            logits=lm_logits.astype(self.dtype),
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
