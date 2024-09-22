@@ -4,7 +4,8 @@ import importlib
 import os
 import sys
 import pdb
-BASE_DIR = "/mnt/persistent-disk"
+# BASE_DIR = "/mnt/persistent-disk"
+BASE_DIR = "/home/felafax-storage-eu/"
 
 # Add the current directory and its parent to the Python path.
 # This allows importing modules from these directories.
@@ -56,7 +57,7 @@ class TrainerConfig:
     num_epochs: int = 1
     max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 2048 
+    seq_length: int = 64
     dataset_size_limit: int | None = None
     print_every_n_steps: int = 5
     eval_every_n_steps: int = 1000
@@ -92,7 +93,7 @@ trainer = trainer_lib.CausalLMTrainer(
     model_name=MODEL_NAME,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=True, platform="tpu")
 
 # save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
 # if save_checkpoint != 'y':

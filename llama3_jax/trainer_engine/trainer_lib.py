@@ -284,10 +284,10 @@ class CausalLMTrainer(FelafaxTrainer):
               eval_dataloader,
               run_jitted=True,
               run_aot=False,
-              is_amd=True):
+              platform="tpu"):
 
         logging_thread = None
-        if is_amd:
+        if platform == "amd":
             # Log AMD GPU stats to file.
             log_file = "rocm_smi_logs.csv"
             with open(log_file, "w") as f:
@@ -295,6 +295,10 @@ class CausalLMTrainer(FelafaxTrainer):
                     "timestamp,step,gpu_utilization,memory_used,memory_total\n"
                 )
             logging_thread = self._run_rocm_smi(log_file)
+        elif platform == "tpu":
+            pass
+        else:
+            raise ValueError("Invalid platform. Choose 'amd' or 'tpu'.")
 
         total_training_time = 0
         total_steps = 0
@@ -354,7 +358,7 @@ class CausalLMTrainer(FelafaxTrainer):
                             and step >= self.training_config.max_steps):
                         break
         finally:
-            if is_amd and logging_thread:
+            if platform == "amd" and logging_thread:
                 self.stop_logging = True
                 logging_thread.join()
 
