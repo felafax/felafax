@@ -38,8 +38,8 @@ from transformers import default_data_collator
 import ml_dtypes
 from ml_dtypes import float8_e4m3fn as float8
 
-MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
-# MODEL_NAME = "llama-3.1-70B-Instruct-JAX"
+# MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
+MODEL_NAME = "llama-3.1-70B-Instruct-JAX"
 # MODEL_NAME = "llama-3.1-405B-Instruct-JAX"
 
 model_path, model, model_configurator, tokenizer = (
@@ -59,7 +59,7 @@ class TrainerConfig:
     num_epochs: int = 1
     max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 8192
+    seq_length: int = 2048
     dataset_size_limit: int | None = None
     print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
