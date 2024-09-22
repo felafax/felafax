@@ -57,9 +57,9 @@ class TrainerConfig:
     num_epochs: int = 1
     max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 64
+    seq_length: int = 2048
     dataset_size_limit: int | None = None
-    print_every_n_steps: int = 5
+    print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
     gradient_accumulation_steps: int = 4  # Add this field
@@ -93,7 +93,7 @@ trainer = trainer_lib.CausalLMTrainer(
     model_name=MODEL_NAME,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=True, platform="tpu")
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=True, platform="amd")
 
 # save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
 # if save_checkpoint != 'y':
