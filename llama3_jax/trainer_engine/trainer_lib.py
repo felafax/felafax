@@ -72,6 +72,7 @@ class CausalLMTrainer(FelafaxTrainer):
         model_params: Dict[str, Any] = None,
         compiled_train_step_path: str = None,
         dtype: jnp.dtype = jnp.bfloat16,
+        param_dtype: jnp.dtype = jnp.bfloat16,
     ):
         self.model = model
         self.model_ckpt_path = model_ckpt_path
@@ -83,7 +84,7 @@ class CausalLMTrainer(FelafaxTrainer):
         self.model_params = model_params
         self.compiled_train_step_path = compiled_train_step_path or "/mnt/persistent-disk/compiled/compiled_train_step.pkl"
         self.dtype = dtype
-
+        self.param_dtype = param_dtype
         self.compiled_train_step = None
         self.setup()
 
@@ -104,7 +105,6 @@ class CausalLMTrainer(FelafaxTrainer):
         jax_utils.init_rng(99)
         jax_utils.next_rng()
 
-        print(f"Loading causal language model with dtype {self.dtype}...")
         if self.model_params is None:
             params, lora_params = self.load_checkpoint(self.model_ckpt_path,
                                                        state_shapes)

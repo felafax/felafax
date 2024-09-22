@@ -4,7 +4,7 @@ import importlib
 import os
 import sys
 import pdb
-BASE_DIR = "/"
+BASE_DIR = "/mnt/persistent-disk"
 
 # Add the current directory and its parent to the Python path.
 # This allows importing modules from these directories.
