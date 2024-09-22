@@ -506,10 +506,15 @@ def pprint_training_pipeline(train_dataloader, training_config):
     print("\nTraining Configuration Summary:")
     print(f"Total samples: {total_samples}")
     print(f"Batch size: {training_config.batch_size}")
+    print(f"Sequence length: {training_config.seq_length}")
     print(f"Number of epochs: {training_config.num_epochs}")
     print(f"Steps per epoch: {steps_per_epoch}")
     print(f"Total training steps: {total_steps}")
     if training_config.max_steps and total_steps == training_config.max_steps:
         print(
             f"*Note*: Total steps limited by max_steps setting ({training_config.max_steps})"
+        )
+    if training_config.dataset_size_limit:
+        print(
+            f"*Note*: Dataset size limited to {training_config.dataset_size_limit} samples"
         )
