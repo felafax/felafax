@@ -4,7 +4,7 @@ import importlib
 import os
 import sys
 import pdb
-BASE_DIR = "/mnt/persistent-disk"
+BASE_DIR = "/"
 
 # Add the current directory and its parent to the Python path.
 # This allows importing modules from these directories.
@@ -34,13 +34,15 @@ import torch
 from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from transformers import default_data_collator
+import ml_dtypes
+from ml_dtypes import float8_e4m3fn as float8
 
-MODEL_NAME = "llama-3.1-70B-Instruct-JAX"
+MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
         MODEL_NAME,
         dtype=jnp.bfloat16,
-        param_dtype=jnp.bfloat16,
+        param_dtype=float8,
         lora_rank=8,
         lora_alpha=16,
     )
@@ -86,7 +88,6 @@ trainer = trainer_lib.CausalLMTrainer(
     training_config=trainer_config,
     mesh=jax_utils.MESH,
     model_name=MODEL_NAME,
-    dtype=jnp.bfloat16,
 )
 
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)

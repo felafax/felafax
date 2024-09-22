@@ -69,6 +69,7 @@ class CausalLMTrainer(FelafaxTrainer):
         model_params: Dict[str, Any] = None,
         compiled_train_step_path: str = None,
         dtype: jnp.dtype = jnp.bfloat16,
+        param_dtype: jnp.dtype = jnp.bfloat16,
     ):
         self.model = model
         self.model_ckpt_path = model_ckpt_path
