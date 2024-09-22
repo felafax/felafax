@@ -246,15 +246,11 @@ class CausalLMTrainer(FelafaxTrainer):
 
     def train_step(self, state, batch, rng, run_jitted=False):
         if run_jitted:
-            loss, (accuracy, new_rng) = self.jitted_forward(
-                state.params, state.lora_params, batch, rng)
             loss, accuracy, grads, new_rng = self.jitted_backward(
-                state.params, state.lora_params, batch, new_rng)
-        else:
-            loss, (accuracy, new_rng) = self.forward_pass(
                 state.params, state.lora_params, batch, rng)
+        else:
             loss, accuracy, grads, new_rng = self.backward_pass(
-                state.params, state.lora_params, batch, new_rng)
+                state.params, state.lora_params, batch, rng)
 
         # Update using optax
         updates, new_opt_state = state.tx.update(grads, state.opt_state,

@@ -59,6 +59,7 @@ class TrainerConfig:
     print_every_n_steps: int = 5
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
+    gradient_accumulation_steps: int = 4  # Add this field
 
 
 trainer_config = TrainerConfig()
