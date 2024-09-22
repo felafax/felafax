@@ -341,7 +341,7 @@ class Attention(nn.Module):
             dropout_rng=dropout_rng,
             dropout_rate=self.config.attention_dropout,
             deterministic=deterministic,
-            dtype=jnp.promote_types(self.dtype, jnp.float32),
+            dtype=jnp.bfloat16, # always setting to blfoat16
             precision=self.precision,
         )
 

@@ -38,8 +38,10 @@ from transformers import default_data_collator
 import ml_dtypes
 from ml_dtypes import float8_e4m3fn as float8
 
-# MODEL_NAME = "llama-3.1-405B-Instruct-JAX"
 MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
+# MODEL_NAME = "llama-3.1-70B-Instruct-JAX"
+# MODEL_NAME = "llama-3.1-405B-Instruct-JAX"
+
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
         MODEL_NAME,
