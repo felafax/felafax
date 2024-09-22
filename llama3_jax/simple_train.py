@@ -45,7 +45,7 @@ MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        dtype=float8,
+        dtype=jnp.bfloat16,
         param_dtype=jnp.bfloat16,
         lora_rank=8,
         lora_alpha=16,
@@ -59,8 +59,8 @@ class TrainerConfig:
     num_epochs: int = 1
     max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 2048
-    dataset_size_limit: int | None = 64
+    seq_length: int = 10240
+    dataset_size_limit: int | None = 10240
     print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
