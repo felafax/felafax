@@ -59,7 +59,7 @@ class TrainerConfig:
     num_epochs: int = 1
     max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 10240
+    seq_length: int = 8192
     dataset_size_limit: int | None = None
     print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
