@@ -32,7 +32,7 @@ We did LoRA fine-tuning with all model weights and lora parameters in bfloat16 p
 - **LoRA Weights + Optimizer State:** Approximately 400GB of VRAM.
 - **Total VRAM Usage:** 77% of the total VRAM, around 1200GB.
 - **Constraints:** Due to the large size of the 405B model, there was limited space for batch size and sequence length. The batch size used was 16 and the sequence length was 64.
-- **Training Speed:** ~2 tokens/second
+- **Training Speed:** ~35 tokens/second
 - **Memory Efficiency:** Consistently around 70%
 - **Scaling:** With JAX, scaling was near-linear across 8 GPUs.
 
