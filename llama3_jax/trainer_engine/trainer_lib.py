@@ -7,6 +7,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 import pdb
+import subprocess
+import threading
+import time
 
 import chex
 import flax
@@ -69,6 +72,7 @@ class CausalLMTrainer(FelafaxTrainer):
         model_params: Dict[str, Any] = None,
         compiled_train_step_path: str = None,
         dtype: jnp.dtype = jnp.bfloat16,
+        param_dtype: jnp.dtype = jnp.bfloat16,
     ):
         self.model = model
         self.model_ckpt_path = model_ckpt_path
@@ -80,7 +84,7 @@ class CausalLMTrainer(FelafaxTrainer):
         self.model_params = model_params
         self.compiled_train_step_path = compiled_train_step_path or "/mnt/persistent-disk/compiled/compiled_train_step.pkl"
         self.dtype = dtype
-
+        self.param_dtype = param_dtype
         self.compiled_train_step = None
         self.setup()
 
@@ -101,7 +105,6 @@ class CausalLMTrainer(FelafaxTrainer):
         jax_utils.init_rng(99)
         jax_utils.next_rng()
 
-        print(f"Loading causal language model with dtype {self.dtype}...")
         if self.model_params is None:
             params, lora_params = self.load_checkpoint(self.model_ckpt_path,
                                                        state_shapes)
@@ -111,6 +114,11 @@ class CausalLMTrainer(FelafaxTrainer):
 
         self.train_state = self.create_train_state_from_params(
             self.model.apply, params, lora_params)
+
+        # Initialize JIT-compiled functions
+        self._jitted_forward = None
+        self._jitted_backward = None
+        self._jitted_train_step = None
 
     def get_dummy_batch(self):
         # Create a dummy batch matching your expected input structure
@@ -157,40 +165,92 @@ class CausalLMTrainer(FelafaxTrainer):
                                         tx=self.optimizer)
 
     @property
-    def jitted_train_step(self):
-        return jax.jit(
-            self.train_step,
-            in_shardings=(
-                self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
-                NamedSharding(self.mesh, PS()),  # rng
-            ),
-            out_shardings=(
-                self.state_shapes_partitioned,  # updated state
-                NamedSharding(self.mesh, PS()),  # new rng
-                NamedSharding(self.mesh, PS())  # metrics
-            ))
+    def jitted_forward(self):
+        if self._jitted_forward is None:
+            self._jitted_forward = jax.jit(
+                self.forward_pass,
+                in_shardings=(
+                    self.state_shapes_partitioned.params,
+                    self.state_shapes_partitioned.lora_params,
+                    NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
+                    NamedSharding(self.mesh, PS()),  # rng
+                ),
+                out_shardings=(
+                    NamedSharding(self.mesh, PS()),  # loss
+                    (NamedSharding(self.mesh, PS()),  # accuracy
+                     NamedSharding(self.mesh, PS())),  # new_rng
+                ))
+            print("Jitted forward pass compiled.")
+        return self._jitted_forward
 
-    def train_step(self, state, batch, rng):
+    @property
+    def jitted_backward(self):
+        if self._jitted_backward is None:
+            self._jitted_backward = jax.jit(
+                self.backward_pass,
+                in_shardings=(
+                    self.state_shapes_partitioned.params,
+                    self.state_shapes_partitioned.lora_params,
+                    NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
+                    NamedSharding(self.mesh, PS()),  # rng
+                ),
+                out_shardings=(
+                    NamedSharding(self.mesh, PS()),  # loss
+                    NamedSharding(self.mesh, PS()),  # accuracy
+                    self.state_shapes_partitioned.lora_params,  # grads
+                    NamedSharding(self.mesh, PS()),  # new_rng
+                ))
+            print("Jitted backward pass compiled.")
+        return self._jitted_backward
+
+    @property
+    def jitted_train_step(self):
+        if self._jitted_train_step is None:
+            self._jitted_train_step = jax.jit(
+                self.train_step,
+                in_shardings=(
+                    self.state_shapes_partitioned,  # state
+                    NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
+                    NamedSharding(self.mesh, PS()),  # rng
+                ),
+                out_shardings=(
+                    self.state_shapes_partitioned,  # updated state
+                    NamedSharding(self.mesh, PS()),  # new rng
+                    NamedSharding(self.mesh, PS())  # metrics
+                ))
+        return self._jitted_train_step
+
+    def forward_pass(self, params, lora_params, batch, rng):
         rng_generator = jax_utils.NextRNG(rng)
 
-        def loss_and_accuracy(lora_params):
-            # Reshape the input tensors to combine the data parallel dimension with the batch dimension
-            input_tokens = batch["input_tokens"]
-            target_tokens = batch["target_tokens"]
-            loss_masks = batch["loss_masks"]
+        input_tokens = batch["input_tokens"]
+        target_tokens = batch["target_tokens"]
+        loss_masks = batch["loss_masks"]
 
-            variables = {'params': state.params, 'lora_params': lora_params}
-            logits = state.apply_fn(
-                variables,
-                input_tokens,
-                deterministic=False,
-                rngs=rng_generator(('params', 'dropout', 'fcm')),
-            ).logits
-            return self.compute_loss(logits, target_tokens, loss_masks)
+        variables = {'params': params, 'lora_params': lora_params}
+        logits = self.model.apply(
+            variables,
+            input_tokens,
+            deterministic=False,
+            rngs=rng_generator(('params', 'dropout', 'fcm')),
+        ).logits
+        loss, accuracy = self.compute_loss(logits, target_tokens, loss_masks)
+        return loss, (accuracy, rng_generator())
 
-        grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
-        (loss, accuracy), grads = grad_fn(state.lora_params)
+    def backward_pass(self, params, lora_params, batch, rng):
+        grad_fn = jax.value_and_grad(self.forward_pass,
+                                     argnums=1,
+                                     has_aux=True)
+        (loss, (accuracy, new_rng)), grads = grad_fn(params, lora_params, batch, rng)
+        return loss, accuracy, grads, new_rng
+
+    def train_step(self, state, batch, rng, run_jitted=False):
+        if run_jitted:
+            loss, accuracy, grads, new_rng = self.jitted_backward(
+                state.params, state.lora_params, batch, rng)
+        else:
+            loss, accuracy, grads, new_rng = self.backward_pass(
+                state.params, state.lora_params, batch, rng)
 
         # Update using optax
         updates, new_opt_state = state.tx.update(grads, state.opt_state,
@@ -205,18 +265,7 @@ class CausalLMTrainer(FelafaxTrainer):
             loss=loss,
             accuracy=accuracy,
         )
-        return new_state, rng_generator(), metrics
-
-    @property
-    def jitted_eval_step(self):
-        return jax.jit(
-            self.eval_step,
-            in_shardings=(
-                self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS("dp")),  # batch
-            ),
-            out_shardings=NamedSharding(self.mesh, PS())  # metrics
-        )
+        return new_state, new_rng, metrics
 
     def eval_step(self, state, batch):
         variables = {'params': state.params, 'lora_params': state.lora_params}
@@ -234,41 +283,88 @@ class CausalLMTrainer(FelafaxTrainer):
               train_dataloader,
               eval_dataloader,
               run_jitted=True,
-              run_aot=False):
+              run_aot=False,
+              platform="tpu"):
 
-        for epoch in range(self.training_config.num_epochs):
-            print(f"Starting epoch {epoch} of training...")
+        logging_thread = None
+        if platform == "amd":
+            # Log AMD GPU stats to file.
+            log_file = "rocm_smi_logs.csv"
+            with open(log_file, "w") as f:
+                f.write(
+                    "timestamp,step,gpu_utilization,memory_used,memory_total\n"
+                )
+            logging_thread = self._run_rocm_smi(log_file)
+        elif platform == "tpu":
+            pass
+        else:
+            raise ValueError("Invalid platform. Choose 'amd' or 'tpu'.")
 
-            for step, train_batch in enumerate(train_dataloader):
-                train_batch = jax.device_put(
-                    train_batch, NamedSharding(self.mesh, PS("dp", "fsdp")))
+        total_training_time = 0
+        total_steps = 0
 
-                sharded_rng = jax_utils.next_rng()
+        try:
+            for epoch in range(self.training_config.num_epochs):
+                print(f"Starting epoch {epoch} of training...")
 
-                if run_aot and self.compiled_train_step is not None:
-                    self.train_state, sharded_rng, metrics = self.compiled_train_step(
-                        self.train_state, train_batch, sharded_rng)
-                elif run_jitted:
-                    self.train_state, sharded_rng, metrics = self.jitted_train_step(
-                        self.train_state, train_batch, sharded_rng)
-                else:
-                    self.train_state, sharded_rng, metrics = self.train_step(
-                        self.train_state, train_batch, sharded_rng)
+                for step, train_batch in enumerate(train_dataloader):
+                    self.current_step = epoch * len(train_dataloader) + step
 
-                if step % self.training_config.print_every_n_steps == 0:
-                    print(
-                        f"Epoch {epoch}, Step {step}, Train Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
-                    )
+                    train_batch = jax.device_put(
+                        train_batch, NamedSharding(self.mesh, PS("dp",
+                                                                 "fsdp")))
 
-                # if step % self.training_config.eval_every_n_steps == 0:
-                #     eval_metrics = self.evaluate(state, eval_dataloader)
-                #     print(
-                #         f"Epoch {epoch}, Step {step}, Eval Loss: {eval_metrics['loss']:.4f}, Accuracy: {eval_metrics['accuracy']:.4f}"
-                #     )
+                    sharded_rng = jax_utils.next_rng()
 
-                if (self.training_config.max_steps
-                        and step >= self.training_config.max_steps):
-                    break
+                    # Start timing
+                    step_start_time = time.time()
+
+                    if run_aot and self.compiled_train_step is not None:
+                        self.train_state, sharded_rng, metrics = (
+                            self.compiled_train_step(self.train_state,
+                                                     train_batch, sharded_rng))
+                    elif run_jitted:
+                        self.train_state, sharded_rng, metrics = (
+                            self.train_step(self.train_state,
+                                            train_batch,
+                                            sharded_rng,
+                                            run_jitted=True))
+                    else:
+                        self.train_state, sharded_rng, metrics = (
+                            self.train_step(self.train_state,
+                                            train_batch,
+                                            sharded_rng,
+                                            run_jitted=False))
+
+                    # End timing
+                    step_end_time = time.time()
+
+                    # Calculate step duration
+                    step_duration = step_end_time - step_start_time
+                    total_training_time += step_duration
+                    total_steps += 1
+
+                    # Calculate steps per second
+                    steps_per_sec = 1 / step_duration
+
+                    if step % self.training_config.print_every_n_steps == 0:
+                        print(f"Epoch {epoch}, Step {step}, "
+                              f"Train Loss: {metrics['loss']:.4f}, "
+                              f"Accuracy: {metrics['accuracy']:.4f}, "
+                              f"Step Time: {step_duration:.4f}s, "
+                              f"Steps/sec: {steps_per_sec:.2f}")
+
+                    if (self.training_config.max_steps
+                            and step >= self.training_config.max_steps):
+                        break
+        finally:
+            if platform == "amd" and logging_thread:
+                self.stop_logging = True
+                logging_thread.join()
+
+        avg_steps_per_sec = total_steps / total_training_time
+        print(f"Average Steps per Second: {avg_steps_per_sec:.2f}")
+
         return self.train_state
 
     def evaluate(self, state, eval_dataloader, run_jitted=True):
@@ -372,6 +468,32 @@ class CausalLMTrainer(FelafaxTrainer):
                           self.compiled_train_step_path)
         print(f"Compiled train step saved to {self.compiled_train_step_path}")
 
+    def _run_rocm_smi(self, log_file, interval=1):
+        """Runs rocm-smi to log GPU stats."""
+
+        def log_gpu_stats():
+            while not self.stop_logging:
+                current_step = self.current_step
+                timestamp = time.time()
+                try:
+                    output = subprocess.check_output([
+                        "rocm-smi",
+                    ]).decode()
+                    with open(log_file, "a") as f:
+                        # Append the timestamp and step to each line of the output
+                        for line in output.strip().split('\n'):
+                            if line:  # Ensure the line is not empty
+                                f.write(f"{timestamp},{current_step},{line}\n")
+                except subprocess.CalledProcessError:
+                    print("Failed to run rocm-smi")
+                time.sleep(interval)
+
+        self.stop_logging = False
+        self.current_step = 0
+        thread = threading.Thread(target=log_gpu_stats)
+        thread.start()
+        return thread
+
 
 def pprint_training_pipeline(train_dataloader, training_config):
     total_samples = len(train_dataloader.dataset)
@@ -384,10 +506,15 @@ def pprint_training_pipeline(train_dataloader, training_config):
     print("\nTraining Configuration Summary:")
     print(f"Total samples: {total_samples}")
     print(f"Batch size: {training_config.batch_size}")
+    print(f"Sequence length: {training_config.seq_length}")
     print(f"Number of epochs: {training_config.num_epochs}")
     print(f"Steps per epoch: {steps_per_epoch}")
     print(f"Total training steps: {total_steps}")
     if training_config.max_steps and total_steps == training_config.max_steps:
         print(
             f"*Note*: Total steps limited by max_steps setting ({training_config.max_steps})"
+        )
+    if training_config.dataset_size_limit:
+        print(
+            f"*Note*: Dataset size limited to {training_config.dataset_size_limit} samples"
         )

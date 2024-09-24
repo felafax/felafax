@@ -5,6 +5,7 @@ import os
 import sys
 import pdb
 BASE_DIR = "/mnt/persistent-disk"
+# BASE_DIR = "/home/felafax-storage-eu/"
 
 # Add the current directory and its parent to the Python path.
 # This allows importing modules from these directories.
@@ -34,8 +35,13 @@ import torch
 from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from transformers import default_data_collator
+import ml_dtypes
+from ml_dtypes import float8_e4m3fn as float8
 
+# MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
 MODEL_NAME = "llama-3.1-70B-Instruct-JAX"
+# MODEL_NAME = "llama-3.1-405B-Instruct-JAX"
+
 model_path, model, model_configurator, tokenizer = (
     automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
         MODEL_NAME,
@@ -51,13 +57,14 @@ model_path, model, model_configurator, tokenizer = (
 class TrainerConfig:
     learning_rate: float = 1e-3
     num_epochs: int = 1
-    max_steps: int | None = 20
+    max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 64
+    seq_length: int = 2048
     dataset_size_limit: int | None = None
-    print_every_n_steps: int = 5
+    print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
+    gradient_accumulation_steps: int = 4  # Add this field
 
 
 trainer_config = TrainerConfig()
@@ -86,16 +93,15 @@ trainer = trainer_lib.CausalLMTrainer(
     training_config=trainer_config,
     mesh=jax_utils.MESH,
     model_name=MODEL_NAME,
-    dtype=jnp.bfloat16,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=True, platform="amd")
 
-save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
-if save_checkpoint != 'y':
-    print("Checkpoint saving skipped.")
-    sys.exit()
-print("Proceeding with checkpoint saving...")
+# save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
+# if save_checkpoint != 'y':
+#     print("Checkpoint saving skipped.")
+#     sys.exit()
+# print("Proceeding with checkpoint saving...")
 
 ########################################################
 # Exporting fine-tuned model
