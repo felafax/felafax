@@ -25,7 +25,7 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 🟧 If you want to ask questions about this repo, try **[sage.storia.ai/felafax](https://sage.storia.ai/felafax)**!
 
 ## AMD 405B fine-tuning run:
-Hey HN, we recently fine-tuned the llama3.1 405B model on 8xAMD MI300x GPUs using JAX instead of PyTorch. JAX's advanced sharding APIs allowed us to achieve great performance. Check out our [blog post](https://dub.sh/felafax-amd-blog) to learn about the setup and the sharding tricks we used.
+We recently fine-tuned the llama3.1 405B model on 8xAMD MI300x GPUs using JAX instead of PyTorch. JAX's advanced sharding APIs allowed us to achieve great performance. Check out our [blog post](https://dub.sh/felafax-amd-blog) to learn about the setup and the sharding tricks we used.
 
 We did LoRA fine-tuning with all model weights and lora parameters in bfloat16 precision, and with LoRA rank of 8 and LoRA alpha of 16:
 - **Model Size:** The LLaMA model weights occupy around 800GB of VRAM.
