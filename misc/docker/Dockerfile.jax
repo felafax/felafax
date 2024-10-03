@@ -72,11 +72,9 @@ RUN gcloud auth activate-service-account --key-file=/home/.gcloud_key/storage_ke
 
 # Create startup script
 RUN mkdir /scripts
-COPY utils/docker/startup.sh /scripts/startup.sh
+COPY misc/docker/startup.sh /scripts/startup.sh
 RUN chmod +x /scripts/startup.sh
 
-RUN mkdir /home/ansible
-COPY utils/ansible/ /home/ansible/
 
 
 # Command to run when the container starts

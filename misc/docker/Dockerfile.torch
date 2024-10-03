@@ -73,7 +73,7 @@ RUN mkdir "/home/felafax-storage-eu/"
 
 # Create startup script
 RUN mkdir /scripts
-COPY utils/docker/startup.sh /scripts/startup.sh
+COPY misc/docker/startup.sh /scripts/startup.sh
 RUN chmod +x /scripts/startup.sh
 
 # Command to run when the container starts
