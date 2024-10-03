@@ -3,10 +3,10 @@ set -eo pipefail
 
 # Clone or update the repository
 if [ "$CLONE_REPO" = "1" ]; then
-  if [ ! -d "RoadrunnerX" ]; then
-    git clone https://github.com/felafax/RoadrunnerX.git
+  if [ ! -d "felafax" ]; then
+    git clone https://github.com/felafax/felafax.git
   else
-    cd RoadrunnerX || exit
+    cd felafax || exit
     git pull
     cd .. || exit
   fi
