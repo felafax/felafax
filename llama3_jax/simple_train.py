@@ -1,30 +1,23 @@
 #!/usr/bin/env python
 # coding: utf-8
-
 import importlib
 import os
 import sys
 import pdb
-
-import jax
-import jax.numpy as jnp
+BASE_DIR = "/mnt/persistent-disk"
+# BASE_DIR = "/home/felafax-storage-eu/"
 
 # Add the current directory and its parent to the Python path.
 # This allows importing modules from these directories.
 sys.path.append(os.path.abspath(os.getcwd()))
 sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
 
-try:
-    import llama3_jax
-    print("felafax package imported successfully")
-except ImportError as e:
-    print(f"Error importing llama3_jax: {e}")
-
+import llama3_jax
 from llama3_jax.trainer_engine import setup
-setup.setup_environment(base_dir="/mnt/persistent-disk")
+setup.setup_environment(base_dir=BASE_DIR)
 
 from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
-                                       convert_lib, jax_utils, llama_config,
+                                       convert_lib, dataset_lib, jax_utils, llama_config,
                                        trainer_lib, utils)
 setup.reload_modules("llama3_jax")
 
@@ -42,161 +35,55 @@ import torch
 from datasets import load_dataset
 from huggingface_hub import snapshot_download
 from transformers import default_data_collator
+import ml_dtypes
+from ml_dtypes import float8_e4m3fn as float8
 
-# Select a supported model from above list to use!
-MODEL_NAME = "llama-3.1-8B-Instruct-JAX"
-
-# Constants for paths
-FELAFAX_DIR = "/mnt/persistent-disk"
-
-EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
-HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
-
-current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-GCS_DIR = f"/home/felafax-storage/checkpoints/{MODEL_NAME}/{current_datetime}/"
-
-# Ensure directories exist
-utils.makedirs(EXPORT_DIR, exist_ok=True)
-utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
-utils.makedirs(GCS_DIR, exist_ok=True)
-
+# MODEL_NAME = "colab-llama-3.1-8B-Instruct-JAX"
+MODEL_NAME = "llama-3.1-70B-Instruct-JAX"
+# MODEL_NAME = "llama-3.1-405B-Instruct-JAX"
 
 model_path, model, model_configurator, tokenizer = (
-    automodel_lib.AutoJAXModelForCausalLM.from_pretrained(MODEL_NAME))
+    automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        dtype=jnp.bfloat16,
+        param_dtype=jnp.bfloat16,
+        lora_rank=8,
+        lora_alpha=16,
+    )
+)
 
-
-def get_dataset(*, tokenizer, batch_size=1, seq_length=32, max_examples=None):
-    # Define Alpaca prompt template
-    alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
-    
-    ### Instruction: {}
-    
-    ### Input: {}
-    
-    ### Response: {}"""
-
-    EOS_TOKEN = tokenizer.eos_token
-
-    # Defines formatting function.
-    def _format_prompts(examples):
-        instructions = examples["instruction"]
-        inputs = examples["input"]
-        outputs = examples["output"]
-        texts = []
-        for instruction, input, output in zip(instructions, inputs, outputs):
-            text = alpaca_prompt.format(instruction, input, output) + EOS_TOKEN
-            texts.append(text)
-        return {"text": texts}
-
-    def _tokenize(examples):
-        tokenized = tokenizer(examples["text"],
-                              truncation=True,
-                              padding="max_length",
-                              max_length=seq_length + 1)
-        return {
-            'input_tokens':
-            [input_id[:-1] for input_id in tokenized['input_ids']],
-            'target_tokens':
-            [input_id[1:] for input_id in tokenized['input_ids']],
-            'loss_masks':
-            [input_id[1:] for input_id in tokenized['attention_mask']]
-        }
-
-    def _custom_collate_fn(
-            batch: List[Dict[str, Any]]) -> Dict[str, jnp.ndarray]:
-        """
-        Collates batch items and converts PyTorch tensors to JAX arrays.
-        Applies default_data_collator, then converts tensors to JAX format.
-        """
-        collated = default_data_collator(batch)
-        jax_batch = {}
-        for key, value in collated.items():
-            jax_batch[key] = jnp.array(value.numpy()) if isinstance(
-                value, torch.Tensor) else value
-
-        return jax_batch
-
-    # Load and preprocess the dataset
-    dataset = load_dataset("yahma/alpaca-cleaned", split="train")
-    if max_examples:
-        dataset = dataset.select(range(max_examples))
-    dataset = dataset.map(_format_prompts, batched=True)
-
-    # Create train and test dataset.
-    ds = dataset.train_test_split(test_size=0.15)
-    for split in ['train', 'test']:
-        ds[split] = ds[split].map(_tokenize,
-                                  batched=True,
-                                  remove_columns=dataset.column_names)
-
-    # Create DataLoaders
-    dataloader_args = dict(shuffle=True,
-                           batch_size=batch_size,
-                           collate_fn=_custom_collate_fn)
-    train_dataloader = torch.utils.data.DataLoader(ds['train'],
-                                                   **dataloader_args)
-    test_dataloader = torch.utils.data.DataLoader(ds['test'],
-                                                  **dataloader_args)
-
-    return train_dataloader, test_dataloader
-
-
-def test_dataset_pipeline(tokenizer):
-    """Print shapes of first batch to verify dataset pipeline."""
-    train_loader, _ = get_dataset(tokenizer=tokenizer,
-                                  batch_size=4,
-                                  seq_length=32,
-                                  max_examples=32)
-    batch = next(iter(train_loader))
-    print("Input tokens shape:", batch['input_tokens'].shape)
-    print("Target mask shape:", batch['target_tokens'].shape)
-
-
-test_dataset_pipeline(tokenizer)
 
 @chex.dataclass(frozen=True)
 class TrainerConfig:
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-3
     num_epochs: int = 1
     max_steps: int | None = 100
     batch_size: int = 16
-    seq_length: int = 64
+    seq_length: int = 2048
     dataset_size_limit: int | None = None
-    print_every_n_steps: int = 5
+    print_every_n_steps: int = 1
     eval_every_n_steps: int = 1000
     max_eval_steps: int | None = 1
+    gradient_accumulation_steps: int = 4  # Add this field
 
 
 trainer_config = TrainerConfig()
 optimizer = optax.sgd(trainer_config.learning_rate)
 
 # Prepare dataset
-train_dataloader, val_dataloader = get_dataset(
-    tokenizer=tokenizer,
+dataset = dataset_lib.Dataset(tokenizer)
+train_dataloader, val_dataloader = dataset.get_dataset(
+    data_source="yahma/alpaca-cleaned",
     batch_size=trainer_config.batch_size,
     seq_length=trainer_config.seq_length,
-    max_examples=trainer_config.dataset_size_limit,
+    max_examples=trainer_config.dataset_size_limit
 )
 
-# Calculate and print training steps information
-total_samples = len(train_dataloader.dataset)
-batch_size = trainer_config.batch_size
-steps_per_epoch = (total_samples + batch_size - 1) // batch_size
-total_steps = steps_per_epoch * trainer_config.num_epochs
+# Test dataset pipeline
+dataset_lib.test_dataset_pipeline(tokenizer, "yahma/alpaca-cleaned")
 
-if trainer_config.max_steps:
-    total_steps = min(total_steps, trainer_config.max_steps)
-
-print("\nTraining Configuration Summary:")
-print(f"Total samples: {total_samples}")
-print(f"Batch size: {batch_size}")
-print(f"Number of epochs: {trainer_config.num_epochs}")
-print(f"Steps per epoch: {steps_per_epoch}")
-print(f"Total training steps: {total_steps}")
-if trainer_config.max_steps and total_steps == trainer_config.max_steps:
-    print(
-        f"*Note*: Total steps limited by max_steps setting ({trainer_config.max_steps})"
-    )
+# Print training information
+trainer_lib.pprint_training_pipeline(train_dataloader, trainer_config)
 
 trainer = trainer_lib.CausalLMTrainer(
     model=model,
@@ -208,16 +95,27 @@ trainer = trainer_lib.CausalLMTrainer(
     model_name=MODEL_NAME,
 )
 
-import time
-start_time = time.time()
-print(f"Start time: {start_time:.4f}")
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=True, platform="amd")
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
+# save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
+# if save_checkpoint != 'y':
+#     print("Checkpoint saving skipped.")
+#     sys.exit()
+# print("Proceeding with checkpoint saving...")
 
-end_time = time.time()
-print(f"End time: {end_time:.4f}")
-elapsed_time = end_time - start_time
-print(f"Execution time: {elapsed_time:.4f} seconds")
+########################################################
+# Exporting fine-tuned model
+########################################################
+# Constants for paths to storage
+FELAFAX_DIR = BASE_DIR
+EXPORT_DIR = os.path.join(FELAFAX_DIR, "export")
+HF_EXPORT_DIR = os.path.join(FELAFAX_DIR, "hf_export")
+current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+GCS_DIR = f"/home/felafax-storage/checkpoints/{MODEL_NAME}/{current_datetime}/"
+
+utils.makedirs(EXPORT_DIR, exist_ok=True)
+utils.makedirs(HF_EXPORT_DIR, exist_ok=True)
+utils.makedirs(GCS_DIR, exist_ok=True)
 
 flax_checkpoint_path = os.path.join(EXPORT_DIR, MODEL_NAME)
 trainer.save_checkpoint(state, path=flax_checkpoint_path)

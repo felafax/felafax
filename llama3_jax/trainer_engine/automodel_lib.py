@@ -24,6 +24,16 @@ MODEL_NAME_TO_DOWNLOAD_CONFIG = {
         "felafax_model_name": "felafax/llama-3.1-8B-Instruct-JAX",
         "chkpt_filename": "llama-3.1-8B-Instruct-JAX.flax",
     },
+    "llama-3.1-70B-Instruct-JAX": {
+        "hf_model_name": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+        "felafax_model_name": "felafax/llama-3.1-70B-Instruct-JAX",
+        "chkpt_filename": "llama3.1_70b.flax",
+    },
+    "llama-3.1-405B-Instruct-JAX": {
+        "hf_model_name": "meta-llama/Meta-Llama-3.1-405B-Instruct",
+        "felafax_model_name": "felafax/llama-3.1-405B-Instruct-JAX",
+        "chkpt_filename": "llama3.1_405b.flax",
+    },
     "colab-llama-3.1-8B-Instruct-JAX": {
         "hf_model_name": "meta-llama/Meta-Llama-3.1-8B-Instruct",
         "felafax_model_name": "felafax/colab-llama-3.1-8B-Instruct-JAX",
@@ -39,6 +49,10 @@ class AutoJAXModelForCausalLM:
         cls,
         model_name: str,
         huggingface_token: Optional[str] = None,
+        dtype: jnp.dtype = jnp.float32,
+        param_dtype: jnp.dtype = jnp.float32,
+        lora_rank: int = 8,
+        lora_alpha: float = 16,
         **kwargs,
     ) -> Tuple[str, llama_model.CausalLlamaModule, LlamaConfigType,
                AutoTokenizer]:
@@ -78,8 +92,10 @@ class AutoJAXModelForCausalLM:
 
         model = llama_model.CausalLlamaModule(
             llama_model_hf_config,
-            dtype=jnp.float32,
-            param_dtype=jnp.float32,
+            dtype=dtype,
+            param_dtype=param_dtype,
+            lora_rank=lora_rank,
+            lora_alpha=lora_alpha,
         )
 
         return model_path, model, llama_model_configurator, tokenizer
