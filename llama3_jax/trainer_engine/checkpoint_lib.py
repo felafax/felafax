@@ -181,7 +181,7 @@ class Checkpointer(object):
         with utils.open_file(path, "wb") as fout:
             fout.write(
                 flax.serialization.msgpack_serialize(
-                    train_state.params["params"], in_place=True))
+                    train_state.params, in_place=True))
 
     def save_checkpoint(self, train_state, filename, gather_fns=None):
         if self.enable:
