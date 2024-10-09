@@ -5,7 +5,7 @@ build_and_push() {
   local image_name=$2
 
   echo "Building Docker image: $image_name"
-  docker build -t $image_name -f $dockerfile --platform linux/amd64 .
+  docker build --platform linux/amd64 -t $image_name -f $dockerfile .
 
   if [ $? -eq 0 ]; then
     echo "Docker image built successfully"
@@ -31,10 +31,10 @@ build_and_push() {
 if [ $# -eq 0 ]; then
   echo "No argument provided. Building and pushing both images."
 
-  build_and_push "utils/docker/Dockerfile.jax" "gcr.io/felafax-training/roadrunner-jax:latest_v2"
+  build_and_push "misc/docker/Dockerfile.jax" "gcr.io/felafax-training/roadrunner-jax:latest_v2"
   jax_result=$?
 
-  build_and_push "utils/docker/Dockerfile.torch" "gcr.io/felafax-training/roadrunner-torchxla:latest_v2"
+  build_and_push "misc/docker/Dockerfile.torch" "gcr.io/felafax-training/roadrunner-torchxla:latest_v2"
   xla_result=$?
 
   if [ $jax_result -eq 0 ] && [ $xla_result -eq 0 ]; then
@@ -46,10 +46,10 @@ if [ $# -eq 0 ]; then
 else
   case $1 in
   jax)
-    build_and_push "utils/docker/Dockerfile.jax" "gcr.io/felafax-training/roadrunner-jax:latest_v2"
+    build_and_push "misc/docker/Dockerfile.jax" "gcr.io/felafax-training/roadrunner-jax:latest_v2"
     ;;
   xla)
-    build_and_push "utils/docker/Dockerfile.torch" "gcr.io/felafax-training/roadrunner-torchxla:latest_v2"
+    build_and_push "misc/docker/Dockerfile.torch" "gcr.io/felafax-training/roadrunner-torchxla:latest_v2"
     ;;
   *)
     echo "Invalid argument. Please use 'jax' or 'xla', or no argument to build both."

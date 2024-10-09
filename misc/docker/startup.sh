@@ -3,10 +3,10 @@ set -eo pipefail
 
 # Clone or update the repository
 if [ "$CLONE_REPO" = "1" ]; then
-  if [ ! -d "RoadrunnerX" ]; then
-    git clone https://github.com/felafax/RoadrunnerX.git
+  if [ ! -d "felafax" ]; then
+    git clone https://github.com/felafax/felafax.git
   else
-    cd RoadrunnerX || exit
+    cd felafax || exit
     git pull
     cd .. || exit
   fi
@@ -21,9 +21,20 @@ fi
 echo 'export PJRT_DEVICE=TPU' >>~/.bashrc
 
 if [ "$UID" != "0" ]; then
-  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/"
-  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/"
+  mkdir -p "/home/felafax-storage/$UID"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/$UID/"
+
+  mkdir -p "/home/felafax-storage-eu/$UID"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/$UID/"
 fi
+
+# mount config config
+mkdir -p "/home/felafax-config/"
+gcsfuse --implicit-dirs felafax-config "/home/felafax-config/"
+
+# model storage
+mkdir -p "/home/felafax-models/"
+gcsfuse --implicit-dirs --only-dir "MODEL_STORAGE" felafax-storage-eu "/home/felafax-models/"
 
 # Start Jupyter Lab
 exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''

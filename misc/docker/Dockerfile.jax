@@ -24,6 +24,7 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
   build-essential \
   git \
   libgl1 \ 
+  vim \
   && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade jax
@@ -41,6 +42,12 @@ RUN pip install --no-cache-dir datasets==2.18.0
 RUN pip install --no-cache-dir trl==0.8.1 peft==0.10.0
 RUN pip install --no-cache-dir accelerate==0.28.0
 RUN pip install --no-cache-dir jupyterlab
+RUN pip install --no-cache-dir ansible
+RUN pip install --no-cache-dir flax
+RUN pip install --no-cache-dir einops
+RUN pip install --no-cache-dir optax
+RUN pip install --no-cache-dir chex
+RUN pip install --no-cache-dir absl-py
 
 # Install gcsfuse
 RUN export GCSFUSE_REPO=gcsfuse-`lsb_release -c -s` && \
@@ -61,14 +68,14 @@ RUN chmod 600 /home/.gcloud_key/storage_key.json
 
 # Authenticate gcloud
 RUN gcloud auth activate-service-account --key-file=/home/.gcloud_key/storage_key.json
-RUN mkdir "/home/felafax-storage/"
-RUN mkdir "/home/felafax-storage-eu/"
 
 
 # Create startup script
 RUN mkdir /scripts
-COPY utils/docker/startup.sh /scripts/startup.sh
+COPY misc/docker/startup.sh /scripts/startup.sh
 RUN chmod +x /scripts/startup.sh
+
+
 
 # Command to run when the container starts
 CMD ["/scripts/startup.sh"]

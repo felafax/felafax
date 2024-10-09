@@ -4,6 +4,7 @@ import sys
 import pdb
 import json
 import time
+import shutil
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
@@ -59,6 +60,7 @@ flags.DEFINE_string("trainer_config_json", None,
                     "Path to JSON file containing trainer configuration")
 
 flags.DEFINE_boolean("download_model", False, "Download the model on process index 0")
+flags.DEFINE_string("final_checkpoint_path", None, "Path to the final checkpoint")
 
 @chex.dataclass(frozen=True)
 class TrainerConfig:
@@ -182,15 +184,19 @@ def download_model(model_name):
 
 def main(argv):
     del argv  # Unused
-    current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
-    FLAGS.base_dir = f"/home/felafax-storage-eu/{current_datetime}"
+    # check if base_dir is not a directory
+    if not os.path.isdir(FLAGS.base_dir):
+        raise ValueError(f"Base directory {FLAGS.base_dir} is not a directory")
+    
+    FLAGS.base_dir = f"{FLAGS.base_dir}/{current_datetime}"
     os.makedirs(FLAGS.base_dir, exist_ok=True)
 
     setup.setup_environment(base_dir=FLAGS.base_dir)
     setup.reload_modules("llama3_jax")
 
-    if FLAGS.download_model:
+    if FLAGS.download_model is True:
         model_path, model, model_configurator, tokenizer = download_model(FLAGS.model_name)
     else:
         model_path, model, model_configurator, tokenizer = (
@@ -213,15 +219,20 @@ def main(argv):
     export_dir = os.path.join(FLAGS.base_dir, "export")
     hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
 
-    gcs_dir = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
+    if FLAGS.final_checkpoint_path is not None:
+        final_checkpoint_path = FLAGS.final_checkpoint_path
+    else:
+        # TODO: remove the hard-coded path for checkpoint
+        final_checkpoint_path = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
                f"{current_datetime}/")
+
 
     flax_checkpoint_path = os.path.join(export_dir, FLAGS.model_name)
 
     # Create necessary directories
     utils.makedirs(export_dir, exist_ok=True)
     utils.makedirs(hf_export_dir, exist_ok=True)
-    utils.makedirs(gcs_dir, exist_ok=True)
+    utils.makedirs(final_checkpoint_path, exist_ok=True)
 
     if not FLAGS.data_source:
         raise ValueError("--data_source must be provided")
@@ -244,7 +255,7 @@ def main(argv):
             model_configurator=model_configurator,
             flax_checkpoint_path=flax_checkpoint_path,
             hf_export_dir=hf_export_dir,
-            gcs_dir=gcs_dir,
+            gcs_dir=final_checkpoint_path,
         )
 
     if FLAGS.upload_to_hf:
