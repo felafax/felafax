@@ -24,27 +24,6 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 
 🟧 If you want to ask questions about this repo, try **[sage.storia.ai/felafax](https://sage.storia.ai/felafax)**!
 
-## AMD 405B fine-tuning run:
-We recently fine-tuned the llama3.1 405B model on 8xAMD MI300x GPUs using JAX instead of PyTorch. JAX's advanced sharding APIs allowed us to achieve great performance. Check out our [blog post](https://dub.sh/felafax-amd-blog) to learn about the setup and the sharding tricks we used.
-
-We did LoRA fine-tuning with all model weights and lora parameters in bfloat16 precision, and with LoRA rank of 8 and LoRA alpha of 16:
-- **Model Size:** The LLaMA model weights occupy around 800GB of VRAM.
-- **LoRA Weights + Optimizer State:** Approximately 400GB of VRAM.
-- **Total VRAM Usage:** 77% of the total VRAM, around 1200GB.
-- **Constraints:** Due to the large size of the 405B model, there was limited space for batch size and sequence length. The batch size used was 16 and the sequence length was 64.
-- **Training Speed:** ~35 tokens/second
-- **Memory Efficiency:** Consistently around 70%
-- **Scaling:** With JAX, scaling was near-linear across 8 GPUs.
-
-The GPU utilization and VRAM utilization graphs can be found below. However, we still need to calculate the Model FLOPs Utilization (MFU).
-Note: We couldn't run the JIT-compiled version of the 405B model due to infrastructure and VRAM constraints (we need to investigate this further). The entire training run was executed in JAX eager mode, so there is significant potential for performance improvements.
-
-- GPU utilization:
-  ![image](./misc/tests/amd_405b_run_sep22/gpu_utilization.png)
-- VRAM  utilization:
-  ![image](./misc/tests/amd_405b_run_sep22/vram_utilization.png)
-- rocm-smi data can be found [here](misc/tests/amd_405b_run_sep22/rocm_smi_cleaned_405b_batchsize16_seqlen64.csv).
-
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
 
@@ -107,6 +86,27 @@ If you prefer a self-hosted training version, follow the instructions below. The
     ```
 
 3. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
+
+## AMD 405B fine-tuning run:
+We recently fine-tuned the llama3.1 405B model on 8xAMD MI300x GPUs using JAX instead of PyTorch. JAX's advanced sharding APIs allowed us to achieve great performance. Check out our [blog post](https://dub.sh/felafax-amd-blog) to learn about the setup and the sharding tricks we used.
+
+We did LoRA fine-tuning with all model weights and lora parameters in bfloat16 precision, and with LoRA rank of 8 and LoRA alpha of 16:
+- **Model Size:** The LLaMA model weights occupy around 800GB of VRAM.
+- **LoRA Weights + Optimizer State:** Approximately 400GB of VRAM.
+- **Total VRAM Usage:** 77% of the total VRAM, around 1200GB.
+- **Constraints:** Due to the large size of the 405B model, there was limited space for batch size and sequence length. The batch size used was 16 and the sequence length was 64.
+- **Training Speed:** ~35 tokens/second
+- **Memory Efficiency:** Consistently around 70%
+- **Scaling:** With JAX, scaling was near-linear across 8 GPUs.
+
+The GPU utilization and VRAM utilization graphs can be found below. However, we still need to calculate the Model FLOPs Utilization (MFU).
+Note: We couldn't run the JIT-compiled version of the 405B model due to infrastructure and VRAM constraints (we need to investigate this further). The entire training run was executed in JAX eager mode, so there is significant potential for performance improvements.
+
+- GPU utilization:
+  ![image](./misc/tests/amd_405b_run_sep22/gpu_utilization.png)
+- VRAM  utilization:
+  ![image](./misc/tests/amd_405b_run_sep22/vram_utilization.png)
+- rocm-smi data can be found [here](misc/tests/amd_405b_run_sep22/rocm_smi_cleaned_405b_batchsize16_seqlen64.csv).
 
 ## Credits:
 - Google Deepmind's [Gemma repo](https://github.com/google-deepmind/gemma).
