@@ -79,7 +79,7 @@ else:
     elif DEVICE_COUNT == 4:
         DEVICE_MESH = mesh_utils.create_device_mesh((2, 2, 1))
     elif DEVICE_COUNT == 8:
-        DEVICE_MESH = mesh_utils.create_device_mesh((1, 8, 1),
+        DEVICE_MESH = mesh_utils.create_device_mesh((2, 4, 1),
                                                     contiguous_submeshes=True)
     else:
         DEVICE_MESH = mesh_utils.create_device_mesh((1, DEVICE_COUNT, 1))
