@@ -166,20 +166,18 @@ def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
 
 
 def download_model(model_name):
-    if jax.process_index() == 0:
-        print(f"Downloading model {model_name} on process 0...")
-        model_path, model, model_configurator, tokenizer = (
-            automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-                model_name,
-                dtype=jnp.bfloat16,
-                param_dtype=jnp.bfloat16,
-                lora_rank=8,
-                lora_alpha=16,
-            )
+    print(f"Downloading model {model_name} on process 0...")
+    model_path, model, model_configurator, tokenizer = (
+        automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+            model_name,
+            dtype=jnp.bfloat16,
+            param_dtype=jnp.bfloat16,
+            lora_rank=8,
+            lora_alpha=16,
         )
-        print("Model download complete.")
-        return model_path, model, model_configurator, tokenizer
-    return None, None, None, None
+    )
+    print("Model download complete.")
+    return model_path, model, model_configurator, tokenizer
 
 
 def main(argv):
