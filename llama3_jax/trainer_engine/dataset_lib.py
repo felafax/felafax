@@ -55,7 +55,7 @@ class Dataset:
 
         # Create DataLoaders
         dataloader_args = dict(
-            shuffle=True, batch_size=batch_size, collate_fn=self._custom_collate_fn, drop_last=True
+            shuffle=False, batch_size=batch_size, collate_fn=self._custom_collate_fn, drop_last=True
         )
         train_dataloader = torch.utils.data.DataLoader(ds["train"], **dataloader_args)
         val_dataloader = torch.utils.data.DataLoader(ds["test"], **dataloader_args)

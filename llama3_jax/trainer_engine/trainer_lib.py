@@ -21,6 +21,7 @@ from flax.training import train_state
 from jax.sharding import Mesh, NamedSharding
 from jax.sharding import PartitionSpec as PS
 from transformers import LlamaConfig, LlamaForCausalLM
+from jax.experimental import multihost_utils
 
 from . import checkpoint_lib, jax_utils, utils
 from .jax_utils import cross_entropy_loss_and_accuracy
@@ -177,8 +178,9 @@ class CausalLMTrainer(FelafaxTrainer):
                 ),
                 out_shardings=(
                     NamedSharding(self.mesh, PS()),  # loss
-                    (NamedSharding(self.mesh, PS()),  # accuracy
-                     NamedSharding(self.mesh, PS())),  # new_rng
+                    (
+                        NamedSharding(self.mesh, PS()),  # accuracy
+                        NamedSharding(self.mesh, PS())),  # new_rng
                 ))
             print("Jitted forward pass compiled.")
         return self._jitted_forward
@@ -241,7 +243,8 @@ class CausalLMTrainer(FelafaxTrainer):
         grad_fn = jax.value_and_grad(self.forward_pass,
                                      argnums=1,
                                      has_aux=True)
-        (loss, (accuracy, new_rng)), grads = grad_fn(params, lora_params, batch, rng)
+        (loss, (accuracy, new_rng)), grads = grad_fn(params, lora_params,
+                                                     batch, rng)
         return loss, accuracy, grads, new_rng
 
     def train_step(self, state, batch, rng, run_jitted=False):
@@ -310,10 +313,11 @@ class CausalLMTrainer(FelafaxTrainer):
                 for step, train_batch in enumerate(train_dataloader):
                     self.current_step = epoch * len(train_dataloader) + step
 
-                    train_batch = jax.device_put(
-                        train_batch, NamedSharding(self.mesh, PS("dp",
-                                                                 "fsdp")))
-
+                    train_batch = (
+                        multihost_utils.host_local_array_to_global_array(
+                            train_batch, 
+                            self.mesh, 
+                            PS("dp", "fsdp")))
                     sharded_rng = jax_utils.next_rng()
 
                     # Start timing

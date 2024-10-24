@@ -85,7 +85,7 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
                               model_configurator, tokenizer, trainer_config,
                               flax_checkpoint_path, data_source):
     optimizer = optax.sgd(trainer_config.learning_rate)
-    
+
     dataset = dataset_lib.Dataset(tokenizer)
     train_dataloader, val_dataloader = dataset.get_dataset(
         data_source=data_source,
@@ -120,7 +120,19 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
         print(f"End time: {end_time:.4f}")
         print(f"Execution time: {elapsed_time:.4f} seconds")
 
-    trainer.save_checkpoint(state, path=flax_checkpoint_path)
+    # Convert global arrays to host-local arrays
+    host_local_state = jax.tree_map(
+        lambda x: jax.experimental.multihost_utils.
+        global_array_to_host_local_array(x, jax_utils.MESH, jax.sharding.PartitionSpec())
+        if isinstance(x, jax.Array) else x, state)
+
+    # Only save on process 0
+    if jax.process_index() == 0:
+        trainer.save_checkpoint(host_local_state, path=flax_checkpoint_path)
+        print(f"Checkpoint saved to {flax_checkpoint_path}")
+
+    # Ensure all processes are synchronized
+    jax.random.normal(jax.random.PRNGKey(0), ()).block_until_ready()
     print(f"Checkpoint saved to {flax_checkpoint_path}")
 
 
@@ -166,30 +178,28 @@ def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
 
 
 def download_model(model_name):
-    if jax.process_index() == 0:
-        print(f"Downloading model {model_name} on process 0...")
-        model_path, model, model_configurator, tokenizer = (
-            automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-                model_name,
-                dtype=jnp.bfloat16,
-                param_dtype=jnp.bfloat16,
-                lora_rank=8,
-                lora_alpha=16,
-            )
+    print(f"Downloading model {model_name} on process 0...")
+    model_path, model, model_configurator, tokenizer = (
+        automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
+            model_name,
+            dtype=jnp.bfloat16,
+            param_dtype=jnp.bfloat16,
+            lora_rank=8,
+            lora_alpha=16,
         )
-        print("Model download complete.")
-        return model_path, model, model_configurator, tokenizer
-    return None, None, None, None
+    )
+    print("Model download complete.")
+    return model_path, model, model_configurator, tokenizer
 
 
 def main(argv):
     del argv  # Unused
     current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    
+
     # check if base_dir is not a directory
     if not os.path.isdir(FLAGS.base_dir):
         raise ValueError(f"Base directory {FLAGS.base_dir} is not a directory")
-    
+
     FLAGS.base_dir = f"{FLAGS.base_dir}/{current_datetime}"
     os.makedirs(FLAGS.base_dir, exist_ok=True)
 
