@@ -148,12 +148,13 @@ def export_and_convert(
     hf_export_dir,
     model_export_dir,
 ):
+    print("Checkpoint path:", checkpoint_path)
     convert_lib.save_hf_compatible_checkpoint(
         f'flax_params::{checkpoint_path}', hf_export_dir,
         model_configurator)
 
     # Download and save the tokenizer
-    tokenizer_repo = f"felafax/tokenizer-{model_name}"
+    tokenizer_repo = "felafax/tokenizer-llama-3.1-8B-Instruct-JAX" # f"felafax/tokenizer-{model_name}"
     tokenizer_dir = snapshot_download(repo_id=tokenizer_repo)
 
     # Move all files from tokenizer_dir to hf_export_dir
@@ -210,14 +211,23 @@ def main(argv):
 
     # Checkpoint dir is where Flax checkpoints are saved.
     checkpoint_dir = os.path.join(FLAGS.base_dir,
-                                  f"{FLAGS.model_name}_{current_datetime}")
+                                  f"{current_datetime}")
+    checkpoint_path = os.path.join(checkpoint_dir, FLAGS.model_name)
 
     # Temp directory to save Hugging Face compatible export.
     temp_dir = os.path.join(FLAGS.base_dir,
                             f"temp_{current_datetime}")
 
     model_export_dir = os.path.join(FLAGS.model_export_dir,
-                                    f"{FLAGS.model_name}_{current_datetime}")
+                                    f"{current_datetime}")
+
+    print("Base dir:", FLAGS.base_dir)
+    print("Model name:", FLAGS.model_name)
+    print("Checkpoint dir:", checkpoint_dir)
+    print("Checkpoint path:", checkpoint_path)
+    print("Temp dir:", temp_dir)
+    print("Model export dir:", model_export_dir)
+
 
     # Create necessary directories
     utils.makedirs(checkpoint_dir, exist_ok=True)
@@ -232,20 +242,21 @@ def main(argv):
             model_configurator=model_configurator,
             tokenizer=tokenizer,
             trainer_config=trainer_config,
-            checkpoint_path=checkpoint_dir,
+            checkpoint_path=checkpoint_path,
             data_source=FLAGS.data_source,
         )
 
-    if FLAGS.export or FLAGS.train_and_export:
+    # Checkpoint will only be saved by process 0, so export will only be done on process 0.
+    if jax.process_index() == 0 and (FLAGS.export or FLAGS.train_and_export):
         export_and_convert(
             model_name=FLAGS.model_name,
             model_configurator=model_configurator,
-            checkpoint_path=checkpoint_dir,
+            checkpoint_path=checkpoint_path,
             hf_export_dir=temp_dir,
             model_export_dir=model_export_dir,
         )
 
-    if FLAGS.upload_to_hf:
+    if jax.process_index() == 0 and FLAGS.upload_to_hf:
         if not all([FLAGS.hf_token, FLAGS.hf_username, FLAGS.hf_repo_name]):
             raise ValueError(
                 "Hugging Face credentials are required for upload.")

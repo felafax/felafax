@@ -13,8 +13,15 @@ PROJECT="felafax-training"
 CONTAINER_NAME="felafax-tunerx-container"
 TARGET_DIR="/home/llama3_jax/"
 
-echo "Copying files from: ./llama3_jax/"
+# Delete existing directory if it exists
+echo "Deleting existing directory if it exists..."
+gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
+  --project="${PROJECT}" \
+  --zone="${ZONE}" \
+  --worker=all \
+  --command="rm -rf /home/${USER}/llama3_jax"
 
+echo "Copying files from: ./llama3_jax/"
 # Copy files to all TPU VM workers and then move them into the container
 gcloud compute tpus tpu-vm scp --recurse ./llama3_jax/* "${TPU_NAME}:/home/${USER}/llama3_jax/" \
   --project="${PROJECT}" \
@@ -26,15 +33,16 @@ gcloud compute tpus tpu-vm scp --recurse ./llama3_jax/* "${TPU_NAME}:/home/${USE
   --worker=all \
   --command="sudo docker cp /home/\${USER}/llama3_jax ${CONTAINER_NAME}:${TARGET_DIR}/"
 
+echo "Installing dependencies..."
 PIP_INSTALL_CMD="cd ${TARGET_DIR} && pip install -r requirements.txt"
-
 gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
   --zone="${ZONE}" \
   --worker=all \
   --command="sudo docker exec ${CONTAINER_NAME} bash -c \"${PIP_INSTALL_CMD}\""
 
-TRAIN_CMD="cd ${TARGET_DIR} && python multihost_trainer.py --download_model --model_name 'colab-llama-3.1-8B-Instruct-JAX' --data_source 'yahma/alpaca-cleaned' --train --base_dir '/home/felafax-storage/'"
+echo "Running training..."
+TRAIN_CMD="cd ${TARGET_DIR} && python multihost_trainer.py --model_name 'colab-llama-3.1-8B-Instruct-JAX' --data_source 'yahma/alpaca-cleaned' --train_and_export"
 
 gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
