@@ -154,7 +154,7 @@ def export_and_convert(
         model_configurator)
 
     # Download and save the tokenizer
-    tokenizer_repo = "felafax/tokenizer-llama-3.1-8B-Instruct-JAX" # f"felafax/tokenizer-{model_name}"
+    tokenizer_repo = "felafax/tokenizer-llama-3.1-8B-Instruct-JAX" # TODO: Fix
     tokenizer_dir = snapshot_download(repo_id=tokenizer_repo)
 
     # Move all files from tokenizer_dir to hf_export_dir
