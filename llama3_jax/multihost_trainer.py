@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 from absl import app, flags
 
 import jax
+
 jax.distributed.initialize()
 
 import jax.numpy as jnp
@@ -34,8 +35,10 @@ from llama3_jax.trainer_engine import (automodel_lib, checkpoint_lib,
                                        trainer_lib, utils, dataset_lib)
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string("base_dir", "/mnt/persistent-disk",
+flags.DEFINE_string("base_dir", "/home/felafax-storage/llama3_jax/",
                     "Base directory for data")
+flags.DEFINE_string("model_export_dir", "/home/felafax-storage/checkpoints/",
+                    "Base directory for Hugging Face compatible model export.")
 flags.DEFINE_string("model_name", "llama-3.1-8B-Instruct-JAX", "Model name")
 flags.DEFINE_string(
     "data_source", None,
@@ -59,8 +62,9 @@ flags.DEFINE_boolean("timeit", False, "Time the run")
 flags.DEFINE_string("trainer_config_json", None,
                     "Path to JSON file containing trainer configuration")
 
-flags.DEFINE_boolean("download_model", False, "Download the model on process index 0")
-flags.DEFINE_string("final_checkpoint_path", None, "Path to the final checkpoint")
+flags.DEFINE_string("final_checkpoint_path", None,
+                    "Path to the final checkpoint")
+
 
 @chex.dataclass(frozen=True)
 class TrainerConfig:
@@ -83,7 +87,7 @@ class TrainerConfig:
 
 def train_and_save_checkpoint(*, model_name, model_path, model,
                               model_configurator, tokenizer, trainer_config,
-                              flax_checkpoint_path, data_source):
+                              checkpoint_path, data_source):
     optimizer = optax.sgd(trainer_config.learning_rate)
 
     dataset = dataset_lib.Dataset(tokenizer)
@@ -91,8 +95,7 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
         data_source=data_source,
         batch_size=trainer_config.batch_size,
         seq_length=trainer_config.seq_length,
-        max_examples=trainer_config.dataset_size_limit
-    )
+        max_examples=trainer_config.dataset_size_limit)
 
     # Print training information
     trainer_lib.pprint_training_pipeline(train_dataloader, trainer_config)
@@ -123,33 +126,35 @@ def train_and_save_checkpoint(*, model_name, model_path, model,
     # Convert global arrays to host-local arrays
     host_local_state = jax.tree_map(
         lambda x: jax.experimental.multihost_utils.
-        global_array_to_host_local_array(x, jax_utils.MESH, jax.sharding.PartitionSpec())
+        global_array_to_host_local_array(x, jax_utils.MESH,
+                                         jax.sharding.PartitionSpec())
         if isinstance(x, jax.Array) else x, state)
 
     # Only save on process 0
     if jax.process_index() == 0:
-        trainer.save_checkpoint(host_local_state, path=flax_checkpoint_path)
-        print(f"Checkpoint saved to {flax_checkpoint_path}")
+        trainer.save_checkpoint(host_local_state, path=checkpoint_path)
+        print(f"Checkpoint saved to {checkpoint_path}")
 
     # Ensure all processes are synchronized
     jax.random.normal(jax.random.PRNGKey(0), ()).block_until_ready()
-    print(f"Checkpoint saved to {flax_checkpoint_path}")
+    print(f"All done! Training and saving checkpoint completed.")
 
 
 def export_and_convert(
     *,
     model_name,
     model_configurator,
-    flax_checkpoint_path,
+    checkpoint_path,
     hf_export_dir,
-    gcs_dir,
+    model_export_dir,
 ):
+    print("Checkpoint path:", checkpoint_path)
     convert_lib.save_hf_compatible_checkpoint(
-        f'flax_params::{flax_checkpoint_path}', hf_export_dir,
+        f'flax_params::{checkpoint_path}', hf_export_dir,
         model_configurator)
 
     # Download and save the tokenizer
-    tokenizer_repo = f"felafax/tokenizer-{model_name}"
+    tokenizer_repo = "felafax/tokenizer-llama-3.1-8B-Instruct-JAX" # TODO: Fix
     tokenizer_dir = snapshot_download(repo_id=tokenizer_repo)
 
     # Move all files from tokenizer_dir to hf_export_dir
@@ -164,8 +169,8 @@ def export_and_convert(
             print(f"Copied directory {item} to {hf_export_dir}")
     print(f"All tokenizer files saved to {hf_export_dir}")
 
-    checkpoint_lib.copy_directory(hf_export_dir, gcs_dir)
-    print(f"Checkpoint copied to {gcs_dir}")
+    checkpoint_lib.copy_directory(hf_export_dir, model_export_dir)
+    print(f"Checkpoint copied to {model_export_dir}")
 
 
 def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
@@ -177,47 +182,26 @@ def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
     print(f"Checkpoint uploaded to Hugging Face: {hf_username}/{hf_repo_name}")
 
 
-def download_model(model_name):
-    print(f"Downloading model {model_name} on process 0...")
+def main(argv):
+    del argv  # Unused
+    if not FLAGS.data_source:
+        raise ValueError("--data_source must be provided")
+
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Base dir is where JAX cache and HF HUB cache (so model downloads) are stored.
+    os.makedirs(FLAGS.base_dir, exist_ok=True)
+    setup.setup_environment(base_dir=FLAGS.base_dir)
+    setup.reload_modules("llama3_jax")
+
     model_path, model, model_configurator, tokenizer = (
         automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-            model_name,
+            FLAGS.model_name,
             dtype=jnp.bfloat16,
             param_dtype=jnp.bfloat16,
             lora_rank=8,
             lora_alpha=16,
-        )
-    )
-    print("Model download complete.")
-    return model_path, model, model_configurator, tokenizer
-
-
-def main(argv):
-    del argv  # Unused
-    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-    # check if base_dir is not a directory
-    if not os.path.isdir(FLAGS.base_dir):
-        raise ValueError(f"Base directory {FLAGS.base_dir} is not a directory")
-
-    FLAGS.base_dir = f"{FLAGS.base_dir}/{current_datetime}"
-    os.makedirs(FLAGS.base_dir, exist_ok=True)
-
-    setup.setup_environment(base_dir=FLAGS.base_dir)
-    setup.reload_modules("llama3_jax")
-
-    if FLAGS.download_model is True:
-        model_path, model, model_configurator, tokenizer = download_model(FLAGS.model_name)
-    else:
-        model_path, model, model_configurator, tokenizer = (
-            automodel_lib.AutoJAXModelForCausalLM.from_pretrained(
-                FLAGS.model_name,
-                dtype=jnp.bfloat16,
-                param_dtype=jnp.bfloat16,
-                lora_rank=8,
-                lora_alpha=16,
-            )
-        )
+        ))
 
     # Initialize TrainerConfig
     if FLAGS.trainer_config_json:
@@ -225,27 +209,30 @@ def main(argv):
     else:
         trainer_config = TrainerConfig()
 
-    # Define directories and paths
-    export_dir = os.path.join(FLAGS.base_dir, "export")
-    hf_export_dir = os.path.join(FLAGS.base_dir, "hf_export")
+    # Checkpoint dir is where Flax checkpoints are saved.
+    checkpoint_dir = os.path.join(FLAGS.base_dir,
+                                  f"{current_datetime}")
+    checkpoint_path = os.path.join(checkpoint_dir, FLAGS.model_name)
 
-    if FLAGS.final_checkpoint_path is not None:
-        final_checkpoint_path = FLAGS.final_checkpoint_path
-    else:
-        # TODO: remove the hard-coded path for checkpoint
-        final_checkpoint_path = (f"/home/felafax-storage/checkpoints/{FLAGS.model_name}/"
-               f"{current_datetime}/")
+    # Temp directory to save Hugging Face compatible export.
+    temp_dir = os.path.join(FLAGS.base_dir,
+                            f"temp_{current_datetime}")
 
+    model_export_dir = os.path.join(FLAGS.model_export_dir,
+                                    f"{current_datetime}")
 
-    flax_checkpoint_path = os.path.join(export_dir, FLAGS.model_name)
+    print("Base dir:", FLAGS.base_dir)
+    print("Model name:", FLAGS.model_name)
+    print("Checkpoint dir:", checkpoint_dir)
+    print("Checkpoint path:", checkpoint_path)
+    print("Temp dir:", temp_dir)
+    print("Model export dir:", model_export_dir)
+
 
     # Create necessary directories
-    utils.makedirs(export_dir, exist_ok=True)
-    utils.makedirs(hf_export_dir, exist_ok=True)
-    utils.makedirs(final_checkpoint_path, exist_ok=True)
-
-    if not FLAGS.data_source:
-        raise ValueError("--data_source must be provided")
+    utils.makedirs(checkpoint_dir, exist_ok=True)
+    utils.makedirs(temp_dir, exist_ok=True)
+    utils.makedirs(model_export_dir, exist_ok=True)
 
     if FLAGS.train or FLAGS.train_and_export:
         train_and_save_checkpoint(
@@ -255,24 +242,25 @@ def main(argv):
             model_configurator=model_configurator,
             tokenizer=tokenizer,
             trainer_config=trainer_config,
-            flax_checkpoint_path=flax_checkpoint_path,
+            checkpoint_path=checkpoint_path,
             data_source=FLAGS.data_source,
         )
 
-    if FLAGS.export or FLAGS.train_and_export:
+    # Checkpoint will only be saved by process 0, so export will only be done on process 0.
+    if jax.process_index() == 0 and (FLAGS.export or FLAGS.train_and_export):
         export_and_convert(
             model_name=FLAGS.model_name,
             model_configurator=model_configurator,
-            flax_checkpoint_path=flax_checkpoint_path,
-            hf_export_dir=hf_export_dir,
-            gcs_dir=final_checkpoint_path,
+            checkpoint_path=checkpoint_path,
+            hf_export_dir=temp_dir,
+            model_export_dir=model_export_dir,
         )
 
-    if FLAGS.upload_to_hf:
+    if jax.process_index() == 0 and FLAGS.upload_to_hf:
         if not all([FLAGS.hf_token, FLAGS.hf_username, FLAGS.hf_repo_name]):
             raise ValueError(
                 "Hugging Face credentials are required for upload.")
-        upload_to_huggingface(hf_export_dir=hf_export_dir,
+        upload_to_huggingface(hf_export_dir=model_export_dir,
                               hf_username=FLAGS.hf_username,
                               hf_repo_name=FLAGS.hf_repo_name,
                               hf_token=FLAGS.hf_token)
