@@ -21,11 +21,11 @@ fi
 echo 'export PJRT_DEVICE=TPU' >>~/.bashrc
 
 if [ "$UID" != "0" ]; then
-  mkdir -p "/home/felafax-storage/$UID"
-  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/$UID/"
+  mkdir -p "/home/felafax-storage/"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/"
 
-  mkdir -p "/home/felafax-storage-eu/$UID"
-  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/$UID/"
+  mkdir -p "/home/felafax-storage-eu/"
+  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/"
 fi
 
 # mount config config
