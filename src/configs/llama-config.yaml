@@ -1,0 +1,40 @@
+# Model configuration
+model:
+  model_name: "llama-3.1-8b"
+  use_lora: true
+  lora_rank: 8
+  lora_alpha: 16
+  lora_dropout: 0.1
+
+# Training configuration
+training:
+  learning_rate: 1e-4
+  num_epochs: 3
+  batch_size: 16
+  max_steps: 1000
+  gradient_accumulation_steps: 4
+  seq_length: 2048
+  print_every_n_steps: 10
+  eval_every_n_steps: 100
+  max_eval_steps: 50
+
+# Distributed training configuration
+distributed:
+  backend: "jax" # or "pytorch_xla"
+  dtype: "bfloat16"
+  param_dtype: "bfloat16"
+
+# Optimization configuration
+optimizer:
+  name: "adamw"
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  warmup_steps: 100
+  lr_scheduler: "cosine"
+
+# Logging configuration
+logging:
+  wandb_project: "llama-finetuning"
+  log_every_n_steps: 10
+  save_every_n_steps: 100
+  eval_every_n_steps: 500
