@@ -30,6 +30,17 @@ class LLaMAConfig(ModelConfig):
     lora_alpha: float = 16
     lora_dropout: float = 0.1
 
+    model_name: str = ""
+    base_dir: str = ""
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_name=kwargs.get("model_name", None),
+            base_dir=kwargs.get("base_dir", None),
+        )
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
     @classmethod
     def from_pretrained(cls, model_name: str) -> "LLaMAConfig":
         """Create config from predefined model sizes."""

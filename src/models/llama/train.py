@@ -37,6 +37,13 @@ def train(
 
     # Initialize configs
     training_config = training_config or TrainingConfig()
+
+    model_config = {}
+    # TODO: remove this; take from args or download from hf
+    model_config["model_name"] = "llama-3.1-8B-Instruct-JAX"
+    model_config["base_dir"] = (
+        "/mnt/persistent-disk/models--felafax--llama-3.1-8B-Instruct-JAX/"
+    )
     llama_config = LLaMAConfig(**(model_config or {}))
 
     # Initialize distributed config
