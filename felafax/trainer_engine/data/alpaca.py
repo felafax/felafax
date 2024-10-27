@@ -1,112 +1,86 @@
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, Optional, Union
-import json
-import torch
-from torch.utils.data import Dataset, DataLoader, random_split
-import requests
-from tqdm import tqdm
+from typing import Optional, Union, List, Dict, Any
 
-from felafax.trainer_engine.data.base import BaseDatasetHandler, DataConfig
+import torch
+from torch.utils.data import DataLoader
+from datasets import load_dataset
+from pathlib import Path
+
+from felafax.trainer_engine.data.base import DataModule, SFTDataset, get_sft_collate_fn
+from felafax.trainer_engine.tokenizer import Tokenizer
+from felafax.prompts import PromptStyle
 
 
 @dataclass
-class AlpacaConfig(DataConfig):
+class AlpacaConfig:
     """Configuration for Alpaca dataset."""
-
+    batch_size: int = 32
+    max_seq_length: int = -1
+    max_examples: Optional[int] = None
+    data_source: str = "yahma/alpaca-cleaned"
+    prompt_style: Union[str, PromptStyle] = "alpaca"
     mask_prompt: bool = False
-    val_split_fraction: float = 0.03865
-    prompt_style: str = "alpaca"
+    num_workers: int = 4
+    split: str = "train"
+    val_split_fraction: float = 0.15
     ignore_index: int = -100
     seed: int = 42
-    download_dir: Path = Path("./data/alpaca")
-    file_url: str = (
-        "https://raw.githubusercontent.com/tloen/alpaca-lora/main/alpaca_data_cleaned_archive.json"
-    )
-    file_name: str = "alpaca_data_cleaned_archive.json"
-    max_seq_length: int = -1
 
-
-class AlpacaDataset(Dataset):
-    """Dataset class for Alpaca data."""
-
-    def __init__(
-        self,
-        data: list,
-        tokenizer: Any,
-        prompt_style: str,
-        max_seq_length: int,
-        mask_prompt: bool = False,
-        ignore_index: int = -100,
-    ):
-        self.data = data
-        self.tokenizer = tokenizer
-        self.prompt_style = prompt_style
-        self.max_seq_length = max_seq_length
-        self.mask_prompt = mask_prompt
-        self.ignore_index = ignore_index
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-    def __getitem__(self, idx: int) -> Dict[str, Any]:
-        item = self.data[idx]
-        # Here you would implement your specific tokenization and formatting
-        # This is a placeholder for the actual implementation
-        prompt = self._format_prompt(item)
-        encoded = self._encode_text(prompt, item["output"])
-        return encoded
-
-    def _format_prompt(self, item: Dict[str, str]) -> str:
-        # Implement prompt formatting based on prompt_style
-        # This is a placeholder
-        return f"Instruction: {item['instruction']}\nInput: {item['input']}\nOutput:"
-
-    def _encode_text(self, prompt: str, response: str) -> Dict[str, torch.Tensor]:
-        # Implement tokenization and encoding
-        # This is a placeholder
-        encoded = self.tokenizer(prompt + response, max_length=self.max_seq_length)
-        return encoded
-
-
-class AlpacaHandler(BaseDatasetHandler):
-    """Handler for Alpaca dataset."""
+class AlpacaDataModule(DataModule):
+    """Alpaca data module for supervised fine-tuning."""
 
     def __init__(self, config: Optional[AlpacaConfig] = None):
         self.config = config or AlpacaConfig()
-        super().__init__(self.config)
+        super().__init__()
+        if isinstance(self.config.prompt_style, str):
+            self.config.prompt_style = PromptStyle.from_name(
+                self.config.prompt_style)
         self.tokenizer = None
+        self.train_dataset = None
+        self.val_dataset = None
 
-    def connect(self, tokenizer: Any) -> None:
-        """Connect tokenizer to the handler."""
-        self.tokenizer = tokenizer
+    def connect(
+        self,
+        tokenizer: Optional[Tokenizer] = None,
+        batch_size: Optional[int] = None,
+        max_seq_length: Optional[int] = None,
+    ) -> None:
+        self.tokenizer = tokenizer or self.tokenizer
+        if batch_size:
+            self.config.batch_size = batch_size
+        if max_seq_length:
+            self.config.max_seq_length = max_seq_length
 
     def prepare_data(self) -> None:
-        """Download the dataset if needed."""
-        self.config.download_dir.mkdir(parents=True, exist_ok=True)
-        self._download_if_missing()
+        # No need to download data ahead of time; datasets library handles it
+        pass
 
-    def setup(self, stage: Optional[str] = None) -> None:
-        """Set up train and validation datasets."""
-        if self.tokenizer is None:
-            raise ValueError("Tokenizer not connected. Call connect() first.")
+    def setup(self, stage: str = "") -> None:
+        # Load dataset from Hugging Face Hub or local file
+        if Path(self.config.data_source).is_file():
+            dataset = load_dataset(
+                "json",
+                data_files=self.config.data_source,
+                split=self.config.split,
+            )
+        else:
+            dataset = load_dataset(self.config.data_source,
+                                   split=self.config.split)
 
-        # Load data
-        with open(
-            self.config.download_dir / self.config.file_name, "r", encoding="utf-8"
-        ) as file:
-            data = json.load(file)
+        # Limit number of examples
+        if self.config.max_examples is not None:
+            dataset = dataset.select(
+                range(min(self.config.max_examples, len(dataset))))
 
-        # Split data
-        train_data, val_data = random_split(
-            data,
-            [1.0 - self.config.val_split_fraction, self.config.val_split_fraction],
-            generator=torch.Generator().manual_seed(self.config.seed),
-        )
+        # Split into train and validation sets
+        dataset = dataset.train_test_split(
+            test_size=self.config.val_split_fraction, seed=self.config.seed)
+        train_data = [sample for sample in dataset["train"]]
+        val_data = [sample for sample in dataset["test"]]
 
         # Create datasets
-        self.train_dataset = AlpacaDataset(
-            data=list(train_data),
+        self.train_dataset = SFTDataset(
+            data=train_data,
             tokenizer=self.tokenizer,
             prompt_style=self.config.prompt_style,
             max_seq_length=self.config.max_seq_length,
@@ -114,8 +88,8 @@ class AlpacaHandler(BaseDatasetHandler):
             ignore_index=self.config.ignore_index,
         )
 
-        self.val_dataset = AlpacaDataset(
-            data=list(val_data),
+        self.val_dataset = SFTDataset(
+            data=val_data,
             tokenizer=self.tokenizer,
             prompt_style=self.config.prompt_style,
             max_seq_length=self.config.max_seq_length,
@@ -123,48 +97,27 @@ class AlpacaHandler(BaseDatasetHandler):
             ignore_index=self.config.ignore_index,
         )
 
-    def process_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
-        """Process a batch of data."""
-        processed_batch = {
-            key: value.to(self.device) if torch.is_tensor(value) else value
-            for key, value in batch.items()
-        }
-        return processed_batch
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.config.batch_size,
+            shuffle=True,
+            generator=torch.Generator().manual_seed(self.config.seed),
+            num_workers=self.config.num_workers,
+            collate_fn=get_sft_collate_fn(
+                max_seq_length=self.config.max_seq_length,
+                ignore_index=self.config.ignore_index,
+            ),
+        )
 
-    def _download_if_missing(self) -> None:
-        """Downloads the dataset if not present."""
-        file_path = self.config.download_dir / self.config.file_name
-        if file_path.exists() and file_path.stat().st_size > 0:
-            return
-
-        response = requests.get(self.config.file_url, stream=True)
-        with open(file_path, "w", encoding="utf-8") as f:
-            pbar = tqdm(
-                desc=str(file_path),
-                total=int(response.headers.get("content-length", 0)),
-                unit="iB",
-                unit_scale=True,
-                unit_divisor=1024,
-            )
-            for data in response.iter_content(chunk_size=1024):
-                size = f.write(data.decode())
-                pbar.update(size)
-            pbar.close()
-
-    @property
-    def device(self) -> torch.device:
-        """Get the current device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    def state_dict(self) -> Dict[str, Any]:
-        """Save handler state."""
-        return {
-            "config": self.config,
-            "tokenizer_state": self.tokenizer.state_dict() if self.tokenizer else None,
-        }
-
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Load handler state."""
-        self.config = state_dict["config"]
-        if self.tokenizer and "tokenizer_state" in state_dict:
-            self.tokenizer.load_state_dict(state_dict["tokenizer_state"])
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.config.batch_size,
+            shuffle=False,
+            num_workers=self.config.num_workers,
+            collate_fn=get_sft_collate_fn(
+                max_seq_length=self.config.max_seq_length,
+                ignore_index=self.config.ignore_index,
+            ),
+        )

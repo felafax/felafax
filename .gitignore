@@ -1,3 +1,12 @@
+bin/
+include/
+lib/
+lib64/
+share/
+__pycache__/
+felafax/lib64
+felafax/pyvenv.cfg
+
 .vscode/*
 **/.ipynb_checkpoints/*
 export/

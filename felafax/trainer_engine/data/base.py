@@ -1,126 +1,163 @@
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union, Iterable
-from dataclasses import dataclass
-from torch.utils.data import DataLoader, Dataset, IterableDataset
+# base.py
+from abc import abstractmethod
+from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import torch
+from torch.utils.data import Dataset
+from torch import Tensor
+
+from felafax.trainer_engine.tokenizer import Tokenizer
+from felafax.trainer_engine.prompts import PromptStyle
 
 
-@dataclass
-class DataConfig:
-    """Configuration for data handling."""
+class DataModule:
+    """Base class for all data modules in Felafax."""
 
-    batch_size: int = 32
-    num_workers: int = 0
-    pin_memory: bool = True
-    shuffle_train: bool = True
+    @abstractmethod
+    def connect(
+        self,
+        tokenizer: Optional[Tokenizer] = None,
+        batch_size: int = 1,
+        max_seq_length: Optional[int] = None,
+    ) -> None:
+        """All settings that can't be determined at the time of instantiation need to be passed through here
+        before any dataloaders can be accessed.
+        """
+
+    def setup(self, stage: str = "") -> None:
+        # Stub is to redefine the default signature, because the concept of 'stage' does not exist in Felafax
+        pass
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
 
 
-class BaseDatasetHandler(ABC):
-    """Abstract base class for dataset handling, inspired by Lightning's DataModule.
+class SFTDataset(Dataset):
+    """An in-memory dataset for supervised fine-tuning with `input_ids` and `labels`.
 
-    This class standardizes the training, validation, test splits, data preparation
-    and transformations across different datasets.
+    Args:
+        data: A list of samples (dicts). The target/label must be stored under the key 'output' and the instruction
+            or other data can be stored under any key as long as it is compatible with the given prompt template.
+        tokenizer: The tokenizer to use. Should match the one that was used to pretrain the model.
+        prompt_style: The style to apply to prompts. See `felafax.trainer_engine.prompts` for a list of available styles.
+        max_seq_length: Truncate sequences that are longer than this value. By default, no truncation is applied.
+        mask_prompt: Whether to mask the prompt section from the label (with ``ignore_index``).
+        ignore_index: The index to use for elements to be ignored in the label.
+        transform: An optional transform to apply to the sample before it gets tokenized. Use this to rename the
+            keys in the dataset to the expected 'instruction' and 'output' keys.
+
+    Returns a dict with two keys:
+        input_ids: The encoded prompt + response
+        labels: Same as input_ids, unless ``mask_prompt=True`` in which case the 'prompt' part is replaced with
+            the ``ignore_index``.
     """
 
-    def __init__(self, config: DataConfig = DataConfig()):
-        self.config = config
-        # These will be set in setup()
-        self.train_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None
-        self.val_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None
-        self.test_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None
-        self.predict_dataset: Optional[Union[Dataset, Iterable[Dataset]]] = None
+    def __init__(
+        self,
+        data: List[Dict[str, str]],
+        tokenizer: Tokenizer,
+        prompt_style: Union[str, PromptStyle],
+        max_seq_length: int = -1,
+        mask_prompt: bool = True,
+        ignore_index: int = -100,
+        transform: Optional[Callable[[Any], Any]] = None,
+    ) -> None:
+        self.data = data
+        self.tokenizer = tokenizer
+        self.prompt_style = (prompt_style if isinstance(
+            prompt_style, PromptStyle) else
+                             PromptStyle.from_name(prompt_style))
+        self.max_seq_length = max_seq_length
+        self.mask_prompt = mask_prompt
+        self.ignore_index = ignore_index
+        self.transform = transform
 
-    @abstractmethod
-    def prepare_data(self) -> None:
-        """Abstract method to handle data preparation.
+    def __len__(self) -> int:
+        return len(self.data)
 
-        This method is called only once and on one GPU.
-        Use this to download data, tokenize, etc.
-        """
-        pass
+    def __getitem__(self,
+                    idx: int) -> Dict[str, Union[Tensor, Dict[str, int]]]:
+        example = self.data[idx]
+        if self.transform is not None:
+            example = self.transform(example)
+        prompt = self.prompt_style.apply(prompt=example["instruction"],
+                                         **example)
+        encoded_prompt = self.tokenizer.encode(prompt,
+                                               max_length=self.max_seq_length)
+        encoded_response = self.tokenizer.encode(
+            example["output"],
+            bos=False,
+            eos=True,
+            max_length=self.max_seq_length,
+        )
+        encoded_prompt_and_response = torch.cat(
+            (encoded_prompt, encoded_response)).type(torch.int64)
+        if self.max_seq_length > 0:
+            encoded_prompt_and_response = encoded_prompt_and_response[:self.
+                                                                      max_seq_length]
 
-    @abstractmethod
-    def setup(self, stage: Optional[str] = None) -> None:
-        """Abstract method to handle dataset setup.
+        # The labels are the full prompt with response, but with the prompt masked out
+        labels = encoded_prompt_and_response.clone()
+        if self.mask_prompt:
+            labels[:len(encoded_prompt)] = self.ignore_index
 
-        This method is called on every GPU.
-        Use this to make train/val/test/predict splits, initialize datasets, etc.
+        raw_token_count = len(encoded_response)
 
-        Args:
-            stage: Optional stage to setup. Can be 'fit', 'test', 'predict', or None
-        """
-        pass
+        return {
+            "input_ids": encoded_prompt_and_response,
+            "labels": labels,
+            "token_counts": {
+                "raw": raw_token_count,
+                "raw_plus_prompt_template": len(encoded_prompt_and_response),
+            },
+        }
 
-    def train_dataloader(self) -> Optional[DataLoader]:
-        """Creates the training dataloader."""
-        if self.train_dataset is None:
-            return None
 
-        if isinstance(self.train_dataset, IterableDataset):
-            shuffle = False
-        else:
-            shuffle = self.config.shuffle_train
+def get_sft_collate_fn(max_seq_length: int = -1,
+                       pad_id: int = 0,
+                       ignore_index: int = -100):
+    """Returns the collate function for supervised fine-tuning (needed in the DataLoader)."""
+    return partial(
+        _sft_collate_fn,
+        max_seq_length=max_seq_length,
+        pad_id=pad_id,
+        ignore_index=ignore_index,
+    )
 
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=shuffle,
-            num_workers=self.config.num_workers,
-            pin_memory=self.config.pin_memory,
+
+def _sft_collate_fn(
+    samples: List[Dict[str, Tensor]],
+    max_seq_length: int = -1,
+    pad_id: int = 0,
+    ignore_index: int = -100,
+) -> Dict[str, Tensor]:
+
+    batched = {}
+    for key in ("input_ids", "labels"):
+        pad_value = pad_id if key == "input_ids" else ignore_index
+
+        # Pad right based on the longest sequence
+        batched[key] = torch.nn.utils.rnn.pad_sequence(
+            [sample[key] for sample in samples],
+            batch_first=True,
+            padding_value=pad_value,
         )
 
-    def test_dataloader(self) -> Optional[DataLoader]:
-        """Creates the test dataloader."""
-        if self.test_dataset is None:
-            return None
+        # Truncate if needed
+        if max_seq_length > 0:
+            batched[key] = batched[key][:, :max_seq_length]
 
-        return DataLoader(
-            self.test_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=False,
-            num_workers=self.config.num_workers,
-            pin_memory=self.config.pin_memory,
-        )
+    batched["token_counts"] = {}
+    batched["token_counts"]["raw"] = torch.tensor(
+        [sample["token_counts"]["raw"] for sample in samples],
+        dtype=torch.int64).unsqueeze(1)
+    batched["token_counts"]["raw_plus_prompt_template"] = torch.tensor(
+        [
+            sample["token_counts"]["raw_plus_prompt_template"]
+            for sample in samples
+        ],
+        dtype=torch.int64,
+    ).unsqueeze(1)
 
-    @abstractmethod
-    def process_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
-        """Abstract method to process a batch of data.
-
-        Args:
-            batch: Dictionary containing batch data
-
-        Returns:
-            Processed batch dictionary
-        """
-        pass
-
-    def state_dict(self) -> Dict[str, Any]:
-        """Save datamodule state.
-
-        Returns:
-            Dictionary containing datamodule state
-        """
-        return {}
-
-    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Load datamodule state.
-
-        Args:
-            state_dict: Dictionary containing datamodule state
-        """
-        pass
-
-    def teardown(self, stage: Optional[str] = None) -> None:
-        """Clean up after training/testing.
-
-        Args:
-            stage: Optional stage being torn down. Can be 'fit', 'test', 'predict', or None
-        """
-        pass
-
-    def on_exception(self, exception: BaseException) -> None:
-        """Handle any cleanup needed when an exception occurs.
-
-        Args:
-            exception: The exception that was raised
-        """
-        pass
+    return batched
