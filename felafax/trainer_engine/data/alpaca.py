@@ -17,7 +17,7 @@ class AlpacaDataModule(DataModule):
     data_source: str = "yahma/alpaca-cleaned"
     max_examples: Optional[int] = None
     split: str = "train"
-    val_split_fraction: float = 0.15
+    train_test_split: float = 0.15
     ignore_index: int = -100
     seed: int = 42
     
@@ -42,7 +42,7 @@ class AlpacaDataModule(DataModule):
             dataset = dataset.select(range(min(self.max_examples, len(dataset))))
 
         # Split into train and validation sets
-        dataset = dataset.train_test_split(test_size=self.val_split_fraction, seed=self.seed)
+        dataset = dataset.train_test_split(test_size=self.train_test_split, seed=self.seed)
         train_data = [sample for sample in dataset["train"]]
         val_data = [sample for sample in dataset["test"]]
 

@@ -30,9 +30,6 @@ class DataModule(ABC):
         """
         pass
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}()"
-
 
 class SFTDataset(Dataset):
     """An in-memory dataset for supervised fine-tuning with `input_ids` and `labels`.
@@ -87,28 +84,22 @@ class SFTDataset(Dataset):
         prompt = self.prompt_style.apply(prompt=example["instruction"],
                                          **example)
 
-        # Encode the prompt without adding special tokens
+        # Encode the prompt with special tokens
         encoded_prompt = self.tokenizer.encode(
             prompt,
-            add_special_tokens=False,
+            add_special_tokens=True,
             max_length=self.max_seq_length,
             truncation=True,
         )
 
-        # Encode the response without adding special tokens
+        # Encode the response with special tokens
         encoded_response = self.tokenizer.encode(
             example["output"],
-            add_special_tokens=False,
+            add_special_tokens=True,
             max_length=self.max_seq_length,
             truncation=True,
         )
-        # Manually add the EOS token to the response if needed
-        eos_token_id = self.tokenizer.eos_token_id
-        if eos_token_id is not None:
-            encoded_response.append(eos_token_id)
-        else:
-            raise ValueError("The tokenizer does not have an eos_token_id")
-
+        
         # Concatenate the encoded prompt and response
         encoded_prompt_and_response = encoded_prompt + encoded_response
 
