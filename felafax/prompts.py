@@ -17,7 +17,7 @@ class PromptStyle:
         return prompt
 
     def stop_tokens(self, tokenizer: "Tokenizer") -> Tuple[List[int], ...]:
-        return ([tokenizer.eos_id],)
+        return ([tokenizer.eos_id], )
 
     @classmethod
     def from_name(cls, name: str) -> "PromptStyle":
@@ -25,14 +25,16 @@ class PromptStyle:
 
 
 class Default(PromptStyle):
+
     def apply(self, prompt: str, **kwargs: str) -> str:
         return prompt
 
     def stop_tokens(self, tokenizer: "Tokenizer") -> Tuple[List[int], ...]:
-        return ([tokenizer.eos_id],)
+        return ([tokenizer.eos_id], )
 
 
 class Alpaca(PromptStyle):
+
     def apply(self, prompt: str, **kwargs: str) -> str:
         if kwargs.get("input"):
             return (
@@ -43,8 +45,7 @@ class Alpaca(PromptStyle):
         return (
             "Below is an instruction that describes a task. "
             "Write a response that appropriately completes the request.\n\n"
-            f"### Instruction:\n{prompt}\n\n### Response:\n"
-        )
+            f"### Instruction:\n{prompt}\n\n### Response:\n")
 
 
 # Maps prompt style names to PromptStyle classes
@@ -54,17 +55,20 @@ prompt_styles: Dict[str, Type[PromptStyle]] = {
 }
 
 
-def save_prompt_style(style: Union[str, PromptStyle], checkpoint_dir: Path) -> None:
+def save_prompt_style(style: Union[str, PromptStyle],
+                      checkpoint_dir: Path) -> None:
     style = PromptStyle.from_name(style) if isinstance(style, str) else style
     cls = type(style)
     # Allow saving the full module path for user-defined prompt classes
     config = {"class_path": f"{cls.__module__}.{cls.__name__}"}
-    with open(checkpoint_dir / "prompt_style.yaml", "w", encoding="utf-8") as file:
+    with open(checkpoint_dir / "prompt_style.yaml", "w",
+              encoding="utf-8") as file:
         yaml.dump(config, file)
 
 
 def load_prompt_style(checkpoint_dir: Path) -> PromptStyle:
-    with open(checkpoint_dir / "prompt_style.yaml", "r", encoding="utf-8") as file:
+    with open(checkpoint_dir / "prompt_style.yaml", "r",
+              encoding="utf-8") as file:
         config = yaml.safe_load(file)
     # Support loading the full module path for user-defined prompt classes
     full_module_path, cls_name = config["class_path"].rsplit(".", 1)
