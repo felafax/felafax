@@ -10,15 +10,10 @@ def setup_alpaca_dataset(
         batch_size: int,
         max_seq_length: int,
         num_workers: int = 2) -> Tuple[AutoTokenizer, AlpacaDataset]:
-    """
-    Helper function to initialize the tokenizer and AlpacaDataModule.
-    """
+    """Sets up the tokenizer and AlpacaDataset."""
     # Download the tokenizer from Hugging Face for llama-3.1-8B
     tokenizer = AutoTokenizer.from_pretrained(
         "felafax/tokenizer-llama-3.1-8B-Instruct-JAX")
-    tokenizer.pad_token = tokenizer.eos_token  # Ensure pad_token is set
-
-    # Create the Alpaca Data Module with configuration
     data_module = AlpacaDataset(
         batch_size=batch_size,
         max_seq_length=max_seq_length,
@@ -44,7 +39,7 @@ def test_batch_keys():
     train_dataloader = data_module.train_dataloader()
     train_batch = next(iter(train_dataloader))
 
-    expected_keys = {"input_ids", "labels", "token_counts"}
+    expected_keys = {"input_ids", "labels", "token_count"}
     assert set(
         train_batch.keys()
     ) == expected_keys, f"Train batch has unexpected keys: {train_batch.keys()}"

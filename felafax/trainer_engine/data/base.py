@@ -25,8 +25,15 @@ class BaseDataset(ABC):
         self,
         tokenizer: Optional[Any] = None,
     ) -> None:
-        """All settings that can't be determined at the time of instantiation
-        need to be passed through here before any dataloaders can be accessed.
+        """Prepares the dataset for training by initializing tokenizer and loading data.
+
+        This method must be called before accessing any dataloaders. It handles:
+        - Setting up the tokenizer for text encoding
+        - Loading the dataset (from HuggingFace Hub or local files)
+        - Creating train/validation datasets with proper tokenization
+
+        Args:
+            tokenizer: The tokenizer to use for encoding text. If None, uses previously set tokenizer.
         """
         pass
 
@@ -63,9 +70,10 @@ class SFTDataset(Dataset):
     ) -> None:
         self.data = data
         self.tokenizer = tokenizer
-        self.prompt_style = (prompt_style if isinstance(
-            prompt_style, PromptStyle) else
-                             PromptStyle.from_name(prompt_style))
+        if isinstance(prompt_style, PromptStyle):
+            self.prompt_style = prompt_style
+        else:
+            self.prompt_style = PromptStyle.from_name(prompt_style)
         self.max_seq_length = max_seq_length
         self.mask_prompt = mask_prompt
         self.ignore_index = ignore_index
@@ -74,13 +82,13 @@ class SFTDataset(Dataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self,
-                    idx: int) -> Dict[str, Union[Tensor, Dict[str, int]]]:
+    def __getitem__(self, idx: int) -> Dict[str, Union[Tensor, int]]:
         example = self.data[idx]
-        
+
+        # Apply any transform function to the example if provided.
         if self.transform is not None:
             example = self.transform(example)
-            
+
         prompt = self.prompt_style.apply(prompt=example["instruction"],
                                          **example)
 
@@ -99,7 +107,7 @@ class SFTDataset(Dataset):
             max_length=self.max_seq_length,
             truncation=True,
         )
-        
+
         # Concatenate the encoded prompt and response
         encoded_prompt_and_response = encoded_prompt + encoded_response
 
@@ -117,15 +125,13 @@ class SFTDataset(Dataset):
         if self.mask_prompt:
             labels[:len(encoded_prompt)] = self.ignore_index
 
-        raw_token_count = len(encoded_response)
+        # Calculate the total token count including the prompt
+        total_token_count = len(encoded_prompt_and_response)
 
         return {
             "input_ids": encoded_prompt_and_response,
             "labels": labels,
-            "token_counts": {
-                "raw": raw_token_count,
-                "raw_plus_prompt_template": len(encoded_prompt_and_response),
-            },
+            "token_count": total_token_count,
         }
 
 
@@ -142,7 +148,7 @@ def get_sft_collate_fn(max_seq_length: int = -1,
 
 
 def _sft_collate_fn(
-    samples: List[Dict[str, Tensor]],
+    samples: List[Dict[str, Union[Tensor, int]]],
     max_seq_length: int = -1,
     pad_id: int = 0,
     ignore_index: int = -100,
@@ -152,7 +158,7 @@ def _sft_collate_fn(
     for key in ("input_ids", "labels"):
         pad_value = pad_id if key == "input_ids" else ignore_index
 
-        # Pad right based on the longest sequence
+        # Pad sequences to the longest sequence in the batch
         batched[key] = torch.nn.utils.rnn.pad_sequence(
             [sample[key] for sample in samples],
             batch_first=True,
@@ -163,16 +169,9 @@ def _sft_collate_fn(
         if max_seq_length > 0:
             batched[key] = batched[key][:, :max_seq_length]
 
-    batched["token_counts"] = {}
-    batched["token_counts"]["raw"] = torch.tensor(
-        [sample["token_counts"]["raw"] for sample in samples],
+    # Collect token counts
+    batched["token_count"] = torch.tensor(
+        [sample["token_count"] for sample in samples],
         dtype=torch.int64).unsqueeze(1)
-    batched["token_counts"]["raw_plus_prompt_template"] = torch.tensor(
-        [
-            sample["token_counts"]["raw_plus_prompt_template"]
-            for sample in samples
-        ],
-        dtype=torch.int64,
-    ).unsqueeze(1)
 
     return batched

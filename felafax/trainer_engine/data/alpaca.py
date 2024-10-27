@@ -10,17 +10,18 @@ from pathlib import Path
 from felafax.trainer_engine.data.base import BaseDataset, SFTDataset, get_sft_collate_fn
 from felafax.prompts import PromptStyle
 
+
 @dataclass
 class AlpacaDataset(BaseDataset):
-    """Alpaca data module for supervised fine-tuning."""
-    # Alpaca-specific fields
+    """Alpaca dataset for supervised fine-tuning."""
+
     data_source: str = "yahma/alpaca-cleaned"
     max_examples: Optional[int] = None
     split: str = "train"
     train_test_split: float = 0.15
     ignore_index: int = -100
     seed: int = 42
-    
+
     def __post_init__(self):
         if isinstance(self.prompt_style, str):
             self.prompt_style = PromptStyle.from_name(self.prompt_style)
@@ -33,16 +34,22 @@ class AlpacaDataset(BaseDataset):
 
         # Load dataset from Hugging Face Hub or local file
         if Path(self.data_source).is_file():
-            dataset = load_dataset("json", data_files=self.data_source, split=self.split)
+            dataset = load_dataset("json",
+                                   data_files=self.data_source,
+                                   split=self.split)
         else:
             dataset = load_dataset(self.data_source, split=self.split)
 
-        # Limit number of examples
+        # If max_examples is set, limit the number of examples.
+        # Typically used for quick testing, so that you don't wait on loading and mapping the entire dataset.
         if self.max_examples is not None:
-            dataset = dataset.select(range(min(self.max_examples, len(dataset))))
+            dataset = dataset.select(
+                range(min(self.max_examples, len(dataset))))
 
         # Split into train and validation sets
-        dataset = dataset.train_test_split(test_size=self.train_test_split, seed=self.seed)
+        dataset = dataset.train_test_split(test_size=self.train_test_split,
+                                           seed=self.seed)
+
         train_data = [sample for sample in dataset["train"]]
         val_data = [sample for sample in dataset["test"]]
 
