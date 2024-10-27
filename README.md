@@ -25,7 +25,7 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 🟧 If you want to ask questions about this repo, try **[sage.storia.ai/felafax](https://sage.storia.ai/felafax)**!
 
 ## Goal
-Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPU, and Intel GPU).
+Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPUs, and Intel GPUs).
 
 ## Currently supported models
 - **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
