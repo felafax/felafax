@@ -1,7 +1,9 @@
 import pytest
 from transformers import AutoTokenizer
+from dataclasses import dataclass
+from typing import Optional
 
-from felafax.trainer_engine.data.alpaca import AlpacaDataModule, AlpacaConfig
+from felafax.trainer_engine.data.alpaca import AlpacaDataModule
 from felafax.prompts import PromptStyle
 
 
@@ -11,19 +13,15 @@ def test_alpaca_data_module():
         "felafax/tokenizer-llama-3.1-8B-Instruct-JAX")
     tokenizer.pad_token = tokenizer.eos_token  # Ensure pad_token is set
 
-    # Configure the Alpaca Data Module
-    config = AlpacaConfig(
+    # Create the Alpaca Data Module with configuration
+    data_module = AlpacaDataModule(
         batch_size=2,
         max_seq_length=10,
         num_workers=2,
     )
-    data_module = AlpacaDataModule(config=config)
 
-    # Setup data (combined connect and setup)
+    # Setup data
     data_module.setup(tokenizer=tokenizer)
-
-    # Prepare data if necessary (optional since prepare_data does nothing)
-    data_module.prepare_data()
 
     # Get dataloaders
     train_dataloader = data_module.train_dataloader()
@@ -43,17 +41,10 @@ def test_alpaca_data_module():
     # Test batch shapes
     for key in ["input_ids", "labels"]:
         assert train_batch[key].shape[
-            0] == config.batch_size, f"Unexpected batch size for train_batch[{key}]"
+            0] == data_module.batch_size, f"Unexpected batch size for train_batch[{key}]"
         assert train_batch[key].shape[
-            1] <= config.max_seq_length, f"Sequence length exceeds max_seq_length for {key}"
+            1] <= data_module.max_seq_length, f"Sequence length exceeds max_seq_length for {key}"
 
     # Test dataset attributes
     assert isinstance(train_dataloader.dataset.prompt_style,
                       PromptStyle), "Prompt style is not set correctly."
-
-    # Optionally, test state management if implemented
-    # state = data_module.state_dict()
-    # new_data_module = AlpacaDataModule(config=config)
-    # new_data_module.setup(tokenizer=tokenizer)
-    # new_data_module.load_state_dict(state)
-    # assert new_data_module.config == data_module.config

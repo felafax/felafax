@@ -2,6 +2,7 @@
 from abc import abstractmethod, ABC
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Union
+from dataclasses import dataclass
 
 import torch
 from torch.utils.data import Dataset
@@ -9,15 +10,20 @@ from torch import Tensor
 from felafax.prompts import PromptStyle
 
 
+@dataclass
 class DataModule(ABC):
     """Base class for all data modules in Felafax."""
+    batch_size: int = 32
+    max_seq_length: int = -1
+    num_workers: int = 4
+    ignore_index: int = -100
+    prompt_style: Union[str, PromptStyle] = "alpaca"
+    mask_prompt: bool = False
 
     @abstractmethod
     def setup(
         self,
         tokenizer: Optional[Any] = None,
-        batch_size: int = 1,
-        max_seq_length: Optional[int] = None,
     ) -> None:
         """All settings that can't be determined at the time of instantiation
         need to be passed through here before any dataloaders can be accessed.
