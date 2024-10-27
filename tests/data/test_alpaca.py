@@ -2,18 +2,19 @@ import pytest
 from transformers import AutoTokenizer
 
 from felafax.trainer_engine.data.alpaca import AlpacaDataModule, AlpacaConfig
-from felafax.trainer_engine.prompts import PromptStyle
+from felafax.prompts import PromptStyle
 
 
 def test_alpaca_data_module():
     # Download the tokenizer from Hugging Face for llama-3.1-8B
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3.1-8B")
+    tokenizer = AutoTokenizer.from_pretrained(
+        "felafax/tokenizer-llama-3.1-8B-Instruct-JAX")
     tokenizer.pad_token = tokenizer.eos_token  # Ensure pad_token is set
 
     # Configure the Alpaca Data Module
     config = AlpacaConfig(
         val_split_fraction=0.5,
-        num_workers=0,
+        num_workers=2,
         batch_size=2,
         max_seq_length=10,
     )

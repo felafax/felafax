@@ -6,9 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import torch
 from torch.utils.data import Dataset
 from torch import Tensor
-
-from felafax.trainer_engine.tokenizer import Tokenizer
-from felafax.trainer_engine.prompts import PromptStyle
+from felafax.prompts import PromptStyle
 
 
 class DataModule:
@@ -17,7 +15,7 @@ class DataModule:
     @abstractmethod
     def connect(
         self,
-        tokenizer: Optional[Tokenizer] = None,
+        tokenizer: Optional[Any] = None,
         batch_size: int = 1,
         max_seq_length: Optional[int] = None,
     ) -> None:
@@ -56,7 +54,7 @@ class SFTDataset(Dataset):
     def __init__(
         self,
         data: List[Dict[str, str]],
-        tokenizer: Tokenizer,
+        tokenizer: Any,
         prompt_style: Union[str, PromptStyle],
         max_seq_length: int = -1,
         mask_prompt: bool = True,
@@ -65,9 +63,11 @@ class SFTDataset(Dataset):
     ) -> None:
         self.data = data
         self.tokenizer = tokenizer
-        self.prompt_style = (prompt_style if isinstance(
-            prompt_style, PromptStyle) else
-                             PromptStyle.from_name(prompt_style))
+        self.prompt_style = (
+            prompt_style
+            if isinstance(prompt_style, PromptStyle)
+            else PromptStyle.from_name(prompt_style)
+        )
         self.max_seq_length = max_seq_length
         self.mask_prompt = mask_prompt
         self.ignore_index = ignore_index
@@ -76,31 +76,49 @@ class SFTDataset(Dataset):
     def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self,
-                    idx: int) -> Dict[str, Union[Tensor, Dict[str, int]]]:
+    def __getitem__(self, idx: int) -> Dict[str, Union[Tensor, Dict[str, int]]]:
         example = self.data[idx]
         if self.transform is not None:
             example = self.transform(example)
-        prompt = self.prompt_style.apply(prompt=example["instruction"],
-                                         **example)
-        encoded_prompt = self.tokenizer.encode(prompt,
-                                               max_length=self.max_seq_length)
+        prompt = self.prompt_style.apply(prompt=example["instruction"], **example)
+
+        # Encode the prompt without adding special tokens
+        encoded_prompt = self.tokenizer.encode(
+            prompt,
+            add_special_tokens=False,
+            max_length=self.max_seq_length,
+            truncation=True,
+        )
+
+        # Encode the response without adding special tokens
         encoded_response = self.tokenizer.encode(
             example["output"],
-            bos=False,
-            eos=True,
+            add_special_tokens=False,
             max_length=self.max_seq_length,
+            truncation=True,
         )
-        encoded_prompt_and_response = torch.cat(
-            (encoded_prompt, encoded_response)).type(torch.int64)
-        if self.max_seq_length > 0:
-            encoded_prompt_and_response = encoded_prompt_and_response[:self.
-                                                                      max_seq_length]
 
-        # The labels are the full prompt with response, but with the prompt masked out
+        # Manually add the EOS token to the response if needed
+        eos_token_id = self.tokenizer.eos_token_id
+        if eos_token_id is not None:
+            encoded_response.append(eos_token_id)
+        else:
+            raise ValueError("The tokenizer does not have an eos_token_id")
+
+        # Concatenate the encoded prompt and response
+        encoded_prompt_and_response = encoded_prompt + encoded_response
+
+        # Truncate the combined sequence to the max_seq_length if necessary
+        if self.max_seq_length > 0:
+            encoded_prompt_and_response = encoded_prompt_and_response[: self.max_seq_length]
+
+        # Convert to torch tensor
+        encoded_prompt_and_response = torch.tensor(encoded_prompt_and_response, dtype=torch.int64)
+
+        # Create labels, masking the prompt if required
         labels = encoded_prompt_and_response.clone()
         if self.mask_prompt:
-            labels[:len(encoded_prompt)] = self.ignore_index
+            labels[: len(encoded_prompt)] = self.ignore_index
 
         raw_token_count = len(encoded_response)
 
@@ -114,9 +132,9 @@ class SFTDataset(Dataset):
         }
 
 
-def get_sft_collate_fn(max_seq_length: int = -1,
-                       pad_id: int = 0,
-                       ignore_index: int = -100):
+def get_sft_collate_fn(
+    max_seq_length: int = -1, pad_id: int = 0, ignore_index: int = -100
+):
     """Returns the collate function for supervised fine-tuning (needed in the DataLoader)."""
     return partial(
         _sft_collate_fn,
@@ -150,13 +168,10 @@ def _sft_collate_fn(
 
     batched["token_counts"] = {}
     batched["token_counts"]["raw"] = torch.tensor(
-        [sample["token_counts"]["raw"] for sample in samples],
-        dtype=torch.int64).unsqueeze(1)
+        [sample["token_counts"]["raw"] for sample in samples], dtype=torch.int64
+    ).unsqueeze(1)
     batched["token_counts"]["raw_plus_prompt_template"] = torch.tensor(
-        [
-            sample["token_counts"]["raw_plus_prompt_template"]
-            for sample in samples
-        ],
+        [sample["token_counts"]["raw_plus_prompt_template"] for sample in samples],
         dtype=torch.int64,
     ).unsqueeze(1)
 

@@ -7,7 +7,6 @@ from datasets import load_dataset
 from pathlib import Path
 
 from felafax.trainer_engine.data.base import DataModule, SFTDataset, get_sft_collate_fn
-from felafax.trainer_engine.tokenizer import Tokenizer
 from felafax.prompts import PromptStyle
 
 
@@ -41,7 +40,7 @@ class AlpacaDataModule(DataModule):
 
     def connect(
         self,
-        tokenizer: Optional[Tokenizer] = None,
+        tokenizer: Optional[Any] = None,
         batch_size: Optional[int] = None,
         max_seq_length: Optional[int] = None,
     ) -> None:
