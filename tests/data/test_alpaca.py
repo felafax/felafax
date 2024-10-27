@@ -13,17 +13,17 @@ def test_alpaca_data_module():
 
     # Configure the Alpaca Data Module
     config = AlpacaConfig(
-        val_split_fraction=0.5,
-        num_workers=2,
         batch_size=2,
         max_seq_length=10,
+        num_workers=2,
     )
     data_module = AlpacaDataModule(config=config)
 
-    # Connect tokenizer and setup data
-    data_module.connect(tokenizer=tokenizer)
+    # Setup data (combined connect and setup)
+    data_module.setup(tokenizer=tokenizer)
+
+    # Prepare data if necessary (optional since prepare_data does nothing)
     data_module.prepare_data()
-    data_module.setup()
 
     # Get dataloaders
     train_dataloader = data_module.train_dataloader()
@@ -54,6 +54,6 @@ def test_alpaca_data_module():
     # Optionally, test state management if implemented
     # state = data_module.state_dict()
     # new_data_module = AlpacaDataModule(config=config)
-    # new_data_module.connect(tokenizer=tokenizer)
+    # new_data_module.setup(tokenizer=tokenizer)
     # new_data_module.load_state_dict(state)
     # assert new_data_module.config == data_module.config

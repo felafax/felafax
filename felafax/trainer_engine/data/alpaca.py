@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, Any
+from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
@@ -8,7 +9,6 @@ from pathlib import Path
 
 from felafax.trainer_engine.data.base import DataModule, SFTDataset, get_sft_collate_fn
 from felafax.prompts import PromptStyle
-
 
 @dataclass
 class AlpacaConfig:
@@ -38,7 +38,8 @@ class AlpacaDataModule(DataModule):
         self.train_dataset = None
         self.val_dataset = None
 
-    def connect(
+
+    def setup(
         self,
         tokenizer: Optional[Any] = None,
         batch_size: Optional[int] = None,
@@ -50,11 +51,6 @@ class AlpacaDataModule(DataModule):
         if max_seq_length:
             self.config.max_seq_length = max_seq_length
 
-    def prepare_data(self) -> None:
-        # No need to download data ahead of time; datasets library handles it
-        pass
-
-    def setup(self, stage: str = "") -> None:
         # Load dataset from Hugging Face Hub or local file
         if Path(self.config.data_source).is_file():
             dataset = load_dataset(
@@ -95,6 +91,10 @@ class AlpacaDataModule(DataModule):
             mask_prompt=self.config.mask_prompt,
             ignore_index=self.config.ignore_index,
         )
+
+    def prepare_data(self) -> None:
+        # No need to download data ahead of time; datasets library handles it
+        pass
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

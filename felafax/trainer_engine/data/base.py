@@ -1,5 +1,5 @@
 # base.py
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -9,22 +9,19 @@ from torch import Tensor
 from felafax.prompts import PromptStyle
 
 
-class DataModule:
+class DataModule(ABC):
     """Base class for all data modules in Felafax."""
 
     @abstractmethod
-    def connect(
+    def setup(
         self,
         tokenizer: Optional[Any] = None,
         batch_size: int = 1,
         max_seq_length: Optional[int] = None,
     ) -> None:
-        """All settings that can't be determined at the time of instantiation need to be passed through here
-        before any dataloaders can be accessed.
+        """All settings that can't be determined at the time of instantiation
+        need to be passed through here before any dataloaders can be accessed.
         """
-
-    def setup(self, stage: str = "") -> None:
-        # Stub is to redefine the default signature, because the concept of 'stage' does not exist in Felafax
         pass
 
     def __repr__(self) -> str:
@@ -77,8 +74,10 @@ class SFTDataset(Dataset):
     def __getitem__(self,
                     idx: int) -> Dict[str, Union[Tensor, Dict[str, int]]]:
         example = self.data[idx]
+        
         if self.transform is not None:
             example = self.transform(example)
+            
         prompt = self.prompt_style.apply(prompt=example["instruction"],
                                          **example)
 
@@ -97,7 +96,6 @@ class SFTDataset(Dataset):
             max_length=self.max_seq_length,
             truncation=True,
         )
-
         # Manually add the EOS token to the response if needed
         eos_token_id = self.tokenizer.eos_token_id
         if eos_token_id is not None:
