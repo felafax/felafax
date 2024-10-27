@@ -11,7 +11,7 @@ from felafax.prompts import PromptStyle
 
 
 @dataclass
-class DataModule(ABC):
+class BaseDataset(ABC):
     """Base class for all data modules in Felafax."""
     batch_size: int = 32
     max_seq_length: int = -1

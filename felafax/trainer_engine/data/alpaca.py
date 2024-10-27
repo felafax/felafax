@@ -7,11 +7,11 @@ from torch.utils.data import DataLoader
 from datasets import load_dataset
 from pathlib import Path
 
-from felafax.trainer_engine.data.base import DataModule, SFTDataset, get_sft_collate_fn
+from felafax.trainer_engine.data.base import BaseDataset, SFTDataset, get_sft_collate_fn
 from felafax.prompts import PromptStyle
 
 @dataclass
-class AlpacaDataModule(DataModule):
+class AlpacaDataset(BaseDataset):
     """Alpaca data module for supervised fine-tuning."""
     # Alpaca-specific fields
     data_source: str = "yahma/alpaca-cleaned"
