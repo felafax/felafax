@@ -1,4 +1,4 @@
-from felafax.core.configs import (
+from felafax.trainer_engine.configs import (
     WorkflowConfig,
     TrainingConfig,
     ModelConfig,
