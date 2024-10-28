@@ -1,3 +1,8 @@
+"""Tests for the alpaca.py module.
+
+pytest --capture=no tests/data/test_alpaca.py
+"""
+
 import pytest
 from transformers import AutoTokenizer
 from typing import Tuple, Optional
