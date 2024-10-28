@@ -5,6 +5,7 @@ from abc import abstractmethod
 from json import dumps
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Tuple, Type, Union
+from transformers import AutoTokenizer
 
 import yaml
 
@@ -16,8 +17,8 @@ class PromptStyle:
     def apply(self, prompt: str, **kwargs: str) -> str:
         return prompt
 
-    def stop_tokens(self, tokenizer: "Tokenizer") -> Tuple[List[int], ...]:
-        return ([tokenizer.eos_id], )
+    def stop_tokens(self, tokenizer: AutoTokenizer) -> Tuple[List[int], ...]:
+        return ([tokenizer.eos_token_id], )
 
     @classmethod
     def from_name(cls, name: str) -> "PromptStyle":
@@ -29,8 +30,8 @@ class Default(PromptStyle):
     def apply(self, prompt: str, **kwargs: str) -> str:
         return prompt
 
-    def stop_tokens(self, tokenizer: "Tokenizer") -> Tuple[List[int], ...]:
-        return ([tokenizer.eos_id], )
+    def stop_tokens(self, tokenizer: AutoTokenizer) -> Tuple[List[int], ...]:
+        return ([tokenizer.eos_token_id], )
 
 
 class Alpaca(PromptStyle):
