@@ -146,7 +146,6 @@ def export_and_convert(
     model_configurator,
     checkpoint_path,
     hf_export_dir,
-    model_export_dir,
 ):
     print("Checkpoint path:", checkpoint_path)
     convert_lib.save_hf_compatible_checkpoint(
@@ -168,10 +167,6 @@ def export_and_convert(
             shutil.copytree(s, d, dirs_exist_ok=True)
             print(f"Copied directory {item} to {hf_export_dir}")
     print(f"All tokenizer files saved to {hf_export_dir}")
-
-    checkpoint_lib.copy_directory(hf_export_dir, model_export_dir)
-    print(f"Checkpoint copied to {model_export_dir}")
-
 
 def upload_to_huggingface(*, hf_export_dir, hf_username, hf_repo_name,
                           hf_token):
@@ -214,10 +209,6 @@ def main(argv):
                                   f"{current_datetime}")
     checkpoint_path = os.path.join(checkpoint_dir, FLAGS.model_name)
 
-    # Temp directory to save Hugging Face compatible export.
-    temp_dir = os.path.join(FLAGS.base_dir,
-                            f"temp_{current_datetime}")
-
     model_export_dir = os.path.join(FLAGS.model_export_dir,
                                     f"{current_datetime}")
 
@@ -225,13 +216,11 @@ def main(argv):
     print("Model name:", FLAGS.model_name)
     print("Checkpoint dir:", checkpoint_dir)
     print("Checkpoint path:", checkpoint_path)
-    print("Temp dir:", temp_dir)
     print("Model export dir:", model_export_dir)
 
 
     # Create necessary directories
     utils.makedirs(checkpoint_dir, exist_ok=True)
-    utils.makedirs(temp_dir, exist_ok=True)
     utils.makedirs(model_export_dir, exist_ok=True)
 
     if FLAGS.train or FLAGS.train_and_export:
@@ -252,8 +241,7 @@ def main(argv):
             model_name=FLAGS.model_name,
             model_configurator=model_configurator,
             checkpoint_path=checkpoint_path,
-            hf_export_dir=temp_dir,
-            model_export_dir=model_export_dir,
+            hf_export_dir=model_export_dir,
         )
 
     if jax.process_index() == 0 and FLAGS.upload_to_hf:
