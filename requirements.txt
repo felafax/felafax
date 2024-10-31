@@ -15,3 +15,5 @@ tqdm
 transformers>=4.43
 absl-py
 ml_dtypes
+equinox
+tensorflow-cpu
