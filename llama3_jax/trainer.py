@@ -114,6 +114,7 @@ def train(
         )
 
     # JIT compile training step
+    # TODO: jax.device_put.
     jitted_train_step = jax.jit(train_step)
 
     # Initialize training state
