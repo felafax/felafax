@@ -135,7 +135,6 @@ class Trainer:
         model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]
         input_ids = input_ids.astype(jnp.int32)
-        breakpoint()
         attention_mask = batch.get("attention_mask", None)
         position_ids = batch.get("position_ids", None)
         
@@ -177,7 +176,16 @@ class Trainer:
             for batch_idx, batch in enumerate(self.train_dataloader):
                 # Convert batch from PyTorch tensors to JAX arrays
                 batch = {k: jax.numpy.array(v.numpy()) for k, v in batch.items()}
-
+                
+                # Add position_ids using the same logic as _get_dummy_data
+                batch_size = batch['input_ids'].shape[0]
+                seq_length = batch['input_ids'].shape[1]
+                batch['position_ids'] = jnp.repeat(
+                    jnp.arange(0, seq_length)[None, :],
+                    batch_size,
+                    axis=0,
+                )
+                
                 batch_sharded = jax.device_put(
                     batch, NamedSharding(self.mesh, PS("batch"))
                 )
