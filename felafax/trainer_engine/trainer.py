@@ -7,12 +7,10 @@ import jax
 import equinox as eqx
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
-from jax.sharding import Mesh, NamedSharding, PartitionSpec as PS
+from jax.sharding import NamedSharding, PartitionSpec as PS
 
 import optax
-from functools import partial
 
-from felafax.trainer_engine.models.llama3.jax.model import LlamaConfig, LlamaForCausalLM
 from felafax.trainer_engine.checkpoint import load_checkpoint
 
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
@@ -91,14 +89,14 @@ class TrainerConfig:
 # CORE TRAINER CLASS -- you can add less core things in private functions.
 class Trainer:
     def __init__(
-        self, 
-        trainer_config: TrainerConfig, 
+        self,
+        trainer_config: TrainerConfig,
         model: Optional[eqx.Module] = None,
-        mesh: Optional[jax.sharding.Mesh] = None
+        mesh: Optional[jax.sharding.Mesh] = None,
     ):
         self.trainer_config = trainer_config
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
-        
+
         # Use provided model or load from checkpoint
         if model is not None:
             self.model = model
@@ -112,12 +110,16 @@ class Trainer:
 
     def configure_optimizers(self):
         self.optimizer = optax.sgd(learning_rate=1e-3)
-        self.opt_state = self.optimizer.init(eqx.filter(self.model, eqx.is_array))
+        self.opt_state = self.optimizer.init(
+            eqx.filter(self.model, eqx.is_array)
+        )
         pass
 
     # Don't need separate forward and backward pass. In eval step, I anyways have to call inference on equinox model. So, just combine the two steps. So that you can JIT compute loss at once and this can be later provided within model itself by other models.
     # TODO: need to look into microbatching (nando has it).
-    def forward(self, model_params, model_static, optimizer, optimizer_state, batch):
+    def forward(
+        self, model_params, model_static, optimizer, optimizer_state, batch
+    ):
         """Computes loss for a single forward and backward pass."""
 
         model = eqx.combine(model_params, model_static)
@@ -151,7 +153,9 @@ class Trainer:
 
     def train(self):
         batch = _get_dummy_data(self.trainer_config)
-        batch_sharded = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
+        batch_sharded = jax.device_put(
+            batch, NamedSharding(self.mesh, PS("batch"))
+        )
 
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
 

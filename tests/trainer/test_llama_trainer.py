@@ -1,11 +1,7 @@
-import pytest
-import jax.numpy as jnp
-import optax
-from transformers.configuration_utils import PretrainedConfig
-from dataclasses import dataclass
-from ml_collections import ConfigDict
-from copy import deepcopy
-from felafax.trainer_engine.models.llama3.jax.model import LlamaConfig, LlamaForCausalLM
+from felafax.trainer_engine.models.llama3.jax.model import (
+    LlamaConfig,
+    LlamaForCausalLM,
+)
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 
 
@@ -28,7 +24,9 @@ def test_llama_trainer():
     model = LlamaForCausalLM(config)
 
     # Create trainer config (no model_path needed)
-    trainer_config = TrainerConfig(seq_length=16, batch_size=2, num_steps=2, num_tpus=4)
+    trainer_config = TrainerConfig(
+        seq_length=16, batch_size=2, num_steps=2, num_tpus=4
+    )
 
     # Initialize trainer with our model
     trainer = Trainer(trainer_config, model=model)

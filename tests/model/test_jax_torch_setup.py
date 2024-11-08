@@ -6,7 +6,6 @@ A simple test script to verify that PyTorch and JAX can run together in the same
 import torch
 import jax
 import jax.numpy as jnp
-import pytest
 
 
 def test_torch_jax_computation():

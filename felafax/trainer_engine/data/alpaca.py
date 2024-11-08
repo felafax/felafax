@@ -5,9 +5,12 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from datasets import load_dataset
-from pathlib import Path
 
-from felafax.trainer_engine.data.base import BaseDataset, SFTDataset, get_sft_collate_fn
+from felafax.trainer_engine.data.base import (
+    BaseDataset,
+    SFTDataset,
+    get_sft_collate_fn,
+)
 from felafax.prompts import PromptStyle
 
 
@@ -34,21 +37,21 @@ class AlpacaDataset(BaseDataset):
 
         # Load dataset from Hugging Face Hub or local file
         if Path(self.data_source).is_file():
-            dataset = load_dataset("json",
-                                   data_files=self.data_source,
-                                   split=self.split)
+            dataset = load_dataset(
+                "json", data_files=self.data_source, split=self.split
+            )
         else:
             dataset = load_dataset(self.data_source, split=self.split)
 
         # If max_examples is set, limit the number of examples.
         # Typically used for quick testing, so that you don't wait on loading and mapping the entire dataset.
         if self.max_examples is not None:
-            dataset = dataset.select(
-                range(min(self.max_examples, len(dataset))))
+            dataset = dataset.select(range(min(self.max_examples, len(dataset))))
 
         # Split into train and validation sets
-        dataset = dataset.train_test_split(test_size=self.train_test_split,
-                                           seed=self.seed)
+        dataset = dataset.train_test_split(
+            test_size=self.train_test_split, seed=self.seed
+        )
 
         train_data = [sample for sample in dataset["train"]]
         val_data = [sample for sample in dataset["test"]]

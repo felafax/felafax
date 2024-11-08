@@ -13,6 +13,7 @@ from felafax.prompts import PromptStyle
 @dataclass
 class BaseDataset(ABC):
     """Base class for all data modules in Felafax."""
+
     batch_size: int = 32
     max_seq_length: int = -1
     num_workers: int = 4
@@ -88,8 +89,9 @@ class SFTDataset(Dataset):
         if self.transform is not None:
             example = self.transform(example)
 
-        prompt = self.prompt_style.apply(prompt=example["instruction"],
-                                         **example)
+        prompt = self.prompt_style.apply(
+            prompt=example["instruction"], **example
+        )
 
         # Encode the prompt with special tokens
         encoded_prompt = self.tokenizer.encode(
@@ -112,17 +114,19 @@ class SFTDataset(Dataset):
 
         # Truncate the combined sequence to the max_seq_length if necessary
         if self.max_seq_length > 0:
-            encoded_prompt_and_response = encoded_prompt_and_response[:self.
-                                                                      max_seq_length]
+            encoded_prompt_and_response = encoded_prompt_and_response[
+                : self.max_seq_length
+            ]
 
         # Convert to torch tensor
-        encoded_prompt_and_response = torch.tensor(encoded_prompt_and_response,
-                                                   dtype=torch.int64)
+        encoded_prompt_and_response = torch.tensor(
+            encoded_prompt_and_response, dtype=torch.int64
+        )
 
         # Create labels, masking the prompt if required
         labels = encoded_prompt_and_response.clone()
         if self.mask_prompt:
-            labels[:len(encoded_prompt)] = self.ignore_index
+            labels[: len(encoded_prompt)] = self.ignore_index
 
         # Calculate the total token count including the prompt
         total_token_count = len(encoded_prompt_and_response)
@@ -134,9 +138,9 @@ class SFTDataset(Dataset):
         }
 
 
-def get_sft_collate_fn(max_seq_length: int = -1,
-                       pad_id: int = 0,
-                       ignore_index: int = -100):
+def get_sft_collate_fn(
+    max_seq_length: int = -1, pad_id: int = 0, ignore_index: int = -100
+):
     """Returns the collate function for supervised fine-tuning (needed in the DataLoader)."""
     return partial(
         _sft_collate_fn,
@@ -152,7 +156,6 @@ def _sft_collate_fn(
     pad_id: int = 0,
     ignore_index: int = -100,
 ) -> Dict[str, Tensor]:
-
     batched = {}
     for key in ("input_ids", "labels"):
         pad_value = pad_id if key == "input_ids" else ignore_index
@@ -170,7 +173,7 @@ def _sft_collate_fn(
 
     # Collect token counts
     batched["token_count"] = torch.tensor(
-        [sample["token_count"] for sample in samples],
-        dtype=torch.int64).unsqueeze(1)
+        [sample["token_count"] for sample in samples], dtype=torch.int64
+    ).unsqueeze(1)
 
     return batched
