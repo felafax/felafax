@@ -166,6 +166,11 @@ class LlamaSdpaAttention(eqx.Module):
 
         cos, sin = self.rotary_emb(value_states, position_ids)
 
+        # Reshape cos and sin to include num_heads dimension
+        cos = cos[:, None, :, :]  # (batch_size, 1, seq_len, head_dim)
+        sin = sin[:, None, :, :]  # (batch_size, 1, seq_len, head_dim)
+
+        # Apply rotary embeddings
         query_states, key_states = jax_apply_rotary_pos_emb(
             query_states, key_states, cos, sin
         )

@@ -77,10 +77,10 @@ def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
 class TrainerConfig:
     """Configuration for the Llama trainer"""
 
-    model_path: str = "meta-llama/Llama-3.1-8B"
+    model_path: str = "meta-llama/Llama-3.2-1B"
     seq_length: int = 512
     batch_size: int = 8
-    num_steps: int = 1
+    num_steps: int = 10
     param_dtype: str = "float32"
     output_dtype: str = "float32"
     num_tpus: int = 4
@@ -160,13 +160,17 @@ class Trainer:
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
 
         for i in range(self.trainer_config.num_steps):
-            self.training_step(
+            loss, (accuracy, model, optimizer_state) = self.training_step(
                 model_params=model_params,
                 model_static=model_static,
                 optimizer=self.optimizer,
                 optimizer_state=self.opt_state,
                 batch=batch_sharded,
             )
+            print(f"Step {i+1}/{self.trainer_config.num_steps}")
+            print(f"Loss: {loss:.4f}")
+            print(f"Accuracy: {accuracy:.4f}")
+            print("-" * 40)
         pass
 
 
