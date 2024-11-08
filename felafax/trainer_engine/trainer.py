@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any
 import pyrallis
 import jax
 # jax.distributed.initialize()
@@ -12,6 +12,10 @@ from jax.sharding import NamedSharding, PartitionSpec as PS
 import optax
 
 from felafax.trainer_engine.checkpoint import load_checkpoint
+from felafax.trainer_engine.data.alpaca import AlpacaDataset
+from transformers import AutoTokenizer
+import torch
+
 
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
 
@@ -81,6 +85,8 @@ class TrainerConfig:
     seq_length: int = 512
     batch_size: int = 8
     num_steps: int = 10
+    num_epochs: int = 1  # Added num_epochs
+    num_dataloader_workers: int = 4  # Added num_workers
     param_dtype: str = "float32"
     output_dtype: str = "float32"
     num_tpus: int = 4
@@ -91,10 +97,14 @@ class Trainer:
     def __init__(
         self,
         trainer_config: TrainerConfig,
+        train_dataloader: Any,
+        val_dataloader: Any,
         model: Optional[eqx.Module] = None,
         mesh: Optional[jax.sharding.Mesh] = None,
     ):
         self.trainer_config = trainer_config
+        self.train_dataloader = train_dataloader
+        self.val_dataloader = val_dataloader
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
 
         # Use provided model or load from checkpoint
@@ -123,7 +133,13 @@ class Trainer:
         """Computes loss for a single forward and backward pass."""
 
         model = eqx.combine(model_params, model_static)
-        input_ids, attention_mask, position_ids = batch
+        input_ids = batch["input_ids"]
+        input_ids = input_ids.astype(jnp.int32)
+        breakpoint()
+        attention_mask = batch.get("attention_mask", None)
+        position_ids = batch.get("position_ids", None)
+        
+        
         logits = model(input_ids, attention_mask, position_ids)
         loss, accuracy = _cross_entropy_loss_and_accuracy(logits, input_ids)
         return loss, (accuracy, model, optimizer_state)
@@ -143,8 +159,8 @@ class Trainer:
         updates, optimizer_state = optimizer.update(
             grads, optimizer_state, model_params
         )
-        model = eqx.apply_updates(model, updates)
-        return loss, (accuracy, model, optimizer_state)
+        model_params = eqx.apply_updates(model_params, updates)
+        return loss, (accuracy, model_params, optimizer_state)
 
     def validation_step(
         self, *, model_params, model_static, optimizer, optimizer_state, batch
@@ -152,29 +168,62 @@ class Trainer:
         pass
 
     def train(self):
-        batch = _get_dummy_data(self.trainer_config)
-        batch_sharded = jax.device_put(
-            batch, NamedSharding(self.mesh, PS("batch"))
-        )
-
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
+        optimizer_state = self.opt_state
 
-        for i in range(self.trainer_config.num_steps):
-            loss, (accuracy, model, optimizer_state) = self.training_step(
-                model_params=model_params,
-                model_static=model_static,
-                optimizer=self.optimizer,
-                optimizer_state=self.opt_state,
-                batch=batch_sharded,
-            )
-            print(f"Step {i+1}/{self.trainer_config.num_steps}")
-            print(f"Loss: {loss:.4f}")
-            print(f"Accuracy: {accuracy:.4f}")
-            print("-" * 40)
+        for epoch in range(self.trainer_config.num_epochs):
+            print(f"Epoch {epoch+1}/{self.trainer_config.num_epochs}")
+
+            for batch_idx, batch in enumerate(self.train_dataloader):
+                # Convert batch from PyTorch tensors to JAX arrays
+                batch = {k: jax.numpy.array(v.numpy()) for k, v in batch.items()}
+
+                batch_sharded = jax.device_put(
+                    batch, NamedSharding(self.mesh, PS("batch"))
+                )
+                loss, (accuracy, model_params, optimizer_state) = (
+                    self.training_step(
+                        model_params=model_params,
+                        model_static=model_static,
+                        optimizer=self.optimizer,
+                        optimizer_state=optimizer_state,
+                        batch=batch_sharded,
+                    )
+                )
+                print(
+                    f"Batch {batch_idx+1}: Loss: {loss:.4f}, Accuracy: {accuracy:.4f}"
+                )
+            pass
+
+            # Optionally, you can add validation steps here using self.val_dataloader
+            # and a separate validation method
+        pass
+
+        # Update the model with the final parameters
+        self.model = eqx.combine(model_params, model_static)
         pass
 
 
 if __name__ == "__main__":
     trainer_config = pyrallis.parse(config_class=TrainerConfig)
-    trainer = Trainer(trainer_config)
+
+    # Set up tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_path)
+
+    # Initialize the Alpaca dataset
+    data_module = AlpacaDataset(
+        batch_size=trainer_config.batch_size,
+        max_seq_length=trainer_config.seq_length,
+        num_workers=trainer_config.num_dataloader_workers,
+        # Additional parameters if needed
+    )
+    data_module.setup(tokenizer=tokenizer)
+    train_dataloader = data_module.train_dataloader()
+    val_dataloader = data_module.val_dataloader()
+
+    trainer = Trainer(
+        trainer_config=trainer_config,
+        train_dataloader=train_dataloader,
+        val_dataloader=val_dataloader,
+    )
     trainer.train()
