@@ -142,9 +142,6 @@ cython_debug/
 # PyCharm
 .idea/
 
-# VS Code
-.vscode/
-
 # macOS
 .DS_Store
 **/.DS_Store
