@@ -6,6 +6,7 @@ from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 
 
 def test_llama_trainer():
+    """Tests the e2e run of the trainer with a tiny model. REQUIRES 8 TPUs."""
     # Create a tiny config using our own LlamaConfig class
     config = LlamaConfig(
         vocab_size=100,
@@ -25,7 +26,7 @@ def test_llama_trainer():
 
     # Create trainer config (no model_path needed)
     trainer_config = TrainerConfig(
-        seq_length=16, batch_size=2, num_steps=2, num_tpus=4
+        seq_length=16, batch_size=2, num_steps=2, num_tpus=8
     )
 
     # Initialize trainer with our model
