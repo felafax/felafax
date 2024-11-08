@@ -81,7 +81,8 @@ def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
 class TrainerConfig:
     """Configuration for the Llama trainer"""
 
-    model_path: str = "meta-llama/Llama-3.2-1B"
+    model_path: str = "/mnt/persistent-disk/models/llama3.2-1b"
+    model_name: str = "meta-llama/Llama-3.2-1B"
     seq_length: int = 512
     batch_size: int = 8
     num_steps: int = 10
@@ -111,7 +112,11 @@ class Trainer:
         if model is not None:
             self.model = model
         elif trainer_config.model_path is not None:
-            self.model = load_checkpoint(trainer_config.model_path)
+            self.model = load_checkpoint(
+                model_name=trainer_config.model_name,
+                path=trainer_config.model_path,
+                save_converted=True,
+            )
         else:
             raise ValueError("Either model or model_path must be provided")
 
@@ -137,8 +142,7 @@ class Trainer:
         input_ids = input_ids.astype(jnp.int32)
         attention_mask = batch.get("attention_mask", None)
         position_ids = batch.get("position_ids", None)
-        
-        
+
         logits = model(input_ids, attention_mask, position_ids)
         loss, accuracy = _cross_entropy_loss_and_accuracy(logits, input_ids)
         return loss, (accuracy, model, optimizer_state)
@@ -176,27 +180,28 @@ class Trainer:
             for batch_idx, batch in enumerate(self.train_dataloader):
                 # Convert batch from PyTorch tensors to JAX arrays
                 batch = {k: jax.numpy.array(v.numpy()) for k, v in batch.items()}
-                
+
                 # Add position_ids using the same logic as _get_dummy_data
-                batch_size = batch['input_ids'].shape[0]
-                seq_length = batch['input_ids'].shape[1]
-                batch['position_ids'] = jnp.repeat(
+                batch_size = batch["input_ids"].shape[0]
+                seq_length = batch["input_ids"].shape[1]
+                batch["position_ids"] = jnp.repeat(
                     jnp.arange(0, seq_length)[None, :],
                     batch_size,
                     axis=0,
                 )
-                
+
                 batch_sharded = jax.device_put(
                     batch, NamedSharding(self.mesh, PS("batch"))
                 )
-                loss, (accuracy, model_params, optimizer_state) = (
-                    self.training_step(
-                        model_params=model_params,
-                        model_static=model_static,
-                        optimizer=self.optimizer,
-                        optimizer_state=optimizer_state,
-                        batch=batch_sharded,
-                    )
+                (
+                    loss,
+                    (accuracy, model_params, optimizer_state),
+                ) = self.training_step(
+                    model_params=model_params,
+                    model_static=model_static,
+                    optimizer=self.optimizer,
+                    optimizer_state=optimizer_state,
+                    batch=batch_sharded,
                 )
                 print(
                     f"Batch {batch_idx+1}: Loss: {loss:.4f}, Accuracy: {accuracy:.4f}"
