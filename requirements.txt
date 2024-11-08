@@ -1,24 +1,40 @@
+# Core Python utilities
 numpy
-pytest
-requests
-torch
-tqdm
 typing-extensions
 urllib3
 aiofiles
 cloudpickle
-datasets>=2.18.0
-einops
-flax[all]
-gcsfs
-jax[cpu]
-jaxlib
-ml_collections
-optax
-requests
-sentencepiece
+
+# Testing and development tools
+pytest
+ruff==0.2.2
+typeguard==2.13.3
+memory_profiler
+
+# Deep Learning frameworks and core ML
 torch --index-url https://download.pytorch.org/whl/cpu
-tqdm
+torchvision
+jax
+jaxlib
+equinox==0.11.4
+# flax[all]
+optax
 transformers>=4.43
-absl-py
+accelerate>=0.26.0
+
+# ML utilities and extensions
+einops
+jaxtyping==0.2.25
 ml_dtypes
+ml_collections
+
+# Data processing and visualization
+datasets>=2.18.0
+sentencepiece
+matplotlib
+tqdm
+
+# Storage and configuration
+gcsfs
+pyrallis
+absl-py
