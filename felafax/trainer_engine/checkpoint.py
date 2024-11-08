@@ -12,6 +12,7 @@ from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
     LlamaForCausalLM,
 )
+from typing import Optional
 
 
 def torch_to_jax(tensor):
@@ -72,10 +73,11 @@ def save_checkpoint(model: LlamaForCausalLM, path: str, step: int = None):
     prefix = f"step_{step}" if step is not None else None
 
     checkpointer.save_pytree(model_params, prefix=prefix)
+    # TODO: Save llama config as JSON.
 
 
 def load_checkpoint(
-    model_name: str, path: str = None, save_converted: bool = False
+    model_name: str, path: Optional[str] = None, save_converted: bool = False
 ) -> LlamaForCausalLM:
     """Loads checkpoint, either from local storage using Orbax or downloads from HF.
 
@@ -93,6 +95,7 @@ def load_checkpoint(
         save_checkpoint(model, path)
         print(f"Converted HF checkpoint and saved it in Orbax format at: {path}")
 
+    # TODO: When loading from path, load llama config fro JSON file create class and then load params.
     return model
 
 
