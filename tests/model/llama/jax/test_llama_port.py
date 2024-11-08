@@ -53,7 +53,7 @@ import equinox as eqx
 
 from typing import Optional, Tuple
 
-from src.model import (
+from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaEmbedding,
     LlamaLinear,
     LlamaRotaryEmbedding,

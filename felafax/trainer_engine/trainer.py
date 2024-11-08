@@ -74,7 +74,7 @@ def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
 class TrainerConfig:
     """Configuration for the Llama trainer"""
 
-    model_path: str = "meta-llama/Meta-Llama-3.1-8B"
+    model_path: str = "meta-llama/Llama-3.2-1B"
     seq_length: int = 512
     batch_size: int = 1
     num_steps: int = 1
