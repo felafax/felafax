@@ -26,7 +26,11 @@ def _get_dummy_data(trainer_config):
     attention_mask = jnp.ones(
         (trainer_config.batch_size, trainer_config.seq_length), dtype=jnp.int32
     )
-    position_ids = jnp.arange(0, trainer_config.seq_length)[None, :]
+    position_ids = jnp.repeat(
+        jnp.arange(0, trainer_config.seq_length)[None, :],
+        trainer_config.batch_size,
+        axis=0,
+    )
     return input_ids, attention_mask, position_ids
 
 
@@ -76,7 +80,7 @@ class TrainerConfig:
 
     model_path: str = "meta-llama/Llama-3.2-1B"
     seq_length: int = 512
-    batch_size: int = 1
+    batch_size: int = 8
     num_steps: int = 1
     param_dtype: str = "float32"
     output_dtype: str = "float32"
@@ -98,16 +102,12 @@ class Trainer:
 
     def configure_optimizers(self):
         self.optimizer = optax.sgd(learning_rate=1e-3)
-        self.opt_state = self.optimizer.init(
-            eqx.filter(self.model, eqx.is_array)
-        )
+        self.opt_state = self.optimizer.init(eqx.filter(self.model, eqx.is_array))
         pass
 
     # Don't need separate forward and backward pass. In eval step, I anyways have to call inference on equinox model. So, just combine the two steps. So that you can JIT compute loss at once and this can be later provided within model itself by other models.
     # TODO: need to look into microbatching (nando has it).
-    def forward(
-        self, *, model_params, model_static, optimizer, optimizer_state, batch
-    ):
+    def forward(self, model_params, model_static, optimizer, optimizer_state, batch):
         """Computes loss for a single forward and backward pass."""
 
         model = eqx.combine(model_params, model_static)
@@ -117,11 +117,11 @@ class Trainer:
         return loss, (accuracy, model, optimizer_state)
 
     def training_step(
-        self, *, model_params, model_static, optimizer, optimizer_state, batch
+        self, model_params, model_static, optimizer, optimizer_state, batch
     ):
         grad_fn = jax.value_and_grad(self.forward, argnums=(0), has_aux=True)
         (loss, (accuracy, model, optimizer_state)), grads = grad_fn(
-            model_params=model_params,
+            model_params,
             model_static=model_static,
             optimizer=optimizer,
             optimizer_state=optimizer_state,
@@ -141,9 +141,7 @@ class Trainer:
 
     def train(self):
         batch = _get_dummy_data(self.trainer_config)
-        batch_sharded = jax.device_put_sharded(
-            batch, NamedSharding(self.mesh, PS("batch"))
-        )
+        batch_sharded = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
 
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
 
