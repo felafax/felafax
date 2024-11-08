@@ -21,27 +21,18 @@ def torch_to_jax(tensor):
 class Checkpointer(object):
     """A simple wrapper for orbax checkpointing."""
 
-    def __init__(self, path):
+    def __init__(self, path: str):
+        if not path:
+            raise ValueError("Checkpoint path cannot be empty")
         self.path = path
+        os.makedirs(self.path, exist_ok=True)
         self.checkpointer = ocp.StandardCheckpointer()
-        if self.path != "":
-            os.makedirs(self.path, exist_ok=True)
 
     def save_pytree(self, pytree, prefix=None):
         """Save pytree of JAX arrays."""
-        if self.path == "":
-            return
-        if prefix is None:
-            path = self.path
-        else:
-            path = os.path.join(self.path, prefix)
-
+        path = os.path.join(self.path, prefix) if prefix else self.path
         self.checkpointer.save(path, pytree, force=True)
-        # Create a commit_success.txt file to indicate that the checkpoint is
-        # saved successfully. This is a workaround for orbax so that locally
-        # saved checkpoint can be restored when copied to Google cloud storage.
-        with open(os.path.join(path, "commit_success.txt"), "w") as f:
-            pass
+        # TODO: Add sentinel file saying save worked.
 
     @classmethod
     def restore_pytree(cls, path, item):
@@ -69,29 +60,18 @@ class Checkpointer(object):
 
 
 def save_checkpoint(model: LlamaForCausalLM, path: str, step: int = None):
-    """Save model checkpoint using Orbax.
+    """Save model checkpoint using Orbax."""
+    # Create and prepare directory
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    path = ocp.test_utils.erase_and_create_empty(path)
 
-    Args:
-        model: Model to save
-        path: Directory to save checkpoint
-        step: Optional step number to include in name
-    """
     # Partition model into params and static
     model_params, model_static = eqx.partition(model, eqx.is_array)
 
     checkpointer = Checkpointer(path)
     prefix = f"step_{step}" if step is not None else None
 
-    # Save params pytree
     checkpointer.save_pytree(model_params, prefix=prefix)
-
-    # Save static config as JSON
-    checkpointer.save_json(
-        {
-            "static": str(model_static)
-        },  # Convert static part to string representation
-        name=f"{prefix}/static.json" if prefix else "static.json",
-    )
 
 
 def load_checkpoint(
@@ -101,58 +81,19 @@ def load_checkpoint(
 
     Args:
         model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
-        path: Optional path to save/load local checkpoint. If None, uses model_name as path
+        path: Optional path to save converted checkpoint. If None, uses a temporary directory
         save_converted: Whether to save HF checkpoint in Orbax format after conversion
 
     Returns:
         Loaded model
     """
-    # Use model_name as path if no path specified
-    checkpoint_path = path
+    model = _load_from_hf(model_name)
 
-    # First try loading Orbax checkpoint from local storage
-    try:
-        # Check if checkpoint exists by looking for success sentinel
-        if checkpoint_path and os.path.exists(
-            f"{checkpoint_path}/commit_success.txt"
-        ):
-            # Create empty model for structure
-            config = create_llama_config_from_hf_model(
-                HFLlamaForCausalLM.from_pretrained(model_name)
-            )
-            empty_model = LlamaForCausalLM(config)
+    if save_converted and path is not None:
+        save_checkpoint(model, path)
+        print(f"Converted HF checkpoint and saved it in Orbax format at: {path}")
 
-            # Partition empty model to get structure
-            empty_params, model_static = eqx.partition(empty_model, eqx.is_array)
-
-            # Restore params
-            checkpointer = Checkpointer(checkpoint_path)
-            restored_params = checkpointer.restore_pytree(
-                checkpoint_path, empty_params
-            )
-
-            # Combine restored params with static
-            return eqx.combine(restored_params, model_static)
-        else:
-            raise FileNotFoundError(
-                "No valid checkpoint found at specified path"
-            )
-
-    except Exception as e:
-        print(f"Loading from local checkpoint failed: {str(e)}")
-        print("Falling back to loading from HF checkpoint...")
-
-        # Fall back to loading from HF checkpoint
-        model = _load_from_hf(model_name)
-
-        # Optionally save the converted model in Orbax format
-        if save_converted:
-            save_checkpoint(model, checkpoint_path)
-            print(
-                f"Converted HF checkpoint saved in Orbax format at: {checkpoint_path}"
-            )
-
-        return model
+    return model
 
 
 def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:

@@ -81,13 +81,14 @@ def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
 class TrainerConfig:
     """Configuration for the Llama trainer"""
 
-    model_path: str = "/mnt/persistent-disk/models/llama3.2-1b"
     model_name: str = "meta-llama/Llama-3.2-1B"
+    model_path: str = "/mnt/persistent-disk/models/llama3.2-1b"
+
     seq_length: int = 512
     batch_size: int = 8
     num_steps: int = 10
-    num_epochs: int = 1  # Added num_epochs
-    num_dataloader_workers: int = 4  # Added num_workers
+    num_epochs: int = 1
+    num_dataloader_workers: int = 4
     param_dtype: str = "float32"
     output_dtype: str = "float32"
     num_tpus: int = 4
@@ -111,7 +112,7 @@ class Trainer:
         # Use provided model or load from checkpoint
         if model is not None:
             self.model = model
-        elif trainer_config.model_path is not None:
+        elif trainer_config.model_name is not None:
             self.model = load_checkpoint(
                 model_name=trainer_config.model_name,
                 path=trainer_config.model_path,
@@ -221,14 +222,13 @@ if __name__ == "__main__":
     trainer_config = pyrallis.parse(config_class=TrainerConfig)
 
     # Set up tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_path)
+    tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_name)
 
     # Initialize the Alpaca dataset
     data_module = AlpacaDataset(
         batch_size=trainer_config.batch_size,
         max_seq_length=trainer_config.seq_length,
         num_workers=trainer_config.num_dataloader_workers,
-        # Additional parameters if needed
     )
     data_module.setup(tokenizer=tokenizer)
     train_dataloader = data_module.train_dataloader()
