@@ -27,6 +27,7 @@ einops
 jaxtyping==0.2.25
 ml_dtypes
 ml_collections
+huggingface_hub
 
 # Data processing and visualization
 datasets>=2.18.0

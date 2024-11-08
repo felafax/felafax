@@ -26,7 +26,7 @@ def test_llama_trainer():
 
     # Create trainer config (no model_path needed)
     trainer_config = TrainerConfig(
-        seq_length=16, batch_size=2, num_steps=2, num_tpus=8
+        seq_length=16, batch_size=2, num_steps=2, num_tpus=4
     )
 
     # Initialize trainer with our model

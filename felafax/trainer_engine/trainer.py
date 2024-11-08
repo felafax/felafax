@@ -41,6 +41,7 @@ def _get_mesh(trainer_config):
     else:
         raise ValueError(f"Invalid number of TPUs: {trainer_config.num_tpus}")
 
+    print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
     mesh = jax.sharding.Mesh(device_mesh, axis_names=("batch", "fsdp", "dp"))
     return mesh
@@ -82,8 +83,7 @@ class TrainerConfig:
     num_steps: int = 1
     param_dtype: str = "float32"
     output_dtype: str = "float32"
-
-    num_tpus: int = 8
+    num_tpus: int = 4
 
 
 # CORE TRAINER CLASS -- you can add less core things in private functions.
