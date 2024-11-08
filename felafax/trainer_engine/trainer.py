@@ -12,8 +12,8 @@ from jax.sharding import Mesh, NamedSharding, PartitionSpec as PS
 import optax
 from functools import partial
 
-from src.model import LlamaConfig, LlamaForCausalLM
-from src.checkpoint import load_checkpoint
+from felafax.trainer_engine.models.llama3.jax.model import LlamaConfig, LlamaForCausalLM
+from felafax.trainer_engine.checkpoint import load_checkpoint
 
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
 
@@ -87,7 +87,7 @@ class TrainerConfig:
 # CORE TRAINER CLASS -- you can add less core things in private functions.
 class Trainer:
     def __init__(
-        self, trainer_config: TrainerConfig, mesh: Optional[jax.Mesh] = None
+        self, trainer_config: TrainerConfig, mesh: Optional[jax.sharding.Mesh] = None
     ):
         self.trainer_config = trainer_config
         self.model = load_checkpoint(trainer_config.model_path)

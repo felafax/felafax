@@ -29,8 +29,7 @@ class BaseDataset(ABC):
 
         This method must be called before accessing any dataloaders. It handles:
         - Setting up the tokenizer for text encoding
-        - Loading the dataset (from HuggingFace Hub or local files)
-        - Creating train/validation datasets with proper tokenization
+        - Loading the dataset (from HuggingFace Hub or local files) Creating train/validation datasets with proper tokenization
 
         Args:
             tokenizer: The tokenizer to use for encoding text. If None, uses previously set tokenizer.

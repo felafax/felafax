@@ -16,7 +16,7 @@ torch --index-url https://download.pytorch.org/whl/cpu
 torchvision
 jax
 jaxlib
-equinox==0.11.4
+equinox>=0.11.8
 # flax[all]
 optax
 transformers>=4.43

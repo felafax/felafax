@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import equinox as eqx
 import torch
 from transformers import AutoTokenizer, LlamaForCausalLM as HFLlamaForCausalLM
-from src.model import LlamaConfig, LlamaForCausalLM
+from felafax.trainer_engine.models.llama3.jax.model import LlamaConfig, LlamaForCausalLM
 
 
 def torch_to_jax(tensor):
