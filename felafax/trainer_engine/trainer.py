@@ -78,7 +78,7 @@ def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
 class TrainerConfig:
     """Configuration for the Llama trainer"""
 
-    model_path: str = "meta-llama/Llama-3.2-1B"
+    model_path: str = "meta-llama/Llama-3.1-8B"
     seq_length: int = 512
     batch_size: int = 8
     num_steps: int = 1
@@ -91,11 +91,21 @@ class TrainerConfig:
 # CORE TRAINER CLASS -- you can add less core things in private functions.
 class Trainer:
     def __init__(
-        self, trainer_config: TrainerConfig, mesh: Optional[jax.sharding.Mesh] = None
+        self, 
+        trainer_config: TrainerConfig, 
+        model: Optional[eqx.Module] = None,
+        mesh: Optional[jax.sharding.Mesh] = None
     ):
         self.trainer_config = trainer_config
-        self.model = load_checkpoint(trainer_config.model_path)
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
+        
+        # Use provided model or load from checkpoint
+        if model is not None:
+            self.model = model
+        elif trainer_config.model_path is not None:
+            self.model = load_checkpoint(trainer_config.model_path)
+        else:
+            raise ValueError("Either model or model_path must be provided")
 
         self.configure_optimizers()
         pass
