@@ -4,6 +4,6 @@
         "felafax-storage*": true,
         "felafax-models": true,
         "felafax-config": true,
-        "**/__init__.py":false,
+        "**/__init__.py": true,
     }
 }
