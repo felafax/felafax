@@ -29,9 +29,7 @@ class Checkpointer(object):
         os.makedirs(self.path, exist_ok=True)
 
         handler = ocp.StandardCheckpointHandler()
-        options = ocp.CheckpointerOptions(
-            enable_async=False,  # Disable async checkpointing
-        )
+        options = ocp.CheckpointerOptions(enable_async=False)
         self.checkpointer = ocp.Checkpointer(handler, options=options)
 
     def save_pytree(self, pytree, prefix=None):
@@ -59,8 +57,6 @@ class Checkpointer(object):
             data: Dictionary containing JSON-serializable data
             name: Name of the file/directory to save the JSON data
         """
-        if self.path == "":
-            return
         path = os.path.join(self.path, name)
         os.makedirs(path, exist_ok=True)
         with open(path, "w") as f:
@@ -79,7 +75,7 @@ class Checkpointer(object):
 def save_checkpoint(
     model: LlamaForCausalLM,
     model_config: LlamaConfig,
-    path: str,
+    checkpoint_dir: str,
     step: int = None,
 ):
     """Save model checkpoint using Orbax.
@@ -92,10 +88,10 @@ def save_checkpoint(
     """
     model_params, model_static = eqx.partition(model, eqx.is_array)
 
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    path = ocp.test_utils.erase_and_create_empty(path)
+    os.makedirs(os.path.dirname(checkpoint_dir), exist_ok=True)
+    checkpoint_dir = ocp.test_utils.erase_and_create_empty(checkpoint_dir)
 
-    checkpointer = Checkpointer(path)
+    checkpointer = Checkpointer(checkpoint_dir)
     checkpointer.save_pytree(
         model_params, prefix=(f"step_{step}" if step else None)
     )
@@ -105,7 +101,9 @@ def save_checkpoint(
 
 
 def load_checkpoint(
-    model_name: str, path: Optional[str] = None, save_converted: bool = False
+    model_name: str,
+    checkpoint_dir: Optional[str] = None,
+    save_converted: bool = False,
 ) -> tuple[LlamaForCausalLM, LlamaConfig]:
     """Loads checkpoint, either from local storage using Orbax or downloads from HF.
 
@@ -117,35 +115,36 @@ def load_checkpoint(
     Returns:
         tuple: (model, model_config)
     """
-    sentinel_path = os.path.join(path, "checkpoint_success.txt")
-    config_path = os.path.join(path, "model_config.json")
-    
-    if path and os.path.exists(config_path) and os.path.exists(sentinel_path):
+    sentinel_path = os.path.join(checkpoint_dir, "checkpoint_success.txt")
+    config_path = os.path.join(checkpoint_dir, "model_config.json")
+
+    if (
+        checkpoint_dir
+        and os.path.exists(config_path)
+        and os.path.exists(sentinel_path)
+    ):
         # Load config from JSON
         config_data = Checkpointer.load_json(config_path)
         model_config = LlamaConfig(**config_data)
-
-        # Initialize the model
         model = LlamaForCausalLM(model_config)
 
-        # Load parameters
-        params_structure = Checkpointer.get_abstract_pytree(model)
-        model_params = Checkpointer.restore_pytree(path, params_structure)
+        params_structure = Checkpointer.get_abstract_pytree(
+            eqx.filter(model, eqx.is_array)
+        )
+        model_params = Checkpointer.restore_pytree(
+            checkpoint_dir, params_structure
+        )
 
-        # Combine params and static to get the full model
         model = eqx.combine(model_params, model)
-
-        print(f"Loaded model from checkpoint at: {path}")
+        print(f"Loaded model from checkpoint at: {checkpoint_dir}")
         return model, model_config
-
     else:
-        # Load from HuggingFace and optionally save the converted checkpoint
         model, model_config = _load_from_hf(model_name)
 
-        if save_converted and path is not None:
-            save_checkpoint(model, model_config, path)
+        if save_converted and checkpoint_dir is not None:
+            save_checkpoint(model, model_config, checkpoint_dir)
             print(
-                f"Converted HF checkpoint and saved it in Orbax format at: {path}"
+                f"Converted HF checkpoint and saved it in Orbax format at: {checkpoint_dir}"
             )
 
         return model, model_config

@@ -14,6 +14,7 @@ import optax
 from felafax.trainer_engine.checkpoint import load_checkpoint
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
 from transformers import AutoTokenizer
+from felafax.trainer_engine.checkpoint import save_checkpoint
 
 
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
@@ -81,7 +82,7 @@ class TrainerConfig:
     """Configuration for the Llama trainer"""
 
     model_name: str = "meta-llama/Llama-3.2-1B"
-    model_path: str = "/mnt/persistent-disk/models/llama3.2-1b"
+    checkpoint_dir: str = "/mnt/persistent-disk/models/llama3.2-1b/"
 
     seq_length: int = 512
     batch_size: int = 8
@@ -109,16 +110,16 @@ class Trainer:
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
 
         # Use provided model or load from checkpoint
-        if model is not None:
+        if model:
             self.model = model
-        elif trainer_config.model_name is not None:
-            self.model = load_checkpoint(
+        elif trainer_config.model_name:
+            self.model, self.model_config = load_checkpoint(
                 model_name=trainer_config.model_name,
-                path=trainer_config.model_path,
-                save_converted=True,
+                checkpoint_dir=trainer_config.checkpoint_dir,
+                save_converted=False,
             )
         else:
-            raise ValueError("Either model or model_path must be provided")
+            raise ValueError("Either model or model_namemust be provided")
 
         self.configure_optimizers()
         pass
@@ -214,6 +215,16 @@ class Trainer:
 
         # Update the model with the final parameters
         self.model = eqx.combine(model_params, model_static)
+
+        save_checkpoint(
+            model=self.model,
+            model_config=self.model_config,
+            checkpoint_dir=self.trainer_config.checkpoint_dir,
+            step=self.trainer_config.num_epochs,
+        )
+        print(
+            f"Training done! Checkpoint saved at: {self.trainer_config.checkpoint_dir}"
+        )
         pass
 
 
