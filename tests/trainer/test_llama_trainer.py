@@ -56,8 +56,8 @@ def test_llama_trainer():
         num_steps=2,
         num_tpus=4,
     )
-    # If we don't provide a checkpoint_dir, the trainer should not save any checkpoints.
-    assert trainer_config.checkpoint_dir is None
+    # If we don't provide a checkpointer, the trainer should not save any checkpoints.
+    assert trainer_config.checkpointer is None
 
     # Create dummy train and validation dataloaders
     train_dataloader = dummy_data_loader(trainer_config)

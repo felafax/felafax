@@ -166,7 +166,8 @@ class Trainer:
         def _preprocess_batch(batch):
             # Convert PyTorch tensors to JAX arrays
             batch = {
-                k: v if isinstance(v, jax.Array) else jax.numpy.array(v.numpy())
+                k: v if isinstance(v, jax.Array) 
+                else jax.numpy.array(v.numpy())
                 for k, v in batch.items()
             }
 
