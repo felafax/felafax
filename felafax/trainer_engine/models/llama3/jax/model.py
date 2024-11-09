@@ -346,3 +346,7 @@ class LlamaConfig:
 
     def __repr__(self):
         return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"
+
+    def to_dict(self):
+        """Serializes the configuration to a dictionary."""
+        return self.__dict__

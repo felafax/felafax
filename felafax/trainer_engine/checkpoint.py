@@ -27,7 +27,20 @@ class Checkpointer(object):
             raise ValueError("Checkpoint path cannot be empty")
         self.path = path
         os.makedirs(self.path, exist_ok=True)
-        self.checkpointer = ocp.StandardCheckpointer()
+        
+
+        handler = ocp.StandardCheckpointHandler()
+        
+        # Configure options
+        options = ocp.CheckpointerOptions(
+            enable_async=False,  # Disable async checkpointing
+        )
+        
+        # Create Checkpointer with handler and options
+        self.checkpointer = ocp.Checkpointer(
+            handler,
+            options=options
+        )
 
     def save_pytree(self, pytree, prefix=None):
         """Save pytree of JAX arrays."""
@@ -77,8 +90,12 @@ def save_checkpoint(model: LlamaForCausalLM, path: str, step: int = None):
     checkpointer = Checkpointer(path)
     prefix = f"step_{step}" if step is not None else None
 
+    # Save the parameters
     checkpointer.save_pytree(model_params, prefix=prefix)
-    # TODO: Save llama config as JSON.
+
+    # Save the model config as JSON
+    config_dict = model.model.config.to_dict()
+    checkpointer.save_json(config_dict, name='config.json')
 
 
 def load_checkpoint(
@@ -94,15 +111,33 @@ def load_checkpoint(
     Returns:
         Loaded model
     """
-    model = _load_from_hf(model_name)
+    if path and os.path.exists(os.path.join(path, 'config.json')):
+        # Load config from JSON
+        config_path = os.path.join(path, 'config.json')
+        config_data = Checkpointer.load_json(config_path)
+        config = LlamaConfig(**config_data)
 
-    if save_converted and path is not None:
-        save_checkpoint(model, path)
-        print(f"Converted HF checkpoint and saved it in Orbax format at: {path}")
+        # Initialize the model
+        model = LlamaForCausalLM(config)
 
-    # TODO: When loading from path, load llama config fro JSON file create class and then load params.
+        # Load parameters
+        params_structure = Checkpointer.get_abstract_pytree(model)
+        model_params = Checkpointer.restore_pytree(path, params_structure)
+
+        # Combine params and static to get the full model
+        model = eqx.combine(model_params, model)
+
+        print(f"Loaded model from checkpoint at: {path}")
+
+    else:
+        # Load from HuggingFace and optionally save the converted checkpoint
+        model = _load_from_hf(model_name)
+
+        if save_converted and path is not None:
+            save_checkpoint(model, path)
+            print(f"Converted HF checkpoint and saved it in Orbax format at: {path}")
+
     return model
-
 
 def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
     """Creates Equinox config from Hugging Face model config."""
