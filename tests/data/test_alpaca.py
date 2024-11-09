@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from typing import Tuple
 
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
-from felafax.prompts import PromptStyle
+from felafax.trainer_engine.data.prompts import PromptStyle
 
 
 def setup_alpaca_dataset(

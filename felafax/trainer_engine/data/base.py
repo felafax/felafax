@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import torch
 from torch.utils.data import Dataset
 from torch import Tensor
-from felafax.prompts import PromptStyle
+from felafax.trainer_engine.data.prompts import PromptStyle
 
 
 @dataclass

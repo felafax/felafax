@@ -11,7 +11,7 @@ from felafax.trainer_engine.data.base import (
     SFTDataset,
     get_sft_collate_fn,
 )
-from felafax.prompts import PromptStyle
+from felafax.trainer_engine.data.prompts import PromptStyle
 
 
 @dataclass
