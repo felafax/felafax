@@ -14,7 +14,7 @@ import optax
 from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     save_checkpoint,
-    load_checkpoint,
+    load_model,
 )
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
 from transformers import AutoTokenizer
@@ -103,7 +103,7 @@ class Trainer:
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
         self.checkpointer = checkpointer
 
-        self.model, self.model_config = load_checkpoint(
+        self.model, self.model_config = load_model(
             model_name=trainer_config.model_name,
             checkpointer=self.checkpointer,
             save_converted=False,

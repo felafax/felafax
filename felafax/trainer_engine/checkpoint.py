@@ -13,73 +13,72 @@ from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaForCausalLM,
 )
 from typing import Optional, Tuple
+from jaxtyping import PyTree
 
 
 def torch_to_jax(tensor):
     return jnp.array(tensor.detach().numpy())
 
 
-class Checkpointer(object):
-    """Wraps Orbax checkpointing using CheckpointManager."""
+class Checkpointer:
+    def __init__(self, checkpoint_dir: str):
+        if not checkpoint_dir:
+            raise ValueError("Checkpoint directory cannot be empty")
 
-    def __init__(self, path: str):
-        if not path:
-            raise ValueError("Checkpoint path cannot be empty")
-        self.path = path
-        os.makedirs(self.path, exist_ok=True)
-
-        # Create CheckpointManagerOptions with the desired options
+        self.checkpoint_dir = checkpoint_dir
         self.options = ocp.CheckpointManagerOptions(
-            max_to_keep=3,  # Keep only latest 3 checkpoints
-            save_interval_steps=2,  # Save every 2 steps
-            keep_period=10,  # Additionally keep checkpoints every 10 steps
+            max_to_keep=2,
+            save_interval_steps=2,
             create=True,
             enable_async_checkpointing=False,
         )
 
-        # Define a checkpointer for PyTree objects
-        checkpointers = {"model": ocp.PyTreeCheckpointer()}
-
-        # Create the CheckpointManager
-        self.checkpoint_manager = ocp.CheckpointManager(
-            directory=self.path,
-            checkpointers=checkpointers,
+        self.checkpoint_mgr = ocp.CheckpointManager(
+            directory=self.checkpoint_dir,
             options=self.options,
+            item_names=["model_pytree", "model_config"],
         )
 
-    def save_pytree(self, pytree, step: int, metrics: dict = None):
-        """Save pytree of JAX arrays at a given step."""
-        items = {"model": pytree}
-        self.checkpoint_manager.save(step=step, items=items, metrics=metrics)
-        sentinel_path = os.path.join(self.path, "checkpoint_success.txt")
-        with open(sentinel_path, "w") as f:
-            f.write(f"Checkpoint successfully saved at: {self.path}\n")
+    def save_checkpoint(
+        self, model: eqx.Module, model_config: LlamaConfig, step: int = 0
+    ):
+        """Save model checkpoint using the provided Checkpointer."""
+        model_pytree, _ = eqx.partition(model, eqx.is_array)
+        self.checkpoint_mgr.save(
+            step=step,
+            args=ocp.args.Composite(
+                model_pytree=ocp.args.StandardSave(model_pytree),
+                model_config=ocp.args.JsonSave(model_config.to_dict()),
+            ),
+        )
 
-    def restore_pytree(self, step: Optional[int] = None):
-        if step is None:
-            # Restore latest checkpoint
-            step = self.checkpoint_manager.latest_step()
-        restored = self.checkpoint_manager.restore(step, items={"model": None})
-        return restored["model"]
+    def restore_checkpoint(
+        self, model_abstract_pytree: Optional[PyTree] = None
+    ) -> Tuple[eqx.Module, LlamaConfig]:
+        """Restore model checkpoint using the provided Checkpointer."""
+        restored = self.checkpoint_mgr.restore(
+            step=self.checkpoint_mgr.latest_step(),
+            args=ocp.args.Composite(
+                model_pytree=ocp.args.StandardRestore(model_abstract_pytree),
+                model_config=ocp.args.JsonRestore(),
+            ),
+        )
+        # Construct model using restored model config.
+        model_config = LlamaConfig(**restored.model_config)
+        model = LlamaForCausalLM(model_config)
+        _, model_static = eqx.partition(model, eqx.is_array)
+
+        # Combine restored model parameters with model static.
+        model = eqx.combine(restored.model_pytree, model_static)
+        return model, model_config
 
     def wait_until_finished(self):
-        self.checkpoint_manager.wait_until_finished()
+        """Wait for any async operations to complete."""
+        self.checkpoint_mgr.wait_until_finished()
 
-    def save_json(self, data: dict, name: str) -> None:
-        """Save dictionary as JSON.
-
-        Args:
-            data: Dictionary containing JSON-serializable data
-            name: Name of the file to save the JSON data
-        """
-        path = os.path.join(self.path, name)
-        with open(path, "w") as f:
-            json.dump(data, f, indent=4)
-
-    def load_json(self, name: str):
-        path = os.path.join(self.path, name)
-        with open(path, "r") as f:
-            return json.load(f)
+    @property
+    def directory(self):
+        return self.checkpoint_mgr.directory
 
     @classmethod
     def get_abstract_pytree(cls, tree):
@@ -91,7 +90,6 @@ def save_checkpoint(
     model_config: LlamaConfig,
     checkpointer: Checkpointer,
     step: int,
-    metrics: dict = None,
 ):
     """Save model checkpoint using the provided Checkpointer.
 
@@ -103,52 +101,43 @@ def save_checkpoint(
         metrics: Optional metrics dictionary for checkpointing
     """
     model_params, _ = eqx.partition(model, eqx.is_array)
-    checkpointer.save_pytree(model_params, step=step, metrics=metrics)
-    checkpointer.save_json(model_config.to_dict(), name="model_config.json")
+    checkpointer.save_checkpoint(model, model_config, step)
 
 
-def load_checkpoint(
+def load_model(
     model_name: str,
-    checkpointer: Optional[Checkpointer] = None,
-    save_converted: bool = False,
+) -> Tuple[LlamaForCausalLM, LlamaConfig]:
+    """Loads checkpoint, either from local storage using Orbax or downloads from HF.
+
+    Args:
+        model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
+
+    Returns:
+        tuple: (model, model_config)
+    """
+    model, model_config = _load_from_hf(model_name)
+    return model, model_config
+
+
+def load_model_or_checkpoint(
+    model_name: str,
+    checkpointer: Checkpointer,
 ) -> Tuple[LlamaForCausalLM, LlamaConfig]:
     """Loads checkpoint, either from local storage using Orbax or downloads from HF.
 
     Args:
         model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
         checkpointer: An instance of Checkpointer to manage loading
-        save_converted: Whether to save HF checkpoint in Orbax format after conversion
 
     Returns:
         tuple: (model, model_config)
     """
-    if checkpointer:
-        config_exists = os.path.exists(
-            os.path.join(checkpointer.path, "model_config.json")
-        )
-        has_checkpoints = checkpointer.checkpoint_manager.all_steps()
-        if config_exists and has_checkpoints:
-            # Load config from JSON
-            config_data = checkpointer.load_json("model_config.json")
-            model_config = LlamaConfig(**config_data)
-            model = LlamaForCausalLM(model_config)
+    has_checkpoints = len(checkpointer.checkpoint_mgr.all_steps()) > 0
+    if has_checkpoints:
+        model, model_config = checkpointer.restore_checkpoint()
+        return model, model_config
 
-            # Restore model parameters
-            model_params = checkpointer.restore_pytree()
-            model = eqx.combine(model_params, model)
-            print(f"Loaded model from checkpoint at: {checkpointer.path}")
-            return model, model_config
-
-    # If checkpoint not found or checkpointer is None, load from HF
-    model, model_config = _load_from_hf(model_name)
-
-    if save_converted and checkpointer:
-        # Save the downloaded model using the checkpointer
-        save_checkpoint(model, model_config, checkpointer, step=0)
-        print(
-            f"Converted HF checkpoint and saved it in Orbax format at: {checkpointer.path}"
-        )
-
+    model, model_config = load_model(model_name)
     return model, model_config
 
 
