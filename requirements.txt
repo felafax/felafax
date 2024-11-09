@@ -19,6 +19,7 @@ jaxlib
 equinox>=0.11.8
 # flax[all]
 optax
+orbax
 transformers>=4.43
 accelerate>=0.26.0
 

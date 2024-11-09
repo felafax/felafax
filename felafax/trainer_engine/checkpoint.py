@@ -41,8 +41,13 @@ class Checkpointer(object):
             path, args=ocp.args.StandardRestore(item)
         )
 
-    def save_json(self, data, name):
-        """Save dictionary as JSON."""
+    def save_json(self, data: dict, name: str) -> None:
+        """Save dictionary as JSON.
+        
+        Args:
+            data: Dictionary containing JSON-serializable data
+            name: Name of the file/directory to save the JSON data
+        """
         if self.path == "":
             return
         path = os.path.join(self.path, name)
@@ -56,7 +61,7 @@ class Checkpointer(object):
             return json.loads(f.read())
 
     @classmethod
-    def get_shape_dtype_struct(cls, tree):
+    def get_abstract_pytree(cls, tree):
         return jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, tree)
 
 
