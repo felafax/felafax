@@ -11,10 +11,13 @@ from jax.sharding import NamedSharding, PartitionSpec as PS
 
 import optax
 
-from felafax.trainer_engine.checkpoint import load_checkpoint
+from felafax.trainer_engine.checkpoint import (
+    Checkpointer,
+    save_checkpoint,
+    load_checkpoint,
+)
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
 from transformers import AutoTokenizer
-from felafax.trainer_engine.checkpoint import save_checkpoint
 
 
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
@@ -103,23 +106,26 @@ class Trainer:
         val_dataloader: Any,
         model: Optional[eqx.Module] = None,
         mesh: Optional[jax.sharding.Mesh] = None,
+        checkpointer: Optional[Checkpointer] = None,
     ):
         self.trainer_config = trainer_config
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
+        self.checkpointer = checkpointer
 
         # Use provided model or load from checkpoint
         if model:
             self.model = model
         elif trainer_config.model_name:
+            # Try to load model from checkpoint using the checkpointer
             self.model, self.model_config = load_checkpoint(
                 model_name=trainer_config.model_name,
-                checkpoint_dir=trainer_config.checkpoint_dir,
+                checkpointer=self.checkpointer,
                 save_converted=False,
             )
         else:
-            raise ValueError("Either model or model_namemust be provided")
+            raise ValueError("Either model or model_name must be provided")
 
         self.configure_optimizers()
         pass
@@ -206,15 +212,37 @@ class Trainer:
 
             print(f"Step {step + 1}: Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
 
+            # Save checkpoint at specified intervals
+            if (
+                self.checkpointer
+                and (step + 1) % self.checkpointer.options.save_interval_steps
+                == 0
+            ):
+                metrics = {"loss": float(loss)}  # Ensure loss is a Python float
+                # Save checkpoint using the provided Checkpointer
+                save_checkpoint(
+                    model=eqx.combine(model_params, model_static),
+                    model_config=self.model_config,
+                    checkpointer=self.checkpointer,
+                    step=step + 1,
+                    metrics=metrics,
+                )
+
+        # Save final model checkpoint
+        if self.checkpointer:
+            metrics = {"loss": float(loss)}
+            save_checkpoint(
+                model=eqx.combine(model_params, model_static),
+                model_config=self.model_config,
+                checkpointer=self.checkpointer,
+                step=step + 1,
+                metrics=metrics,
+            )
+            self.checkpointer.wait_until_finished()
+
         self.model = eqx.combine(model_params, model_static)
-        save_checkpoint(
-            model=self.model,
-            model_config=self.model_config,
-            checkpoint_dir=self.trainer_config.checkpoint_dir,
-            step=min(step + 1, max_steps),
-        )
         print(
-            f"Training completed! Checkpoint saved at: {self.trainer_config.checkpoint_dir}"
+            f"Training completed! Final checkpoint saved at: {self.checkpointer.path if self.checkpointer else self.trainer_config.checkpoint_dir}"
         )
 
 
@@ -234,9 +262,14 @@ if __name__ == "__main__":
     train_dataloader = data_module.train_dataloader()
     val_dataloader = data_module.val_dataloader()
 
+    # Initialize Checkpointer
+    checkpointer = Checkpointer(trainer_config.checkpoint_dir)
+
+    # Initialize Trainer with Checkpointer
     trainer = Trainer(
         trainer_config=trainer_config,
         train_dataloader=train_dataloader,
         val_dataloader=val_dataloader,
+        checkpointer=checkpointer,
     )
     trainer.train()
