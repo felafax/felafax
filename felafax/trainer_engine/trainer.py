@@ -84,17 +84,21 @@ def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
 class TrainerConfig:
     """Configuration for the Llama trainer"""
 
+    # Model configuration
     model_name: str = "meta-llama/Llama-3.2-1B"
     checkpoint_dir: str = "/mnt/persistent-disk/models/llama3.2-1b/"
-
-    seq_length: int = 512
-    batch_size: int = 8
-    num_steps: int = 1
-    num_epochs: int = 1
-    num_dataloader_workers: int = 4
     param_dtype: str = "float32"
     output_dtype: str = "float32"
+
+    # Training configuration
+    num_epochs: int = 1
+    num_steps: int = 1
+    batch_size: int = 8
+    seq_length: int = 512
+
+    # Hardware/parallelism configuration
     num_tpus: int = 4
+    num_dataloader_workers: int = 4
 
 
 # CORE TRAINER CLASS -- you can add less core things in private functions.
@@ -104,28 +108,22 @@ class Trainer:
         trainer_config: TrainerConfig,
         train_dataloader: Any,
         val_dataloader: Any,
-        model: Optional[eqx.Module] = None,
         mesh: Optional[jax.sharding.Mesh] = None,
         checkpointer: Optional[Checkpointer] = None,
     ):
+        assert trainer_config.model_name, "model_name must be provided"
+
         self.trainer_config = trainer_config
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
         self.checkpointer = checkpointer
 
-        # Use provided model or load from checkpoint
-        if model:
-            self.model = model
-        elif trainer_config.model_name:
-            # Try to load model from checkpoint using the checkpointer
-            self.model, self.model_config = load_checkpoint(
-                model_name=trainer_config.model_name,
-                checkpointer=self.checkpointer,
-                save_converted=False,
-            )
-        else:
-            raise ValueError("Either model or model_name must be provided")
+        self.model, self.model_config = load_checkpoint(
+            model_name=trainer_config.model_name,
+            checkpointer=self.checkpointer,
+            save_converted=False,
+        )
 
         self.configure_optimizers()
         pass
@@ -143,8 +141,8 @@ class Trainer:
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
         """Computes loss for a single forward and backward pass."""
-
         model = eqx.combine(model_params, model_static)
+
         input_ids = batch["input_ids"]
         input_ids = input_ids.astype(jnp.int32)
         attention_mask = batch.get("attention_mask", None)
@@ -182,7 +180,7 @@ class Trainer:
         optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
 
-        def _get_batch(batch):
+        def _preprocess_batch(batch):
             # Convert PyTorch tensors to JAX arrays
             batch = {k: jax.numpy.array(v.numpy()) for k, v in batch.items()}
 
@@ -199,9 +197,8 @@ class Trainer:
             if step >= max_steps:
                 break
 
-            batch = jax.device_put(
-                _get_batch(batch), NamedSharding(self.mesh, PS("batch"))
-            )
+            batch = _preprocess_batch(batch)
+            batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
             loss, (accuracy, model_params, optimizer_state) = self.training_step(
                 model_params=model_params,
                 model_static=model_static,
