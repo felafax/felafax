@@ -86,7 +86,7 @@ class TrainerConfig:
 
     seq_length: int = 512
     batch_size: int = 8
-    num_steps: int = 10
+    num_steps: int = 5
     num_epochs: int = 1
     num_dataloader_workers: int = 4
     param_dtype: str = "float32"
@@ -174,58 +174,48 @@ class Trainer:
     def train(self):
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
         optimizer_state = self.opt_state
+        max_steps = self.trainer_config.num_steps or float("inf")
 
-        for epoch in range(self.trainer_config.num_epochs):
-            print(f"Epoch {epoch+1}/{self.trainer_config.num_epochs}")
+        def _get_batch(batch):
+            # Convert PyTorch tensors to JAX arrays
+            batch = {k: jax.numpy.array(v.numpy()) for k, v in batch.items()}
 
-            for batch_idx, batch in enumerate(self.train_dataloader):
-                # Convert batch from PyTorch tensors to JAX arrays
-                batch = {k: jax.numpy.array(v.numpy()) for k, v in batch.items()}
+            # Add position IDs to batch
+            seq_length = batch["input_ids"].shape[1]
+            batch["position_ids"] = jnp.repeat(
+                jnp.arange(seq_length)[None, :],
+                batch["input_ids"].shape[0],
+                axis=0,
+            )
+            return batch
 
-                # Add position_ids using the same logic as _get_dummy_data
-                batch_size = batch["input_ids"].shape[0]
-                seq_length = batch["input_ids"].shape[1]
-                batch["position_ids"] = jnp.repeat(
-                    jnp.arange(0, seq_length)[None, :],
-                    batch_size,
-                    axis=0,
-                )
+        for step, batch in enumerate(self.train_dataloader):
+            if step >= max_steps:
+                break
 
-                batch_sharded = jax.device_put(
-                    batch, NamedSharding(self.mesh, PS("batch"))
-                )
-                (
-                    loss,
-                    (accuracy, model_params, optimizer_state),
-                ) = self.training_step(
-                    model_params=model_params,
-                    model_static=model_static,
-                    optimizer=self.optimizer,
-                    optimizer_state=optimizer_state,
-                    batch=batch_sharded,
-                )
-                print(
-                    f"Batch {batch_idx+1}: Loss: {loss:.4f}, Accuracy: {accuracy:.4f}"
-                )
-            pass
+            batch = jax.device_put(
+                _get_batch(batch), NamedSharding(self.mesh, PS("batch"))
+            )
+            loss, (accuracy, model_params, optimizer_state) = self.training_step(
+                model_params=model_params,
+                model_static=model_static,
+                optimizer=self.optimizer,
+                optimizer_state=optimizer_state,
+                batch=batch,
+            )
 
-            # Optionally, you can add validation steps here using self.val_dataloader
-            # and a separate validation method
-        pass
+            print(f"Step {step + 1}: Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
 
-        # Update the model with the final parameters
         self.model = eqx.combine(model_params, model_static)
-
         save_checkpoint(
             model=self.model,
             model_config=self.model_config,
             checkpoint_dir=self.trainer_config.checkpoint_dir,
-            step=self.trainer_config.num_epochs,
+            step=min(step + 1, max_steps),
         )
         print(
-            f"Training done! Checkpoint saved at: {self.trainer_config.checkpoint_dir}"
+            f"Training completed! Checkpoint saved at: {self.trainer_config.checkpoint_dir}"
         )
-        pass
 
 
 if __name__ == "__main__":
