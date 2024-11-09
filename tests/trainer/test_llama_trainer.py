@@ -3,12 +3,39 @@ from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaForCausalLM,
 )
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
+import jax.numpy as jnp
+
+
+def _get_dummy_data(trainer_config):
+    input_ids = jnp.zeros(
+        (trainer_config.batch_size, trainer_config.seq_length), dtype=jnp.int32
+    )
+    attention_mask = jnp.ones(
+        (trainer_config.batch_size, trainer_config.seq_length), dtype=jnp.int32
+    )
+    position_ids = jnp.repeat(
+        jnp.arange(0, trainer_config.seq_length)[None, :],
+        trainer_config.batch_size,
+        axis=0,
+    )
+    return input_ids, attention_mask, position_ids
+
+
+def dummy_data_loader(trainer_config):
+    while True:
+        input_ids, attention_mask, position_ids = _get_dummy_data(trainer_config)
+        yield {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "position_ids": position_ids,
+        }
 
 
 def test_llama_trainer():
-    """Tests the e2e run of the trainer with a tiny model. REQUIRES 8 TPUs."""
-    # Create a tiny config using our own LlamaConfig class
-    config = LlamaConfig(
+    """Tests the end-to-end run of the trainer without checkpoing."""
+    # Create a tiny model configuration using LlamaConfig
+    model_config = LlamaConfig(
+        model_name="tiny",
         vocab_size=100,
         hidden_size=32,
         intermediate_size=64,
@@ -21,16 +48,29 @@ def test_llama_trainer():
         attention_bias=False,
     )
 
-    # Initialize model with our config
-    model = LlamaForCausalLM(config)
+    model = LlamaForCausalLM(model_config)
 
-    # Create trainer config (no model_path needed)
     trainer_config = TrainerConfig(
-        seq_length=16, batch_size=2, num_steps=2, num_tpus=4
+        seq_length=16,
+        batch_size=8,
+        num_steps=2,
+        num_tpus=4,
     )
+    # If we don't provide a checkpoint_dir, the trainer should not save any checkpoints.
+    assert trainer_config.checkpoint_dir is None
 
-    # Initialize trainer with our model
-    trainer = Trainer(trainer_config, model=model)
+    # Create dummy train and validation dataloaders
+    train_dataloader = dummy_data_loader(trainer_config)
+    val_dataloader = dummy_data_loader(trainer_config)
+
+    # Initialize the trainer with the model and data loaders
+    trainer = Trainer(
+        trainer_config=trainer_config,
+        train_dataloader=train_dataloader,
+        val_dataloader=val_dataloader,
+    )
+    trainer.model = model
+    trainer.model_config = model_config
 
     # Run training
     trainer.train()

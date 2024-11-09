@@ -22,23 +22,6 @@ from transformers import AutoTokenizer
 
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
 
-
-def _get_dummy_data(trainer_config):
-    # TODO: I'll merge with Alpaca dataset pipeline I have, for now just use dummyd data.
-    input_ids = jnp.zeros(
-        (trainer_config.batch_size, trainer_config.seq_length), dtype=jnp.int32
-    )
-    attention_mask = jnp.ones(
-        (trainer_config.batch_size, trainer_config.seq_length), dtype=jnp.int32
-    )
-    position_ids = jnp.repeat(
-        jnp.arange(0, trainer_config.seq_length)[None, :],
-        trainer_config.batch_size,
-        axis=0,
-    )
-    return input_ids, attention_mask, position_ids
-
-
 def _get_mesh(trainer_config):
     mesh_shape = None
     if trainer_config.num_tpus == 4:
@@ -182,7 +165,10 @@ class Trainer:
 
         def _preprocess_batch(batch):
             # Convert PyTorch tensors to JAX arrays
-            batch = {k: jax.numpy.array(v.numpy()) for k, v in batch.items()}
+            batch = {
+                k: v if isinstance(v, jax.Array) else jax.numpy.array(v.numpy())
+                for k, v in batch.items()
+            }
 
             # Add position IDs to batch
             seq_length = batch["input_ids"].shape[1]
@@ -209,14 +195,12 @@ class Trainer:
 
             print(f"Step {step + 1}: Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
 
-            # Save checkpoint at specified intervals
             if (
                 self.checkpointer
                 and (step + 1) % self.checkpointer.options.save_interval_steps
                 == 0
             ):
-                metrics = {"loss": float(loss)}  # Ensure loss is a Python float
-                # Save checkpoint using the provided Checkpointer
+                metrics = {"loss": float(loss)}
                 save_checkpoint(
                     model=eqx.combine(model_params, model_static),
                     model_config=self.model_config,
@@ -225,7 +209,7 @@ class Trainer:
                     metrics=metrics,
                 )
 
-        # Save final model checkpoint
+        # Save final checkpoint
         if self.checkpointer:
             metrics = {"loss": float(loss)}
             save_checkpoint(
@@ -236,11 +220,10 @@ class Trainer:
                 metrics=metrics,
             )
             self.checkpointer.wait_until_finished()
+            print("Final checkpoint saved at:", self.checkpointer.path)
 
         self.model = eqx.combine(model_params, model_static)
-        print(
-            f"Training completed! Final checkpoint saved at: {self.checkpointer.path if self.checkpointer else self.trainer_config.checkpoint_dir}"
-        )
+        print("Training completed!")
 
 
 if __name__ == "__main__":
