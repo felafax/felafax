@@ -22,6 +22,7 @@ from transformers import AutoTokenizer
 
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
 
+
 def _get_mesh(trainer_config):
     mesh_shape = None
     if trainer_config.num_tpus == 4:
@@ -150,7 +151,7 @@ class Trainer:
         updates, optimizer_state = optimizer.update(
             grads, optimizer_state, model_params
         )
-        model_params = eqx.apply_updates(model_params, updates)
+        model_params = optax.apply_updates(model_params, updates)
         return loss, (accuracy, model_params, optimizer_state)
 
     def validation_step(
@@ -166,10 +167,11 @@ class Trainer:
         def _preprocess_batch(batch):
             # Convert PyTorch tensors to JAX arrays
             batch = {
-                k: v if isinstance(v, jax.Array) 
-                else jax.numpy.array(v.numpy())
+                k: v if isinstance(v, jax.Array) else jax.numpy.array(v.numpy())
                 for k, v in batch.items()
             }
+            batch["input_ids"] = batch["input_ids"].astype(jnp.int32)
+            batch["labels"] = batch["labels"].astype(jnp.int32)
 
             # Add position IDs to batch
             seq_length = batch["input_ids"].shape[1]
