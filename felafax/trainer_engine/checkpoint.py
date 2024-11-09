@@ -29,7 +29,7 @@ class Checkpointer(object):
         os.makedirs(self.path, exist_ok=True)
 
         handler = ocp.StandardCheckpointHandler()
-        options = ocp.CheckpointerOptions(enable_async=False)
+        options = ocp.CheckpointManagerOptions(enable_async_checkpointing=False)
         self.checkpointer = ocp.Checkpointer(handler, options=options)
 
     def save_pytree(self, pytree, prefix=None):

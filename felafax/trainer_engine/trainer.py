@@ -86,7 +86,7 @@ class TrainerConfig:
 
     seq_length: int = 512
     batch_size: int = 8
-    num_steps: int = 5
+    num_steps: int = 1
     num_epochs: int = 1
     num_dataloader_workers: int = 4
     param_dtype: str = "float32"
