@@ -66,10 +66,15 @@ class Checkpointer:
         # Construct model using restored model config.
         model_config = LlamaConfig(**restored.model_config)
         model = LlamaForCausalLM(model_config)
-        _, model_static = eqx.partition(model, eqx.is_array)
+        model_params, model_static = eqx.partition(model, eqx.is_array)
+        model_params = jax.tree_util.tree_map(
+            lambda x, y: y,
+            model_params,
+            restored.model_pytree,
+        )
 
         # Combine restored model parameters with model static.
-        model = eqx.combine(restored.model_pytree, model_static)
+        model = eqx.combine(model_params, model_static)
         return model, model_config
 
     def wait_until_finished(self):

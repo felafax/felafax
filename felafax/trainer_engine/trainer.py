@@ -15,6 +15,7 @@ from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     save_checkpoint,
     load_model,
+    load_model_or_checkpoint,
 )
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
 from transformers import AutoTokenizer
@@ -105,19 +106,15 @@ class Trainer:
 
         self.model, self.model_config = load_model(
             model_name=trainer_config.model_name,
-            checkpointer=self.checkpointer,
-            save_converted=False,
         )
 
         self.configure_optimizers()
-        pass
 
     def configure_optimizers(self):
         self.optimizer = optax.sgd(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(
             eqx.filter(self.model, eqx.is_array)
         )
-        pass
 
     # Don't need separate forward and backward pass. In eval step, I anyways have to call inference on equinox model. So, just combine the two steps. So that you can JIT compute loss at once and this can be later provided within model itself by other models.
     # TODO: need to look into microbatching (nando has it).
@@ -203,28 +200,35 @@ class Trainer:
                 and (step + 1) % self.checkpointer.options.save_interval_steps
                 == 0
             ):
-                metrics = {"loss": float(loss)}
+                # TODO: save metrics as well.
+                # metrics = {"loss": float(loss)}
                 save_checkpoint(
                     model=eqx.combine(model_params, model_static),
                     model_config=self.model_config,
                     checkpointer=self.checkpointer,
                     step=step + 1,
-                    metrics=metrics,
                 )
 
         # Save final checkpoint
         if self.checkpointer:
-            metrics = {"loss": float(loss)}
+            # metrics = {"loss": float(loss)}
             save_checkpoint(
                 model=eqx.combine(model_params, model_static),
                 model_config=self.model_config,
                 checkpointer=self.checkpointer,
                 step=step + 1,
-                metrics=metrics,
             )
             self.checkpointer.wait_until_finished()
-            print("Final checkpoint saved at:", self.checkpointer.path)
-
+            print("Final checkpoint saved at:", self.checkpointer.checkpoint_dir)
+            
+            # Load checkpoint to test
+            model, model_config = load_model_or_checkpoint(
+                model_name=self.trainer_config.model_name,
+                checkpointer=self.checkpointer,
+            )
+            print("Model was restored!")
+            breakpoint()
+            
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
 

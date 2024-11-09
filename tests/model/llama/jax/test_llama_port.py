@@ -916,7 +916,6 @@ def test_load_checkpoint(hf_model):
     input_ids = tokenizer(input_text, return_tensors="pt").input_ids
     position_ids = torch.arange(input_ids.shape[1])[None, :]
 
-    breakpoint()
     # Get output from loaded Equinox model
     eqx_output = eqx_model(
         jnp.array(input_ids), position_ids=jnp.array(position_ids)
