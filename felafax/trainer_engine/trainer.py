@@ -104,6 +104,9 @@ class Trainer:
         self.mesh = mesh if mesh else _get_mesh(trainer_config)
         self.checkpointer = checkpointer
 
+        # Construct abstract pytree
+        # Then, shard it, so it'll be abstract pytree with sharding annotations.
+        # When loading the model, pass the sharding information so it is sharded while loading.
         self.model, self.model_config = load_model(
             model_name=trainer_config.model_name,
         )

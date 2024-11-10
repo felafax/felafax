@@ -16,10 +16,6 @@ from typing import Optional, Tuple
 from jaxtyping import PyTree
 
 
-def torch_to_jax(tensor):
-    return jnp.array(tensor.detach().numpy())
-
-
 class Checkpointer:
     def __init__(self, checkpoint_dir: str):
         if not checkpoint_dir:
@@ -161,6 +157,9 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
         attention_bias=hf_model.config.attention_bias,
     )
 
+def _torch_to_jax(tensor):
+    return jnp.array(tensor.detach().numpy())
+
 
 def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
     """Downloads and converts HuggingFace model to Equinox model.
@@ -184,17 +183,17 @@ def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.embed_tokens.weight),
+        _torch_to_jax(hf_model.model.embed_tokens.weight),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.model.norm.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.norm.weight),
+        _torch_to_jax(hf_model.model.norm.weight),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.lm_head.weight,
         eqx_model,
-        torch_to_jax(hf_model.lm_head.weight),
+        _torch_to_jax(hf_model.lm_head.weight),
     )
 
     # Copy layer weights
@@ -203,47 +202,47 @@ def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.q_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.q_proj.weight),
+            _torch_to_jax(hf_layer.self_attn.q_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.k_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.k_proj.weight),
+            _torch_to_jax(hf_layer.self_attn.k_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.v_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.v_proj.weight),
+            _torch_to_jax(hf_layer.self_attn.v_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.o_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.o_proj.weight),
+            _torch_to_jax(hf_layer.self_attn.o_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.gate_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.gate_proj.weight),
+            _torch_to_jax(hf_layer.mlp.gate_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.up_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.up_proj.weight),
+            _torch_to_jax(hf_layer.mlp.up_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.down_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.down_proj.weight),
+            _torch_to_jax(hf_layer.mlp.down_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].input_layernorm.weight,
             eqx_model,
-            torch_to_jax(hf_layer.input_layernorm.weight),
+            _torch_to_jax(hf_layer.input_layernorm.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].post_attention_layernorm.weight,
             eqx_model,
-            torch_to_jax(hf_layer.post_attention_layernorm.weight),
+            _torch_to_jax(hf_layer.post_attention_layernorm.weight),
         )
 
     return eqx_model, model_config
