@@ -14,6 +14,8 @@ from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
     LlamaForCausalLM,
 )
+
+
 from typing import Optional, Tuple
 from jaxtyping import PyTree
 from jax.sharding import NamedSharding, PartitionSpec as PS
@@ -161,36 +163,26 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
         attention_bias=hf_model.config.attention_bias,
     )
 
-def _get_mesh(num_tpus: int):
-    mesh_shape = None
-    if num_tpus == 4:
-        mesh_shape = (1, 2, 2)
-    elif num_tpus == 8:
-        mesh_shape = (2, 2, 2)
-    else:
-        raise ValueError(f"Invalid number of TPUs: {num_tpus}")
+def _make_torch_to_jax():
+    """Creates a closure that calculates mesh once and reuses it for tensor conversions."""
+    from felafax.trainer_engine.trainer import get_mesh
+    mesh = get_mesh(jax.device_count())
+    
+    def _torch_to_jax(tensor):
+        jax_array = jnp.array(tensor.detach().numpy())
+        
+        if len(jax_array.shape) == 0 or np.prod(jax_array.shape) == 1:
+            sharding = NamedSharding(mesh, PS())
+        elif len(jax_array.shape) == 1:
+            sharding = NamedSharding(mesh, PS(("fsdp",)))
+        elif len(jax_array.shape) == 2:
+            sharding = NamedSharding(mesh, PS(("fsdp", "replica")))
+        else:
+            sharding = NamedSharding(mesh, PS(()))
 
-    print(f"Creating TPU device mesh with shape {mesh_shape}...")
-    device_mesh = mesh_utils.create_device_mesh(mesh_shape)
-    mesh = jax.sharding.Mesh(device_mesh, axis_names=("batch", "fsdp", "replica"))
-    return mesh
-
-
-def _torch_to_jax(tensor):
-    jax_array = jnp.array(tensor.detach().numpy())
-
-    if len(jax_array.shape) == 0 or np.prod(jax_array.shape) == 1:
-        sharding = NamedSharding(_get_mesh(4), PS())
-    elif len(jax_array.shape) == 1:
-        sharding = NamedSharding(_get_mesh(4), PS(("fsdp",)))
-    elif len(jax_array.shape) == 2:
-        sharding = NamedSharding(_get_mesh(4), PS(("fsdp", "replica")))
-    else:
-        sharding = NamedSharding(_get_mesh(4), PS(()))
-
-    sharded_array = jax.device_put(jax_array, sharding)
-    return sharded_array
-
+        return jax.device_put(jax_array, sharding)
+    
+    return _torch_to_jax
 
 def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
     """Downloads and converts HuggingFace model to Equinox model.
@@ -210,21 +202,23 @@ def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
     model_config = create_llama_config_from_hf_model(hf_model)
     eqx_model = LlamaForCausalLM(model_config)
 
+    torch_to_jax = _make_torch_to_jax()
+
     # Copy weights
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
-        _torch_to_jax(hf_model.model.embed_tokens.weight),
+        torch_to_jax(hf_model.model.embed_tokens.weight),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.model.norm.weight,
         eqx_model,
-        _torch_to_jax(hf_model.model.norm.weight),
+        torch_to_jax(hf_model.model.norm.weight),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.lm_head.weight,
         eqx_model,
-        _torch_to_jax(hf_model.lm_head.weight),
+        torch_to_jax(hf_model.lm_head.weight),
     )
 
     # Copy layer weights
@@ -233,47 +227,47 @@ def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.q_proj.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.self_attn.q_proj.weight),
+            torch_to_jax(hf_layer.self_attn.q_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.k_proj.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.self_attn.k_proj.weight),
+            torch_to_jax(hf_layer.self_attn.k_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.v_proj.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.self_attn.v_proj.weight),
+            torch_to_jax(hf_layer.self_attn.v_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.o_proj.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.self_attn.o_proj.weight),
+            torch_to_jax(hf_layer.self_attn.o_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.gate_proj.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.mlp.gate_proj.weight),
+            torch_to_jax(hf_layer.mlp.gate_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.up_proj.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.mlp.up_proj.weight),
+            torch_to_jax(hf_layer.mlp.up_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.down_proj.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.mlp.down_proj.weight),
+            torch_to_jax(hf_layer.mlp.down_proj.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].input_layernorm.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.input_layernorm.weight),
+            torch_to_jax(hf_layer.input_layernorm.weight),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].post_attention_layernorm.weight,
             eqx_model,
-            _torch_to_jax(hf_layer.post_attention_layernorm.weight),
+            torch_to_jax(hf_layer.post_attention_layernorm.weight),
         )
 
     return eqx_model, model_config

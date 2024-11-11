@@ -25,14 +25,14 @@ from transformers import AutoTokenizer
 # I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
 
 
-def _get_mesh(trainer_config):
+def get_mesh(num_tpus: int):
     mesh_shape = None
-    if trainer_config.num_tpus == 4:
+    if num_tpus == 4:
         mesh_shape = (1, 2, 2)
-    elif trainer_config.num_tpus == 8:
+    elif num_tpus == 8:
         mesh_shape = (2, 2, 2)
     else:
-        raise ValueError(f"Invalid number of TPUs: {trainer_config.num_tpus}")
+        raise ValueError(f"Invalid number of TPUs: {num_tpus}")
 
     print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
@@ -85,7 +85,7 @@ class TrainerConfig:
     seq_length: int = 512
 
     # Hardware/parallelism configuration
-    num_tpus: int = 4
+    num_tpus: int = jax.device_count()
     num_dataloader_workers: int = 4
 
 
@@ -104,7 +104,7 @@ class Trainer:
         self.trainer_config = trainer_config
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
-        self.mesh = mesh if mesh else _get_mesh(trainer_config)
+        self.mesh = mesh if mesh else get_mesh(trainer_config.num_tpus)
         self.checkpointer = checkpointer
 
         # Construct abstract pytree
@@ -244,11 +244,11 @@ class Trainer:
             print("Final checkpoint saved at:", self.checkpointer.checkpoint_dir)
 
             # Load checkpoint to test
-            model, model_config = load_model_or_checkpoint(
-                model_name=self.trainer_config.model_name,
-                checkpointer=self.checkpointer,
-            )
-            print("Model was restored!")
+            # model, model_config = load_model_or_checkpoint(
+            #     model_name=self.trainer_config.model_name,
+            #     checkpointer=self.checkpointer,
+            # )
+            # print("Model was restored!")
 
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
