@@ -4,6 +4,8 @@ import os
 import json
 import jax
 import jax.numpy as jnp
+import numpy as np
+
 import equinox as eqx
 import torch
 import orbax.checkpoint as ocp
@@ -14,6 +16,8 @@ from felafax.trainer_engine.models.llama3.jax.model import (
 )
 from typing import Optional, Tuple
 from jaxtyping import PyTree
+from jax.sharding import NamedSharding, PartitionSpec as PS
+from jax.experimental import mesh_utils
 
 
 class Checkpointer:
@@ -157,8 +161,35 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
         attention_bias=hf_model.config.attention_bias,
     )
 
+def _get_mesh(num_tpus: int):
+    mesh_shape = None
+    if num_tpus == 4:
+        mesh_shape = (1, 2, 2)
+    elif num_tpus == 8:
+        mesh_shape = (2, 2, 2)
+    else:
+        raise ValueError(f"Invalid number of TPUs: {num_tpus}")
+
+    print(f"Creating TPU device mesh with shape {mesh_shape}...")
+    device_mesh = mesh_utils.create_device_mesh(mesh_shape)
+    mesh = jax.sharding.Mesh(device_mesh, axis_names=("batch", "fsdp", "replica"))
+    return mesh
+
+
 def _torch_to_jax(tensor):
-    return jnp.array(tensor.detach().numpy())
+    jax_array = jnp.array(tensor.detach().numpy())
+
+    if len(jax_array.shape) == 0 or np.prod(jax_array.shape) == 1:
+        sharding = NamedSharding(_get_mesh(4), PS())
+    elif len(jax_array.shape) == 1:
+        sharding = NamedSharding(_get_mesh(4), PS(("fsdp",)))
+    elif len(jax_array.shape) == 2:
+        sharding = NamedSharding(_get_mesh(4), PS(("fsdp", "replica")))
+    else:
+        sharding = NamedSharding(_get_mesh(4), PS(()))
+
+    sharded_array = jax.device_put(jax_array, sharding)
+    return sharded_array
 
 
 def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:

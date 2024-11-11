@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional, Any
+import functools
 import pyrallis
 import jax
 # jax.distributed.initialize()
@@ -35,7 +36,9 @@ def _get_mesh(trainer_config):
 
     print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
-    mesh = jax.sharding.Mesh(device_mesh, axis_names=("batch", "fsdp", "dp"))
+    mesh = jax.sharding.Mesh(
+        device_mesh, axis_names=("batch", "fsdp", "replica")
+    )
     return mesh
 
 
@@ -121,6 +124,9 @@ class Trainer:
 
     # Don't need separate forward and backward pass. In eval step, I anyways have to call inference on equinox model. So, just combine the two steps. So that you can JIT compute loss at once and this can be later provided within model itself by other models.
     # TODO: need to look into microbatching (nando has it).
+    @functools.partial(
+        jax.jit, static_argnames=("self", "model_static", "optimizer")
+    )
     def forward(
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
@@ -182,12 +188,20 @@ class Trainer:
             )
             return batch
 
+        prev_step = 0
+        prev_loss = 0.0
+        prev_accuracy = 0.0
+
         for step, batch in enumerate(self.train_dataloader):
             if step >= max_steps:
                 break
 
             batch = _preprocess_batch(batch)
             batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
+            optimizer_state = jax.device_put(
+                optimizer_state, NamedSharding(self.mesh, PS())
+            )
+
             loss, (accuracy, model_params, optimizer_state) = self.training_step(
                 model_params=model_params,
                 model_static=model_static,
@@ -196,7 +210,12 @@ class Trainer:
                 batch=batch,
             )
 
-            print(f"Step {step + 1}: Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
+            print(
+                f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
+            )
+            prev_step = step + 1
+            prev_loss = loss
+            prev_accuracy = accuracy
 
             if (
                 self.checkpointer
@@ -223,15 +242,14 @@ class Trainer:
             )
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.checkpoint_dir)
-            
+
             # Load checkpoint to test
             model, model_config = load_model_or_checkpoint(
                 model_name=self.trainer_config.model_name,
                 checkpointer=self.checkpointer,
             )
             print("Model was restored!")
-            breakpoint()
-            
+
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
 
