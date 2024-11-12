@@ -26,6 +26,7 @@ class DatasetConfig:
     ignore_index: int = -100
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
     mask_prompt: bool = False
+    pad_id: int = 0
     
     # Other params
     seed: int = 42
@@ -38,6 +39,7 @@ class BaseDataset(ABC):
         self.config = config
         if isinstance(self.config.prompt_style, str):
             self.config.prompt_style = BasePromptTemplate.from_name(self.config.prompt_style)
+            
         self.tokenizer = None
         self.train_dataset = None
         self.val_dataset = None
@@ -158,31 +160,36 @@ def get_sft_collate_fn(
 
 def _sft_collate_fn(
     samples: List[Dict[str, Union[Tensor, int]]],
-    max_seq_length: int = -1,
+    max_seq_length: int,
     pad_id: int = 0,
     ignore_index: int = -100,
 ) -> Dict[str, Tensor]:
+    """Simplified collate function that pads sequences to max_seq_length."""
     batched = {}
+    keys = ("input_ids", "labels")
     
-    # Handle input_ids and labels with padding
-    for key in ("input_ids", "labels"):
+    for key in keys:
         pad_value = pad_id if key == "input_ids" else ignore_index
-
-        # Pad sequences to the longest sequence in the batch
-        batched[key] = torch.nn.utils.rnn.pad_sequence(
-            [sample[key] for sample in samples],
-            batch_first=True,
-            padding_value=pad_value,
-        )
-
-        # Truncate if needed
-        if max_seq_length > 0:
-            batched[key] = batched[key][:, :max_seq_length]
-
-    # Add length information
+        
+        # Truncate and pad sequences
+        sequences = [sample[key][:max_seq_length] for sample in samples]
+        padded_sequences = [
+            torch.nn.functional.pad(
+                seq,
+                (0, max_seq_length - len(seq)),
+                value=pad_value
+            ) if len(seq) < max_seq_length else seq
+            for seq in sequences
+        ]
+        
+        batched[key] = torch.stack(padded_sequences)
+    
+    # Process lengths
     for key in ("prompt_length", "response_length"):
-        batched[key] = torch.tensor(
-            [sample[key] for sample in samples], dtype=torch.int64
+        lengths = torch.tensor(
+            [min(sample[key], max_seq_length) for sample in samples],
+            dtype=torch.int64
         ).unsqueeze(1)
-
+        batched[key] = lengths
+    
     return batched
