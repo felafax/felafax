@@ -46,7 +46,6 @@ class Checkpointer:
     ):
         """Save model checkpoint using the provided Checkpointer."""
         model_pytree, _ = eqx.partition(model, eqx.is_inexact_array)
-        breakpoint()
         self.checkpoint_mgr.save(
             step=step,
             args=ocp.args.Composite(
@@ -55,38 +54,38 @@ class Checkpointer:
             ),
         )
 
-    def restore_checkpoint(
-        self, model_abstract_pytree: Optional[PyTree] = None
-    ) -> Tuple[eqx.Module, LlamaConfig]:
+    def restore_checkpoint(self) -> Tuple[eqx.Module, LlamaConfig]:
         """Restore model checkpoint using the provided Checkpointer."""
-        restored = self.checkpoint_mgr.restore(
+        # Step 1: Restore the model_config first
+        restored_config = self.checkpoint_mgr.restore(
             step=self.checkpoint_mgr.latest_step(),
+            items=["model_config"],
             args=ocp.args.Composite(
-                model_pytree=ocp.args.StandardRestore(model_abstract_pytree),
                 model_config=ocp.args.JsonRestore(),
             ),
         )
-        # Construct model using restored model config.
-        model_config = LlamaConfig(**restored.model_config)
+        model_config = LlamaConfig(**restored_config["model_config"])
+
+        # Step 2: Construct the model and create the abstract pytree
         model = LlamaForCausalLM(model_config)
         model_params, model_static = eqx.partition(model, eqx.is_inexact_array)
-
-        breakpoint()
         
-        def merge_params(x, y):
-            if y is None:
-                print("Mismatch found: Parameter exists in Equinox model but not in loaded checkpoint.")
-                return x
-            else:
-                return y
+        model_abstract_pytree = self.get_abstract_pytree(model_params)
+        breakpoint()
 
-        model_params = jax.tree_util.tree_map(
-            merge_params,
-            model_params,
-            restored.model_pytree,
+        # Step 3: Restore the model parameters using the abstract pytree
+        restored_params = self.checkpoint_mgr.restore(
+            step=self.checkpoint_mgr.latest_step(),
+            items=["model_pytree"],
+            args=ocp.args.Composite(
+                model_pytree=ocp.args.StandardRestore(model_abstract_pytree),
+            ),
         )
 
-        # Combine restored model parameters with model static.
+        # Set the restored parameters
+        model_params = restored_params["model_pytree"]
+
+        # Combine restored model parameters with model static
         model = eqx.combine(model_params, model_static)
         return model, model_config
 
