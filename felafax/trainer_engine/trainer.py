@@ -19,7 +19,7 @@ from felafax.trainer_engine.checkpoint import (
     load_checkpoint_or_model,
     CheckpointerConfig,
 )
-from felafax.trainer_engine.data.alpaca import AlpacaDataset
+from felafax.trainer_engine.data.alpaca import AlpacaDataset, AlpacaDatasetConfig
 from transformers import AutoTokenizer
 
 
@@ -265,12 +265,13 @@ if __name__ == "__main__":
     # Set up tokenizer
     tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_name)
 
-    # Initialize the Alpaca dataset
-    data_module = AlpacaDataset(
+    # Initialize the Alpaca dataset with config
+    dataset_config = AlpacaDatasetConfig(
         batch_size=trainer_config.batch_size,
         max_seq_length=trainer_config.seq_length,
         num_workers=trainer_config.num_dataloader_workers,
     )
+    data_module = AlpacaDataset(config=dataset_config)
     data_module.setup(tokenizer=tokenizer)
     train_dataloader = data_module.train_dataloader()
     val_dataloader = data_module.val_dataloader()

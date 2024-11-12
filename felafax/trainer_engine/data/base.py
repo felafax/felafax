@@ -11,30 +11,39 @@ from felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 
 @dataclass
-class BaseDataset(ABC):
-    """Base class for all data modules in Felafax."""
-
+class DatasetConfig:
+    """Base configuration for all datasets."""
+    # Data loading params
+    data_source: str = ""
+    max_examples: Optional[int] = None
+    split: str = "train"
+    train_test_split: float = 0.15
+    
+    # Processing params
     batch_size: int = 32
     max_seq_length: int = 2048
     num_workers: int = 4
     ignore_index: int = -100
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
     mask_prompt: bool = False
+    
+    # Other params
+    seed: int = 42
 
+
+class BaseDataset(ABC):
+    """Base class for all data modules in Felafax."""
+    
+    def __init__(self, config: DatasetConfig):
+        self.config = config
+        if isinstance(self.config.prompt_style, str):
+            self.config.prompt_style = BasePromptTemplate.from_name(self.config.prompt_style)
+        self.tokenizer = None
+        self.train_dataset = None
+        self.val_dataset = None
+        
     @abstractmethod
-    def setup(
-        self,
-        tokenizer: Optional[Any] = None,
-    ) -> None:
-        """Prepares the dataset for training by initializing tokenizer and loading data.
-
-        This method must be called before accessing any dataloaders. It handles:
-        - Setting up the tokenizer for text encoding
-        - Loading the dataset (from HuggingFace Hub or local files) Creating train/validation datasets with proper tokenization
-
-        Args:
-            tokenizer: The tokenizer to use for encoding text. If None, uses previously set tokenizer.
-        """
+    def setup(self, tokenizer: Optional[Any] = None) -> None:
         pass
 
 
