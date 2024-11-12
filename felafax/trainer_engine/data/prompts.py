@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 import yaml
 
 
-class PromptStyle:
+class BasePromptTemplate:
     """Base interface for prompt styles."""
 
     @abstractmethod
@@ -19,11 +19,11 @@ class PromptStyle:
         return ([tokenizer.eos_token_id],)
 
     @classmethod
-    def from_name(cls, name: str) -> "PromptStyle":
-        return prompt_styles[name]()
+    def from_name(cls, name: str) -> "BasePromptTemplate":
+        return prompt_templates[name]()
 
 
-class Default(PromptStyle):
+class DefaultPromptTemplate(BasePromptTemplate):
     def apply(self, prompt: str, **kwargs: str) -> str:
         return prompt
 
@@ -31,7 +31,7 @@ class Default(PromptStyle):
         return ([tokenizer.eos_token_id],)
 
 
-class Alpaca(PromptStyle):
+class AlpacaPromptTemplate(BasePromptTemplate):
     def apply(self, prompt: str, **kwargs: str) -> str:
         if kwargs.get("input"):
             return (
@@ -47,36 +47,7 @@ class Alpaca(PromptStyle):
 
 
 # Maps prompt style names to PromptStyle classes
-prompt_styles: Dict[str, Type[PromptStyle]] = {
+prompt_templates: Dict[str, Type[BasePromptTemplate]] = {
     # Dataset-specific prompt styles
-    "alpaca": Alpaca,
+    "alpaca": AlpacaPromptTemplate,
 }
-
-
-def save_prompt_style(
-    style: Union[str, PromptStyle], checkpoint_dir: Path
-) -> None:
-    style = PromptStyle.from_name(style) if isinstance(style, str) else style
-    cls = type(style)
-    # Allow saving the full module path for user-defined prompt classes
-    config = {"class_path": f"{cls.__module__}.{cls.__name__}"}
-    with open(
-        checkpoint_dir / "prompt_style.yaml", "w", encoding="utf-8"
-    ) as file:
-        yaml.dump(config, file)
-
-
-def load_prompt_style(checkpoint_dir: Path) -> PromptStyle:
-    with open(
-        checkpoint_dir / "prompt_style.yaml", "r", encoding="utf-8"
-    ) as file:
-        config = yaml.safe_load(file)
-    # Support loading the full module path for user-defined prompt classes
-    full_module_path, cls_name = config["class_path"].rsplit(".", 1)
-    module = importlib.import_module(full_module_path)
-    cls = getattr(module, cls_name)
-    return cls()
-
-
-def has_prompt_style(checkpoint_dir: Path) -> bool:
-    return (checkpoint_dir / "prompt_style.yaml").is_file()

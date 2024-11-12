@@ -5,7 +5,7 @@ pytest --capture=no tests/test_prompts.py
 
 import pytest
 from transformers import AutoTokenizer
-from felafax.trainer_engine.data.prompts import PromptStyle, Alpaca, Default, prompt_styles
+from felafax.trainer_engine.data.prompts import BasePromptTemplate, AlpacaPromptTemplate, DefaultPromptTemplate, prompt_templates
 
 
 @pytest.fixture(scope="module")
@@ -20,7 +20,7 @@ def tokenizer():
 
 def test_default_prompt_style(tokenizer):
     """Tests that the Default PromptStyle works as expected with a real tokenizer."""
-    prompt_style = Default()
+    prompt_style = DefaultPromptTemplate()
     prompt = "This is a test prompt."
     result = prompt_style.apply(prompt)
     assert (
@@ -36,17 +36,17 @@ def test_default_prompt_style(tokenizer):
 
 def test_prompt_style_from_name():
     """Tests that prompt styles can be loaded from their registered names."""
-    for style_name in prompt_styles:
-        style_instance = PromptStyle.from_name(style_name)
+    for style_name in prompt_templates:
+        style_instance = BasePromptTemplate.from_name(style_name)
         assert isinstance(
-            style_instance, prompt_styles[style_name]
+            style_instance, prompt_templates[style_name]
         ), f"{style_name} did not load correctly."
 
 
 def test_alpaca_prompt_format():
     """Tests that Alpaca prompt style formats messages correctly."""
     prompt = "Is a coconut a nut or a fruit?"
-    style = Alpaca()
+    style = AlpacaPromptTemplate()
 
     # Test without input
     output = style.apply(prompt)
@@ -69,7 +69,7 @@ def test_alpaca_prompt_format():
     assert "### Response:" in output
 
 
-class CustomPromptStyle(PromptStyle):
+class CustomPromptStyle(BasePromptTemplate):
     """Simple custom prompt style for testing."""
 
     def apply(self, prompt, **kwargs):

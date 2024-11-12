@@ -22,9 +22,6 @@ from felafax.trainer_engine.data.alpaca import AlpacaDataset
 from transformers import AutoTokenizer
 
 
-# I've looked at maxtext code -- not having class makes things super complex. You literally have to written some 10 things frm some funcitons instead of updating a class variable.
-
-
 def get_mesh(num_tpus: int):
     mesh_shape = None
     if num_tpus == 4:

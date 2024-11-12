@@ -11,7 +11,7 @@ from felafax.trainer_engine.data.base import (
     SFTDataset,
     get_sft_collate_fn,
 )
-from felafax.trainer_engine.data.prompts import PromptStyle
+from felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 
 @dataclass
@@ -27,7 +27,7 @@ class AlpacaDataset(BaseDataset):
 
     def __post_init__(self):
         if isinstance(self.prompt_style, str):
-            self.prompt_style = PromptStyle.from_name(self.prompt_style)
+            self.prompt_style = BasePromptTemplate.from_name(self.prompt_style)
         self.tokenizer = None
         self.train_dataset = None
         self.val_dataset = None
@@ -60,7 +60,7 @@ class AlpacaDataset(BaseDataset):
         self.train_dataset = SFTDataset(
             data=train_data,
             tokenizer=self.tokenizer,
-            prompt_style=self.prompt_style,
+            prompt_template=self.prompt_style,
             max_seq_length=self.max_seq_length,
             mask_prompt=self.mask_prompt,
             ignore_index=self.ignore_index,
@@ -69,7 +69,7 @@ class AlpacaDataset(BaseDataset):
         self.val_dataset = SFTDataset(
             data=val_data,
             tokenizer=self.tokenizer,
-            prompt_style=self.prompt_style,
+            prompt_template=self.prompt_style,
             max_seq_length=self.max_seq_length,
             mask_prompt=self.mask_prompt,
             ignore_index=self.ignore_index,

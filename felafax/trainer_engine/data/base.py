@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import torch
 from torch.utils.data import Dataset
 from torch import Tensor
-from felafax.trainer_engine.data.prompts import PromptStyle
+from felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 
 @dataclass
@@ -18,7 +18,7 @@ class BaseDataset(ABC):
     max_seq_length: int = -1
     num_workers: int = 4
     ignore_index: int = -100
-    prompt_style: Union[str, PromptStyle] = "alpaca"
+    prompt_style: Union[str, BasePromptTemplate] = "alpaca"
     mask_prompt: bool = False
 
     @abstractmethod
@@ -62,7 +62,7 @@ class SFTDataset(Dataset):
         self,
         data: List[Dict[str, str]],
         tokenizer: Any,
-        prompt_style: Union[str, PromptStyle],
+        prompt_template: Union[str, BasePromptTemplate],
         max_seq_length: int = -1,
         mask_prompt: bool = True,
         ignore_index: int = -100,
@@ -70,10 +70,10 @@ class SFTDataset(Dataset):
     ) -> None:
         self.data = data
         self.tokenizer = tokenizer
-        if isinstance(prompt_style, PromptStyle):
-            self.prompt_style = prompt_style
+        if isinstance(prompt_template, BasePromptTemplate):
+            self.prompt_template = prompt_template
         else:
-            self.prompt_style = PromptStyle.from_name(prompt_style)
+            self.prompt_template = BasePromptTemplate.from_name(prompt_template)
         self.max_seq_length = max_seq_length
         self.mask_prompt = mask_prompt
         self.ignore_index = ignore_index
@@ -89,7 +89,7 @@ class SFTDataset(Dataset):
         if self.transform is not None:
             example = self.transform(example)
 
-        prompt = self.prompt_style.apply(
+        prompt = self.prompt_template.apply(
             prompt=example["instruction"], **example
         )
 

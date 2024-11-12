@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from typing import Tuple
 
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
-from felafax.trainer_engine.data.prompts import PromptStyle
+from felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 
 def setup_alpaca_dataset(
@@ -69,7 +69,7 @@ def test_prompt_style():
     _, data_module = setup_alpaca_dataset(batch_size=2, max_seq_length=10)
     train_dataloader = data_module.train_dataloader()
     assert isinstance(
-        train_dataloader.dataset.prompt_style, PromptStyle
+        train_dataloader.dataset.prompt_style, BasePromptTemplate
     ), "Prompt style is not set correctly."
 
 
