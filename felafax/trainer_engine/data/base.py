@@ -15,7 +15,7 @@ class BaseDataset(ABC):
     """Base class for all data modules in Felafax."""
 
     batch_size: int = 32
-    max_seq_length: int = -1
+    max_seq_length: int = 2048
     num_workers: int = 4
     ignore_index: int = -100
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
@@ -111,7 +111,6 @@ class SFTDataset(Dataset):
 
         # Concatenate the encoded prompt and response
         encoded_prompt_and_response = encoded_prompt + encoded_response
-
         # Truncate the combined sequence to the max_seq_length if necessary
         if self.max_seq_length > 0:
             encoded_prompt_and_response = encoded_prompt_and_response[
@@ -128,13 +127,11 @@ class SFTDataset(Dataset):
         if self.mask_prompt:
             labels[: len(encoded_prompt)] = self.ignore_index
 
-        # Calculate the total token count including the prompt
-        total_token_count = len(encoded_prompt_and_response)
-
         return {
             "input_ids": encoded_prompt_and_response,
             "labels": labels,
-            "token_count": total_token_count,
+            "prompt_length": len(encoded_prompt),
+            "response_length": len(encoded_response)
         }
 
 
@@ -157,6 +154,8 @@ def _sft_collate_fn(
     ignore_index: int = -100,
 ) -> Dict[str, Tensor]:
     batched = {}
+    
+    # Handle input_ids and labels with padding
     for key in ("input_ids", "labels"):
         pad_value = pad_id if key == "input_ids" else ignore_index
 
@@ -171,9 +170,10 @@ def _sft_collate_fn(
         if max_seq_length > 0:
             batched[key] = batched[key][:, :max_seq_length]
 
-    # Collect token counts
-    batched["token_count"] = torch.tensor(
-        [sample["token_count"] for sample in samples], dtype=torch.int64
-    ).unsqueeze(1)
+    # Add length information
+    for key in ("prompt_length", "response_length"):
+        batched[key] = torch.tensor(
+            [sample[key] for sample in samples], dtype=torch.int64
+        ).unsqueeze(1)
 
     return batched
