@@ -43,6 +43,25 @@ def get_mesh(num_tpus: int):
     return mesh
 
 
+def _preprocess_batch(batch):
+    # Convert PyTorch tensors to JAX arrays
+    batch = {
+        k: v if isinstance(v, jax.Array) else jax.numpy.array(v.numpy())
+        for k, v in batch.items()
+    }
+    batch["input_ids"] = batch["input_ids"].astype(jnp.int32)
+    batch["labels"] = batch["labels"].astype(jnp.int32)
+
+    # Add position IDs to batch
+    seq_length = batch["input_ids"].shape[1]
+    batch["position_ids"] = jnp.repeat(
+        jnp.arange(seq_length)[None, :],
+        batch["input_ids"].shape[0],
+        axis=0,
+    )
+    return batch
+
+
 def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
     if mask is None:
         mask = jnp.ones(tokens.shape[:2])
@@ -81,7 +100,7 @@ class TrainerConfig:
 
     # Training configuration
     num_epochs: int = 1
-    num_steps: int = 1
+    num_steps: int = 5
     batch_size: int = 8
     seq_length: int = 512
 
@@ -90,7 +109,7 @@ class TrainerConfig:
     num_dataloader_workers: int = 4
 
 
-# CORE TRAINER CLASS -- you can add less core things in private functions.
+# Core trainer class -- add non-essential things in private functions.
 class Trainer:
     def __init__(
         self,
@@ -108,9 +127,6 @@ class Trainer:
         self.mesh = mesh if mesh else get_mesh(trainer_config.num_tpus)
         self.checkpointer = checkpointer
 
-        # Construct abstract pytree
-        # Then, shard it, so it'll be abstract pytree with sharding annotations.
-        # When loading the model, pass the sharding information so it is sharded while loading.
         self.model, self.model_config = load_model(
             model_name=trainer_config.model_name,
         )
@@ -125,8 +141,7 @@ class Trainer:
             eqx.filter(self.model, eqx.is_array)
         )
 
-    # Don't need separate forward and backward pass. In eval step, I anyways have to call inference on equinox model. So, just combine the two steps. So that you can JIT compute loss at once and this can be later provided within model itself by other models.
-    # TODO: need to look into microbatching (nando has it).
+    # TODO: Add microbatching (nando ref).
     @functools.partial(
         jax.jit, static_argnames=("self", "model_static", "optimizer")
     )
@@ -173,24 +188,6 @@ class Trainer:
         optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
 
-        def _preprocess_batch(batch):
-            # Convert PyTorch tensors to JAX arrays
-            batch = {
-                k: v if isinstance(v, jax.Array) else jax.numpy.array(v.numpy())
-                for k, v in batch.items()
-            }
-            batch["input_ids"] = batch["input_ids"].astype(jnp.int32)
-            batch["labels"] = batch["labels"].astype(jnp.int32)
-
-            # Add position IDs to batch
-            seq_length = batch["input_ids"].shape[1]
-            batch["position_ids"] = jnp.repeat(
-                jnp.arange(seq_length)[None, :],
-                batch["input_ids"].shape[0],
-                axis=0,
-            )
-            return batch
-
         prev_step = 0
         prev_loss = 0.0
         prev_accuracy = 0.0
@@ -220,12 +217,7 @@ class Trainer:
             prev_loss = loss
             prev_accuracy = accuracy
 
-            if (
-                self.checkpointer
-                and (step + 1) % self.checkpointer.options.save_interval_steps
-                == 0
-            ):
-                # TODO: save metrics as well.
+            if self.checkpointer:
                 self.checkpointer.save_checkpoint(
                     model=eqx.combine(model_params, model_static),
                     model_config=self.model_config,

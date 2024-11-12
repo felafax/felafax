@@ -32,7 +32,7 @@ class Checkpointer:
             max_to_keep=2,
             save_interval_steps=2,
             create=True,
-            enable_async_checkpointing=False,
+            enable_async_checkpointing=True,
         )
 
         self.checkpoint_mgr = ocp.CheckpointManager(
