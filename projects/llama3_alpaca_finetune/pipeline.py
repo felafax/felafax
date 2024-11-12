@@ -28,7 +28,7 @@ val_dataloader = alpaca_dataset.val_dataloader()
 
 # Instantiate the checkpointer configuration
 checkpointer_config = CheckpointerConfig(
-    checkpoint_dir="../checkpoints/",
+    checkpoint_dir="/home/checkpoints/",
 )
 checkpointer = Checkpointer(config=checkpointer_config)
 
