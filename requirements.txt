@@ -22,6 +22,7 @@ optax
 orbax
 transformers>=4.43
 accelerate>=0.26.0
+quax
 
 # ML utilities and extensions
 einops

@@ -6,6 +6,7 @@ import jax
 # jax.distributed.initialize()
 
 import equinox as eqx
+import quax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
 from jax.sharding import NamedSharding, PartitionSpec as PS
@@ -113,11 +114,13 @@ class Trainer:
         self.model, self.model_config = load_model(
             model_name=trainer_config.model_name,
         )
-
+        self.model = quax.lora.loraify(
+            self.model, rank=2, key=jax.random.PRNGKey(0)
+        )
         self.configure_optimizers()
 
     def configure_optimizers(self):
-        self.optimizer = optax.sgd(learning_rate=1e-3)
+        self.optimizer = optax.adam(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(
             eqx.filter(self.model, eqx.is_array)
         )

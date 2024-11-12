@@ -16,7 +16,7 @@ class LlamaEmbedding(eqx.Module):
     def __call__(self, x):
         return jnp.take(self.weight, x, axis=0)
 
-
+# TODO: Need to change this to equnix.linear or define my own quax.
 class LlamaLinear(eqx.Module):
     weight: jnp.ndarray
     bias: jnp.ndarray | None
