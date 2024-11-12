@@ -15,7 +15,6 @@ import optax
 
 from felafax.trainer_engine.checkpoint import (
     Checkpointer,
-    save_checkpoint,
     load_model,
     load_checkpoint_or_model,
 )
