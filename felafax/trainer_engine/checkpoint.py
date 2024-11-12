@@ -41,10 +41,14 @@ class Checkpointer:
             item_names=["model_pytree", "model_config"],
         )
 
+    @classmethod
+    def get_abstract_pytree(cls, tree):
+        return jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, tree)
+
     def save_checkpoint(
         self, model: eqx.Module, model_config: LlamaConfig, step: int = 0
     ):
-        """Save model checkpoint using the provided Checkpointer."""
+        """Saves model checkpoint."""
         model_pytree, _ = eqx.partition(model, eqx.is_inexact_array)
         self.checkpoint_mgr.save(
             step=step,
@@ -55,7 +59,7 @@ class Checkpointer:
         )
 
     def restore_checkpoint(self) -> Tuple[eqx.Module, LlamaConfig]:
-        """Restore model checkpoint using the provided Checkpointer."""
+        """Restores model checkpoint."""
         # Step 1: Restore the model_config first
         restored_config = self.checkpoint_mgr.restore(
             step=self.checkpoint_mgr.latest_step(),
@@ -69,7 +73,6 @@ class Checkpointer:
         # Step 2: Construct the model and create the abstract pytree
         model = LlamaForCausalLM(model_config)
         model_params, model_static = eqx.partition(model, eqx.is_inexact_array)
-        
         model_abstract_pytree = self.get_abstract_pytree(model_params)
 
         # Step 3: Restore the model parameters using the abstract pytree
@@ -81,10 +84,8 @@ class Checkpointer:
             ),
         )
 
-        # Set the restored parameters
-        model_params = restored_params["model_pytree"]
-
         # Combine restored model parameters with model static
+        model_params = restored_params["model_pytree"]
         model = eqx.combine(model_params, model_static)
         return model, model_config
 
@@ -96,37 +97,14 @@ class Checkpointer:
     def directory(self):
         return self.checkpoint_mgr.directory
 
-    @classmethod
-    def get_abstract_pytree(cls, tree):
-        return jax.tree_util.tree_map(ocp.utils.to_shape_dtype_struct, tree)
-
-
-def save_checkpoint(
-    model: LlamaForCausalLM,
-    model_config: LlamaConfig,
-    checkpointer: Checkpointer,
-    step: int,
-):
-    """Save model checkpoint using the provided Checkpointer.
-
-    Args:
-        model: The model to save
-        model_config: The model configuration
-        checkpointer: An instance of Checkpointer to manage saving
-        step: Step number for the checkpoint
-        metrics: Optional metrics dictionary for checkpointing
-    """
-    model_params, _ = eqx.partition(model, eqx.is_inexact_array)
-    checkpointer.save_checkpoint(model, model_config, step)
-
 
 def load_model(
     model_name: str,
 ) -> Tuple[LlamaForCausalLM, LlamaConfig]:
-    """Loads checkpoint, either from local storage using Orbax or downloads from HF.
+    """Loads model from Hugging Face.
 
     Args:
-        model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
+        model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b').
 
     Returns:
         tuple: (model, model_config)
@@ -135,11 +113,11 @@ def load_model(
     return model, model_config
 
 
-def load_model_or_checkpoint(
+def load_checkpoint_or_model(
     model_name: str,
     checkpointer: Checkpointer,
 ) -> Tuple[LlamaForCausalLM, LlamaConfig]:
-    """Loads checkpoint, either from local storage using Orbax or downloads from HF.
+    """Loads checkpoint from local storage using Orbax or downloads from HF.
 
     Args:
         model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
@@ -172,14 +150,17 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
         attention_bias=hf_model.config.attention_bias,
     )
 
+
 def _make_torch_to_jax():
-    """Creates a closure that calculates mesh once and reuses it for tensor conversions."""
+    """Creates a closure converts PyTorch to JAX tensors with sharding annotations."""
+    # Import here to avoid circular dependency
     from felafax.trainer_engine.trainer import get_mesh
     mesh = get_mesh(jax.device_count())
-    
+
     def _torch_to_jax(tensor):
         jax_array = jnp.array(tensor.detach().numpy())
-        
+
+        # TODO: Simple sharding rules, replace with better.
         if len(jax_array.shape) == 0 or np.prod(jax_array.shape) == 1:
             sharding = NamedSharding(mesh, PS())
         elif len(jax_array.shape) == 1:
@@ -190,8 +171,9 @@ def _make_torch_to_jax():
             sharding = NamedSharding(mesh, PS(()))
 
         return jax.device_put(jax_array, sharding)
-    
+
     return _torch_to_jax
+
 
 def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
     """Downloads and converts HuggingFace model to Equinox model.
@@ -213,7 +195,7 @@ def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
 
     torch_to_jax = _make_torch_to_jax()
 
-    # Copy weights
+    # Copy weights from HF model to Equinox model
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,

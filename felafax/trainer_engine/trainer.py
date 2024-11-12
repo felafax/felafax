@@ -17,7 +17,7 @@ from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     save_checkpoint,
     load_model,
-    load_model_or_checkpoint,
+    load_checkpoint_or_model,
 )
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
 from transformers import AutoTokenizer
@@ -226,28 +226,24 @@ class Trainer:
                 == 0
             ):
                 # TODO: save metrics as well.
-                # metrics = {"loss": float(loss)}
-                save_checkpoint(
+                self.checkpointer.save_checkpoint(
                     model=eqx.combine(model_params, model_static),
                     model_config=self.model_config,
-                    checkpointer=self.checkpointer,
                     step=step + 1,
                 )
 
         # Save final checkpoint
         if self.checkpointer:
-            # metrics = {"loss": float(loss)}
-            save_checkpoint(
+            self.checkpointer.save_checkpoint(
                 model=eqx.combine(model_params, model_static),
                 model_config=self.model_config,
-                checkpointer=self.checkpointer,
                 step=step + 1,
             )
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.checkpoint_dir)
 
             # Load checkpoint to test
-            model, model_config = load_model_or_checkpoint(
+            model, model_config = load_checkpoint_or_model(
                 model_name=self.trainer_config.model_name,
                 checkpointer=self.checkpointer,
             )
