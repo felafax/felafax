@@ -27,22 +27,6 @@ class TrainingConfig:
 
 
 @dataclass
-class DistributedConfig:
-    backend: Literal["jax", "pytorch_xla"]
-    dtype: str
-    param_dtype: str
-
-
-@dataclass
-class OptimizerConfig:
-    name: str
-    weight_decay: float
-    max_grad_norm: float
-    warmup_steps: int
-    lr_scheduler: str
-
-
-@dataclass
 class LoggingConfig:
     wandb_project: str
     log_every_n_steps: int
@@ -54,8 +38,6 @@ class LoggingConfig:
 class WorkflowConfig:
     model: ModelConfig
     training: TrainingConfig
-    distributed: DistributedConfig
-    optimizer: OptimizerConfig
     logging: LoggingConfig
     name: str
 
@@ -65,8 +47,6 @@ class WorkflowConfig:
             name=config_dict["name"],
             model=ModelConfig(**config_dict["model"]),
             training=TrainingConfig(**config_dict["training"]),
-            distributed=DistributedConfig(**config_dict["distributed"]),
-            optimizer=OptimizerConfig(**config_dict["optimizer"]),
             logging=LoggingConfig(**config_dict["logging"]),
         )
 
@@ -80,8 +60,6 @@ class WorkflowConfig:
         return {
             "model": asdict(self.model),
             "training": asdict(self.training),
-            "distributed": asdict(self.distributed),
-            "optimizer": asdict(self.optimizer),
             "logging": asdict(self.logging),
         }
 
