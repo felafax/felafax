@@ -21,18 +21,30 @@ from jaxtyping import PyTree
 from jax.sharding import NamedSharding, PartitionSpec as PS
 from jax.experimental import mesh_utils
 
+from dataclasses import dataclass
+
+
+@dataclass
+class CheckpointerConfig:
+    """Configuration for checkpointing"""
+    checkpoint_dir: str
+    max_to_keep: int = 2
+    save_interval_steps: int = 10
+    create: bool = True  # Create the checkpoint directory if it doesn't exist
+    enable_async_checkpointing: bool = True
+
 
 class Checkpointer:
-    def __init__(self, checkpoint_dir: str):
-        if not checkpoint_dir:
+    def __init__(self, config: CheckpointerConfig):
+        if not config.checkpoint_dir:
             raise ValueError("Checkpoint directory cannot be empty")
 
-        self.checkpoint_dir = checkpoint_dir
+        self.checkpoint_dir = config.checkpoint_dir
         self.options = ocp.CheckpointManagerOptions(
-            max_to_keep=2,
-            save_interval_steps=2,
-            create=True,
-            enable_async_checkpointing=True,
+            max_to_keep=config.max_to_keep,
+            save_interval_steps=config.save_interval_steps,
+            create=config.create,
+            enable_async_checkpointing=config.enable_async_checkpointing,
         )
 
         self.checkpoint_mgr = ocp.CheckpointManager(

@@ -17,6 +17,7 @@ from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_model,
     load_checkpoint_or_model,
+    CheckpointerConfig,
 )
 from felafax.trainer_engine.data.alpaca import AlpacaDataset
 from transformers import AutoTokenizer
@@ -90,7 +91,13 @@ class TrainerConfig:
 
     # Model configuration
     model_name: str = "meta-llama/Llama-3.2-1B"
-    checkpoint_dir: str = "/mnt/persistent-disk/models/llama3.2-1b/"
+
+    # Checkpointer configuration
+    checkpointer_config: CheckpointerConfig = CheckpointerConfig(
+        checkpoint_dir="/mnt/persistent-disk/models/llama3.2-1b/"
+    )
+
+    # Remove old checkpoint_dir since it's now in checkpointer_config
     param_dtype: str = "float32"
     output_dtype: str = "float32"
 
@@ -126,13 +133,10 @@ class Trainer:
         self.model, self.model_config = load_model(
             model_name=trainer_config.model_name,
         )
-        self.model = quax.lora.loraify(
-            self.model, rank=2, key=jax.random.PRNGKey(0)
-        )
         self.configure_optimizers()
 
     def configure_optimizers(self):
-        self.optimizer = optax.adam(learning_rate=1e-3)
+        self.optimizer = optax.sgd(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(
             eqx.filter(self.model, eqx.is_array)
         )
@@ -153,7 +157,19 @@ class Trainer:
         position_ids = batch.get("position_ids", None)
 
         logits = model(input_ids, attention_mask, position_ids)
-        loss, accuracy = _cross_entropy_loss_and_accuracy(logits, input_ids)
+
+        # Shift for next-token prediction
+        shifted_logits = logits[..., :-1, :]  # Remove last logit
+        shifted_tokens = input_ids[..., 1:]  # Remove first token
+
+        # If using attention mask, shift it too
+        shifted_mask = None
+        if attention_mask is not None:
+            shifted_mask = attention_mask[..., 1:]
+
+        loss, accuracy = _cross_entropy_loss_and_accuracy(
+            shifted_logits, shifted_tokens, shifted_mask
+        )
         return loss, (accuracy, model, optimizer_state)
 
     def training_step(
@@ -192,6 +208,11 @@ class Trainer:
             if step >= max_steps:
                 break
 
+            if step:
+                # Printing metrics of previous step, so that XLA pipelining is not disrupted.
+                print(
+                    f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
+                )
             batch = _preprocess_batch(batch)
             batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
             optimizer_state = jax.device_put(
@@ -206,9 +227,6 @@ class Trainer:
                 batch=batch,
             )
 
-            print(
-                f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
-            )
             prev_step = step + 1
             prev_loss = loss
             prev_accuracy = accuracy
@@ -257,8 +275,8 @@ if __name__ == "__main__":
     train_dataloader = data_module.train_dataloader()
     val_dataloader = data_module.val_dataloader()
 
-    # Initialize Checkpointer
-    checkpointer = Checkpointer(trainer_config.checkpoint_dir)
+    # Initialize Checkpointer with config
+    checkpointer = Checkpointer(trainer_config.checkpointer_config)
 
     # Initialize Trainer with Checkpointer
     trainer = Trainer(
