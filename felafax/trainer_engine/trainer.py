@@ -244,11 +244,11 @@ class Trainer:
             print("Final checkpoint saved at:", self.checkpointer.checkpoint_dir)
 
             # Load checkpoint to test
-            # model, model_config = load_model_or_checkpoint(
-            #     model_name=self.trainer_config.model_name,
-            #     checkpointer=self.checkpointer,
-            # )
-            # print("Model was restored!")
+            model, model_config = load_model_or_checkpoint(
+                model_name=self.trainer_config.model_name,
+                checkpointer=self.checkpointer,
+            )
+            print("Model was restored!")
 
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")

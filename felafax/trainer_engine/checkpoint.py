@@ -45,7 +45,8 @@ class Checkpointer:
         self, model: eqx.Module, model_config: LlamaConfig, step: int = 0
     ):
         """Save model checkpoint using the provided Checkpointer."""
-        model_pytree, _ = eqx.partition(model, eqx.is_array)
+        model_pytree, _ = eqx.partition(model, eqx.is_inexact_array)
+        breakpoint()
         self.checkpoint_mgr.save(
             step=step,
             args=ocp.args.Composite(
@@ -68,9 +69,19 @@ class Checkpointer:
         # Construct model using restored model config.
         model_config = LlamaConfig(**restored.model_config)
         model = LlamaForCausalLM(model_config)
-        model_params, model_static = eqx.partition(model, eqx.is_array)
+        model_params, model_static = eqx.partition(model, eqx.is_inexact_array)
+
+        breakpoint()
+        
+        def merge_params(x, y):
+            if y is None:
+                print("Mismatch found: Parameter exists in Equinox model but not in loaded checkpoint.")
+                return x
+            else:
+                return y
+
         model_params = jax.tree_util.tree_map(
-            lambda x, y: y,
+            merge_params,
             model_params,
             restored.model_pytree,
         )
@@ -107,7 +118,7 @@ def save_checkpoint(
         step: Step number for the checkpoint
         metrics: Optional metrics dictionary for checkpointing
     """
-    model_params, _ = eqx.partition(model, eqx.is_array)
+    model_params, _ = eqx.partition(model, eqx.is_inexact_array)
     checkpointer.save_checkpoint(model, model_config, step)
 
 
