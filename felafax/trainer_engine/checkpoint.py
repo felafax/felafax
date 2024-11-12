@@ -71,7 +71,6 @@ class Checkpointer:
         model_params, model_static = eqx.partition(model, eqx.is_inexact_array)
         
         model_abstract_pytree = self.get_abstract_pytree(model_params)
-        breakpoint()
 
         # Step 3: Restore the model parameters using the abstract pytree
         restored_params = self.checkpoint_mgr.restore(
