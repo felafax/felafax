@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from transformers import AutoTokenizer
 
-from .alpaca import AlpacaDataset, AlpacaDatasetConfig
+from .dataset import AlpacaDataset, AlpacaDatasetConfig
 
 
 @pytest.fixture
