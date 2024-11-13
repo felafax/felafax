@@ -16,8 +16,6 @@ import optax
 from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_model,
-    load_checkpoint_or_model,
-    CheckpointerConfig,
 )
 
 
@@ -89,20 +87,17 @@ class TrainerConfig:
 
     # Model configuration
     model_name: str = "meta-llama/Llama-3.2-1B"
-
-    # Environment configuration
-    base_dir: str = "/mnt/persistent-disk"
-
-    # Remove old checkpoint_dir since it's now in checkpointer_config
     param_dtype: str = "float32"
     output_dtype: str = "float32"
 
     # Training configuration
     num_epochs: int = 1
     num_steps: int = 5
-
-    # Hardware/parallelism configuration
     num_tpus: int = jax.device_count()
+    
+    # Environment configuration
+    base_dir: str = "/mnt/persistent-disk"
+
 
 
 # Core trainer class -- add non-essential things in private functions.
@@ -199,6 +194,7 @@ class Trainer:
                 print(
                     f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
                 )
+
             batch = _preprocess_batch(batch)
             batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
             optimizer_state = jax.device_put(
@@ -234,42 +230,6 @@ class Trainer:
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.checkpoint_dir)
 
-            # Load checkpoint to test
-            model, model_config = load_checkpoint_or_model(
-                model_name=self.trainer_config.model_name,
-                checkpointer=self.checkpointer,
-            )
-            print("Model was restored!")
-
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
 
-
-# if __name__ == "__main__":
-#     trainer_config = pyrallis.parse(config_class=TrainerConfig)
-
-#     # Set up tokenizer
-#     tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_name)
-
-#     # Initialize the Alpaca dataset with config
-#     dataset_config = AlpacaDatasetConfig(
-#         batch_size=trainer_config.batch_size,
-#         max_seq_length=trainer_config.seq_length,
-#         num_workers=trainer_config.num_dataloader_workers,
-#     )
-#     data_module = AlpacaDataset(config=dataset_config)
-#     data_module.setup(tokenizer=tokenizer)
-#     train_dataloader = data_module.train_dataloader()
-#     val_dataloader = data_module.val_dataloader()
-
-#     # Initialize Checkpointer with config
-#     checkpointer = Checkpointer(trainer_config.checkpointer_config)
-
-#     # Initialize Trainer with Checkpointer
-#     trainer = Trainer(
-#         trainer_config=trainer_config,
-#         train_dataloader=train_dataloader,
-#         val_dataloader=val_dataloader,
-#         checkpointer=checkpointer,
-#     )
-#     trainer.train()
