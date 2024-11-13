@@ -14,11 +14,14 @@ from felafax.trainer_engine.data.base import (
 )
 from felafax.trainer_engine.data.prompts import BasePromptTemplate
 
+
 @dataclass
 class AlpacaDatasetConfig(DatasetConfig):
     """Configuration for Alpaca dataset."""
+
     data_source: str = "yahma/alpaca-cleaned"
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
+
 
 class AlpacaDataset(BaseDataset):
     """Alpaca dataset for supervised fine-tuning."""
@@ -32,16 +35,22 @@ class AlpacaDataset(BaseDataset):
         # Load dataset from Hugging Face Hub or local file
         if Path(self.config.data_source).is_file():
             dataset = load_dataset(
-                "json", data_files=self.config.data_source, split=self.config.split
+                "json",
+                data_files=self.config.data_source,
+                split=self.config.split,
             )
         else:
-            dataset = load_dataset(self.config.data_source, split=self.config.split)
+            dataset = load_dataset(
+                self.config.data_source, split=self.config.split
+            )
 
         # If max_examples is set, limit the number of examples.
-        # Typically used for quick testing, so that you don't wait on loading 
-        #and mapping the entire dataset.
+        # Typically used for quick testing, so that you don't wait on loading
+        # and mapping the entire dataset.
         if self.config.max_examples is not None:
-            dataset = dataset.select(range(min(self.config.max_examples, len(dataset))))
+            dataset = dataset.select(
+                range(min(self.config.max_examples, len(dataset)))
+            )
 
         # Split into train and validation sets
         dataset = dataset.train_test_split(

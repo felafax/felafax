@@ -77,7 +77,7 @@ def test_labels_match_input_ids(dataset):
     np.testing.assert_array_equal(
         input_ids[valid_positions],
         labels[valid_positions],
-        err_msg="input_ids and labels do not match at valid positions"
+        err_msg="input_ids and labels do not match at valid positions",
     )
 
 
@@ -87,7 +87,7 @@ def test_prompt_tokens_are_masked(tokenizer):
         data_source="yahma/alpaca-cleaned",
         max_examples=10,
         mask_prompt=True,
-        seed=42
+        seed=42,
     )
     dataset = AlpacaDataset(config=config)
     dataset.setup(tokenizer)
@@ -101,13 +101,15 @@ def test_prompt_tokens_are_masked(tokenizer):
     response_length = batch["response_length"][0].item()
 
     # Check that prompt tokens are masked (exclude BOS token at position 0)
-    assert (labels[1:prompt_length] == dataset.config.ignore_index).all(), \
-        "Prompt section is not properly masked"
+    assert (
+        labels[1:prompt_length] == dataset.config.ignore_index
+    ).all(), "Prompt section is not properly masked"
 
     # Check that response tokens are not masked
-    response_section = labels[prompt_length:prompt_length + response_length]
-    assert not (response_section == dataset.config.ignore_index).all(), \
-        "Response section should not be masked"
+    response_section = labels[prompt_length : prompt_length + response_length]
+    assert not (
+        response_section == dataset.config.ignore_index
+    ).all(), "Response section should not be masked"
 
 
 def test_train_validation_split(dataset):
@@ -120,8 +122,9 @@ def test_train_validation_split(dataset):
     assert len(val_loader) > 0, "Validation loader is empty"
 
     # Check that train split is larger than validation split
-    assert len(train_loader) > len(val_loader), \
-        "Train split should be larger than validation split"
+    assert len(train_loader) > len(
+        val_loader
+    ), "Train split should be larger than validation split"
 
 
 def test_special_tokens_added(tokenizer):
@@ -143,10 +146,14 @@ def test_special_tokens_added(tokenizer):
     sample_ids = batch["input_ids"][0]
 
     # Check for presence of special tokens
-    assert tokenizer.bos_token_id in sample_ids, "BOS token not found in sequence"
+    assert (
+        tokenizer.bos_token_id in sample_ids
+    ), "BOS token not found in sequence"
 
     # Verify BOS token is at the start
-    assert sample_ids[0] == tokenizer.bos_token_id, "BOS token should be at the start"
+    assert (
+        sample_ids[0] == tokenizer.bos_token_id
+    ), "BOS token should be at the start"
 
 
 def test_sequences_padded_to_max_length(tokenizer):
@@ -167,10 +174,12 @@ def test_sequences_padded_to_max_length(tokenizer):
     batch = next(iter(train_loader))
 
     # Check that all sequences have length equal to max_seq_length
-    assert batch["input_ids"].shape[1] == config.max_seq_length, \
-        "input_ids sequences are not of length max_seq_length"
-    assert batch["labels"].shape[1] == config.max_seq_length, \
-        "labels sequences are not of length max_seq_length"
+    assert (
+        batch["input_ids"].shape[1] == config.max_seq_length
+    ), "input_ids sequences are not of length max_seq_length"
+    assert (
+        batch["labels"].shape[1] == config.max_seq_length
+    ), "labels sequences are not of length max_seq_length"
 
     # Iterate over each sample in the batch
     for i in range(config.batch_size):
@@ -181,7 +190,9 @@ def test_sequences_padded_to_max_length(tokenizer):
         input_seq_length = (input_ids != config.pad_id).sum().item()
 
         # Find positions where labels are not equal to ignore_index
-        label_positions = (labels != config.ignore_index).nonzero(as_tuple=True)[0]
+        label_positions = (labels != config.ignore_index).nonzero(as_tuple=True)[
+            0
+        ]
 
         # Identify first and last positions of valid labels
         if label_positions.numel() > 0:
@@ -192,18 +203,23 @@ def test_sequences_padded_to_max_length(tokenizer):
             first_label_pos = last_label_pos = -1
 
         # Verify non-padding elements are within max_seq_length
-        assert input_seq_length <= config.max_seq_length, \
-            "input_ids sequence length exceeds max_seq_length"
+        assert (
+            input_seq_length <= config.max_seq_length
+        ), "input_ids sequence length exceeds max_seq_length"
         if last_label_pos != -1:
-            assert last_label_pos < config.max_seq_length, \
-                "labels sequence length exceeds max_seq_length"
+            assert (
+                last_label_pos < config.max_seq_length
+            ), "labels sequence length exceeds max_seq_length"
 
         # Verify input_ids are padded correctly after the sequence
-        assert (input_ids[input_seq_length:] == config.pad_id).all(), \
-            "input_ids padding values are incorrect"
+        assert (
+            input_ids[input_seq_length:] == config.pad_id
+        ).all(), "input_ids padding values are incorrect"
 
         # Verify labels are ignore_index before first_label_pos and after last_label_pos
-        assert (labels[:first_label_pos] == config.ignore_index).all(), \
-            "labels initial padding values are incorrect"
-        assert (labels[last_label_pos + 1:] == config.ignore_index).all(), \
-            "labels padding values are incorrect"
+        assert (
+            labels[:first_label_pos] == config.ignore_index
+        ).all(), "labels initial padding values are incorrect"
+        assert (
+            labels[last_label_pos + 1 :] == config.ignore_index
+        ).all(), "labels padding values are incorrect"

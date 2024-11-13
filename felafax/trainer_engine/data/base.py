@@ -13,12 +13,13 @@ from felafax.trainer_engine.data.prompts import BasePromptTemplate
 @dataclass
 class DatasetConfig:
     """Base configuration for all datasets."""
+
     # Data loading params
     data_source: str = ""
     max_examples: Optional[int] = None
     split: str = "train"
     train_test_split: float = 0.15
-    
+
     # Processing params
     batch_size: int = 32
     max_seq_length: int = 2048
@@ -27,46 +28,50 @@ class DatasetConfig:
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
     mask_prompt: bool = False
     pad_id: int = 0
-    
+
     # Other params
     seed: int = 42
 
 
 class BaseDataset(ABC):
     """Base class for all data modules in Felafax."""
-    
+
     def __init__(self, config: DatasetConfig):
         self.config = config
         if isinstance(self.config.prompt_style, str):
-            self.config.prompt_style = BasePromptTemplate.from_name(self.config.prompt_style)
-            
+            self.config.prompt_style = BasePromptTemplate.from_name(
+                self.config.prompt_style
+            )
+
         self.tokenizer = None
         self.train_dataset = None
         self.val_dataset = None
-        
+
     @abstractmethod
     def setup(self, tokenizer: Optional[Any] = None) -> None:
         pass
 
 
 class SFTDataset(Dataset):
-    """An in-memory dataset for supervised fine-tuning with `input_ids` and `labels`.
+    """Creates a dataset for supervised fine-tuning.
 
     Args:
-        data: A list of samples (dicts). The target/label must be stored under the key 'output' and the instruction
-            or other data can be stored under any key as long as it is compatible with the given prompt template.
-        tokenizer: The tokenizer to use. Should match the one that was used to pretrain the model.
-        prompt_style: The style to apply to prompts. See `felafax.trainer_engine.prompts` for a list of available styles.
-        max_seq_length: Truncate sequences that are longer than this value. By default, no truncation is applied.
-        mask_prompt: Whether to mask the prompt section from the label (with ``ignore_index``).
-        ignore_index: The index to use for elements to be ignored in the label.
-        transform: An optional transform to apply to the sample before it gets tokenized. Use this to rename the
-            keys in the dataset to the expected 'instruction' and 'output' keys.
+        data: A list of samples (dicts). The target/label should be under the key 'output'.
+            Other necessary data should be under keys compatible with the prompt template.
+        tokenizer: The tokenizer to use, matching the one used to pretrain the model.
+        prompt_template: The prompt style to apply. Refer to `felafax.trainer_engine.prompts`
+            for available styles.
+        max_seq_length: Maximum sequence length. Sequences longer than this will be truncated.
+        mask_prompt: If `True`, masks the prompt section in `labels` using `ignore_index`.
+        ignore_index: The index used to mask elements in `labels` that should be ignored.
+        transform: An optional function to transform each sample before tokenization.
+            Use this to adjust keys to the expected 'instruction' and 'output' keys.
 
-    Returns a dict with two keys:
-        input_ids: The encoded prompt + response
-        labels: Same as input_ids, unless ``mask_prompt=True`` in which case the 'prompt' part is replaced with
-            the ``ignore_index``.
+    Returns:
+        dict: A dictionary with:
+            - `input_ids`: Encoded prompt and response.
+            - `labels`: Same as `input_ids`, but with the prompt part masked with
+              `ignore_index` if `mask_prompt=True`.
     """
 
     def __init__(
@@ -142,7 +147,7 @@ class SFTDataset(Dataset):
             "input_ids": encoded_prompt_and_response,
             "labels": labels,
             "prompt_length": len(encoded_prompt),
-            "response_length": len(encoded_response)
+            "response_length": len(encoded_response),
         }
 
 
@@ -167,29 +172,29 @@ def _sft_collate_fn(
     """Simplified collate function that pads sequences to max_seq_length."""
     batched = {}
     keys = ("input_ids", "labels")
-    
+
     for key in keys:
         pad_value = pad_id if key == "input_ids" else ignore_index
-        
+
         # Truncate and pad sequences
         sequences = [sample[key][:max_seq_length] for sample in samples]
         padded_sequences = [
             torch.nn.functional.pad(
-                seq,
-                (0, max_seq_length - len(seq)),
-                value=pad_value
-            ) if len(seq) < max_seq_length else seq
+                seq, (0, max_seq_length - len(seq)), value=pad_value
+            )
+            if len(seq) < max_seq_length
+            else seq
             for seq in sequences
         ]
-        
+
         batched[key] = torch.stack(padded_sequences)
-    
+
     # Process lengths
     for key in ("prompt_length", "response_length"):
         lengths = torch.tensor(
             [min(sample[key], max_seq_length) for sample in samples],
-            dtype=torch.int64
+            dtype=torch.int64,
         ).unsqueeze(1)
         batched[key] = lengths
-    
+
     return batched

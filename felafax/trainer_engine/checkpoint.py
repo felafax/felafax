@@ -27,6 +27,7 @@ from dataclasses import dataclass
 @dataclass
 class CheckpointerConfig:
     """Configuration for checkpointing"""
+
     checkpoint_dir: str
     max_to_keep: int = 2
     save_interval_steps: int = 10
@@ -167,6 +168,7 @@ def _make_torch_to_jax():
     """Creates a closure converts PyTorch to JAX tensors with sharding annotations."""
     # Import here to avoid circular dependency
     from felafax.trainer_engine.trainer import get_mesh
+
     mesh = get_mesh(jax.device_count())
 
     def _torch_to_jax(tensor):
