@@ -19,8 +19,6 @@ from felafax.trainer_engine.checkpoint import (
     load_checkpoint_or_model,
     CheckpointerConfig,
 )
-from felafax.trainer_engine.data.alpaca import AlpacaDataset, AlpacaDatasetConfig
-from transformers import AutoTokenizer
 
 
 def get_mesh(num_tpus: int):
@@ -259,31 +257,31 @@ class Trainer:
         print("Training completed!")
 
 
-if __name__ == "__main__":
-    trainer_config = pyrallis.parse(config_class=TrainerConfig)
+# if __name__ == "__main__":
+#     trainer_config = pyrallis.parse(config_class=TrainerConfig)
 
-    # Set up tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_name)
+#     # Set up tokenizer
+#     tokenizer = AutoTokenizer.from_pretrained(trainer_config.model_name)
 
-    # Initialize the Alpaca dataset with config
-    dataset_config = AlpacaDatasetConfig(
-        batch_size=trainer_config.batch_size,
-        max_seq_length=trainer_config.seq_length,
-        num_workers=trainer_config.num_dataloader_workers,
-    )
-    data_module = AlpacaDataset(config=dataset_config)
-    data_module.setup(tokenizer=tokenizer)
-    train_dataloader = data_module.train_dataloader()
-    val_dataloader = data_module.val_dataloader()
+#     # Initialize the Alpaca dataset with config
+#     dataset_config = AlpacaDatasetConfig(
+#         batch_size=trainer_config.batch_size,
+#         max_seq_length=trainer_config.seq_length,
+#         num_workers=trainer_config.num_dataloader_workers,
+#     )
+#     data_module = AlpacaDataset(config=dataset_config)
+#     data_module.setup(tokenizer=tokenizer)
+#     train_dataloader = data_module.train_dataloader()
+#     val_dataloader = data_module.val_dataloader()
 
-    # Initialize Checkpointer with config
-    checkpointer = Checkpointer(trainer_config.checkpointer_config)
+#     # Initialize Checkpointer with config
+#     checkpointer = Checkpointer(trainer_config.checkpointer_config)
 
-    # Initialize Trainer with Checkpointer
-    trainer = Trainer(
-        trainer_config=trainer_config,
-        train_dataloader=train_dataloader,
-        val_dataloader=val_dataloader,
-        checkpointer=checkpointer,
-    )
-    trainer.train()
+#     # Initialize Trainer with Checkpointer
+#     trainer = Trainer(
+#         trainer_config=trainer_config,
+#         train_dataloader=train_dataloader,
+#         val_dataloader=val_dataloader,
+#         checkpointer=checkpointer,
+#     )
+#     trainer.train()
