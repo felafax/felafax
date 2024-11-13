@@ -12,25 +12,23 @@ from felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 @dataclass
 class DatasetConfig:
-    """Base configuration for all datasets."""
+    """Base configuration for datasets."""
 
-    # Data loading params
+    # Data loading parameters
     data_source: str = ""
     max_examples: Optional[int] = None
     split: str = "train"
     train_test_split: float = 0.15
+    seed: int = 42
 
-    # Processing params
+    # Processing parameters
     batch_size: int = 32
-    max_seq_length: int = 2048
+    max_seq_length: int = 64
     num_workers: int = 4
     ignore_index: int = -100
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
     mask_prompt: bool = False
     pad_id: int = 0
-
-    # Other params
-    seed: int = 42
 
 
 class BaseDataset(ABC):

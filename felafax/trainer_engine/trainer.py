@@ -102,12 +102,9 @@ class TrainerConfig:
     # Training configuration
     num_epochs: int = 1
     num_steps: int = 5
-    batch_size: int = 8
-    seq_length: int = 512
 
     # Hardware/parallelism configuration
     num_tpus: int = jax.device_count()
-    num_dataloader_workers: int = 4
 
 
 # Core trainer class -- add non-essential things in private functions.
@@ -141,7 +138,7 @@ class Trainer:
 
     # TODO: Add microbatching (nando ref).
     @functools.partial(
-        jax.jit, static_argnames=("self", "model_static", "optimizer")
+        jax.jit, static_argnames=("self", "model_static", "optimizer"), 
     )
     def forward(
         self, model_params, model_static, optimizer, optimizer_state, batch
@@ -181,7 +178,7 @@ class Trainer:
             optimizer_state=optimizer_state,
             batch=batch,
         )
-
+        model_params = eqx.filter(model_params, eqx.is_array)
         updates, optimizer_state = optimizer.update(
             grads, optimizer_state, model_params
         )

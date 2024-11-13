@@ -23,6 +23,7 @@ def dataset_config():
         max_seq_length=2048,
         data_source="yahma/alpaca-cleaned",
         max_examples=10,  # Limit examples for testing
+        seed=42,
     )
 
 

@@ -9,7 +9,7 @@ tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 # Instantiate the dataset configuration
 dataset_config = AlpacaDatasetConfig(
     data_source="yahma/alpaca-cleaned",
-    max_seq_length=2048,
+    max_seq_length=32,
     batch_size=8,
     num_workers=4,
     mask_prompt=False,
@@ -36,12 +36,11 @@ checkpointer = Checkpointer(config=checkpointer_config)
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-2-7b-hf",
     num_steps=10,  # Adjust the number of training steps
-    batch_size=8,
-    seq_length=2048,
-    num_tpus=4,  # Adjust based on available TPUs
-    num_dataloader_workers=4,
+    num_tpus=4,    # Adjust based on available TPUs
     checkpointer_config=checkpointer_config,
 )
+
+# Initialize the Trainer
 trainer = Trainer(
     trainer_config=trainer_config,
     train_dataloader=train_dataloader,

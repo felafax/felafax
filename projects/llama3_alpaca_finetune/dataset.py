@@ -20,6 +20,7 @@ class AlpacaDatasetConfig(DatasetConfig):
     """Configuration for Alpaca dataset."""
 
     data_source: str = "yahma/alpaca-cleaned"
+    max_seq_length: int = 64
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
 
 
@@ -88,6 +89,7 @@ class AlpacaDataset(BaseDataset):
             num_workers=self.config.num_workers,
             collate_fn=get_sft_collate_fn(
                 max_seq_length=self.config.max_seq_length,
+                pad_id=self.config.pad_id,
                 ignore_index=self.config.ignore_index,
             ),
         )
@@ -100,6 +102,7 @@ class AlpacaDataset(BaseDataset):
             num_workers=self.config.num_workers,
             collate_fn=get_sft_collate_fn(
                 max_seq_length=self.config.max_seq_length,
+                pad_id=self.config.pad_id,
                 ignore_index=self.config.ignore_index,
             ),
         )
