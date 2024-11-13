@@ -137,17 +137,13 @@ class Trainer:
         )
 
     # TODO: Add microbatching (nando ref).
-    @functools.partial(
-        jax.jit, static_argnames=("self", "model_static", "optimizer"), 
-    )
-    def forward(
-        self, model_params, model_static, optimizer, optimizer_state, batch
-    ):
+    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
+    def forward(self, model_params, model_static, batch):
         """Computes loss for a single forward and backward pass."""
         model = eqx.combine(model_params, model_static)
 
         input_ids = batch["input_ids"]
-        input_ids = input_ids.astype(jnp.int32)
+        labels = batch["labels"]
         attention_mask = batch.get("attention_mask", None)
         position_ids = batch.get("position_ids", None)
 
@@ -155,7 +151,7 @@ class Trainer:
 
         # Shift for next-token prediction
         shifted_logits = logits[..., :-1, :]  # Remove last logit
-        shifted_tokens = input_ids[..., 1:]  # Remove first token
+        shifted_labels = labels[..., 1:]  # Remove first token
 
         # If using attention mask, shift it too
         shifted_mask = None
@@ -163,22 +159,19 @@ class Trainer:
             shifted_mask = attention_mask[..., 1:]
 
         loss, accuracy = _cross_entropy_loss_and_accuracy(
-            shifted_logits, shifted_tokens, shifted_mask
+            shifted_logits, shifted_labels, shifted_mask
         )
-        return loss, (accuracy, model, optimizer_state)
+        return loss, accuracy
 
     def training_step(
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
         grad_fn = jax.value_and_grad(self.forward, argnums=(0), has_aux=True)
-        (loss, (accuracy, model, optimizer_state)), grads = grad_fn(
+        (loss, accuracy), grads = grad_fn(
             model_params,
             model_static=model_static,
-            optimizer=optimizer,
-            optimizer_state=optimizer_state,
             batch=batch,
         )
-        model_params = eqx.filter(model_params, eqx.is_array)
         updates, optimizer_state = optimizer.update(
             grads, optimizer_state, model_params
         )
