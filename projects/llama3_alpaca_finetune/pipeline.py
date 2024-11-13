@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
-from .alpaca import AlpacaDataset, AlpacaDatasetConfig
+from .dataset import AlpacaDataset, AlpacaDatasetConfig
 
 # Instantiate the tokenizer
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
