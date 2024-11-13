@@ -169,22 +169,19 @@ def _sft_collate_fn(
 ) -> Dict[str, Tensor]:
     """Simplified collate function that pads sequences to max_seq_length."""
     batched = {}
-    keys = ("input_ids", "labels")
-
-    for key in keys:
+    for key in ("input_ids", "labels"):
         pad_value = pad_id if key == "input_ids" else ignore_index
 
         # Truncate and pad sequences
         sequences = [sample[key][:max_seq_length] for sample in samples]
         padded_sequences = [
             torch.nn.functional.pad(
-                seq, (0, max_seq_length - len(seq)), value=pad_value
+                seq,
+                (0, max_seq_length - len(seq)),
+                value=pad_value
             )
-            if len(seq) < max_seq_length
-            else seq
             for seq in sequences
         ]
-
         batched[key] = torch.stack(padded_sequences)
 
     # Process lengths
@@ -193,6 +190,7 @@ def _sft_collate_fn(
             [min(sample[key], max_seq_length) for sample in samples],
             dtype=torch.int64,
         ).unsqueeze(1)
+
         batched[key] = lengths
 
     return batched
