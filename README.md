@@ -7,7 +7,7 @@
     <br />
 </div>
           
-![image](./misc/assets/image.jpg)
+![image](./misc/assets/roadrunner.jpg)
 
 Felafax is a framework for continued-training and fine-tuning open source LLMs using **XLA runtime**. We take care of necessary runtime setup and provide a Jupyter notebook out-of-box to just get started.
 - Easy to use.
@@ -20,9 +20,7 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 
 | Felafax supports | Free Notebooks |
 |-------------------|-----------------|
-| **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/github/felarof99/roadrunner-fork/blob/main/%F0%9F%A6%8A__Llama3_1_8b_on_Free_Colab_TPU.ipynb) |
-
-🟧 If you want to ask questions about this repo, try **[sage.storia.ai/felafax](https://sage.storia.ai/felafax)**!
+| **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/github/felarof99/felafax/blob/main/.archive/Llama3_1_8b_on_Free_Colab_TPU.ipynb) |
 
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPUs, and Intel GPUs).
@@ -103,14 +101,14 @@ The GPU utilization and VRAM utilization graphs can be found below. However, we 
 Note: We couldn't run the JIT-compiled version of the 405B model due to infrastructure and VRAM constraints (we need to investigate this further). The entire training run was executed in JAX eager mode, so there is significant potential for performance improvements.
 
 - GPU utilization:
-  ![image](./misc/tests/amd_405b_run_sep22/gpu_utilization.png)
+  ![image](./misc/assets/amd_405B_run_sep22/gpu_utilization.png)
 - VRAM  utilization:
-  ![image](./misc/tests/amd_405b_run_sep22/vram_utilization.png)
-- rocm-smi data can be found [here](misc/tests/amd_405b_run_sep22/rocm_smi_cleaned_405b_batchsize16_seqlen64.csv).
+  ![image](./misc/assets/amd_405B_run_sep22/vram_utilization.png)
+- rocm-smi data can be found [here](./misc/assets/amd_405b_run_sep22/rocm_smi_cleaned_405b_batchsize16_seqlen64.csv).
 
 ## Credits:
 - Google Deepmind's [Gemma repo](https://github.com/google-deepmind/gemma).
-- [EasyLM](https://github.com/young-geng/EasyLM) for great work on llama models in JAX
+- [EasyLM](https://github.com/young-geng/EasyLM) and EleutherAI for great work on llama models in JAX
 - PyTorch XLA FSDP and SPMD testing done by [HeegyuKim](https://github.com/HeegyuKim/torch-xla-SPMD).
 - Examples from [PyTorch-XLA](https://github.com/pytorch/xla/) repo.
 

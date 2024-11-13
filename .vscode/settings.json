@@ -1,0 +1,10 @@
+{
+    "files.exclude": {
+        "**/__pycache__": true,
+        "felafax-storage*": true,
+        "felafax-models": true,
+        "felafax-config": true,
+        "**/__init__.py": true,
+        "**/.archive": true,
+    }
+}
