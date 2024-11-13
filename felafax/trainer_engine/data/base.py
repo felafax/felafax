@@ -176,9 +176,7 @@ def _sft_collate_fn(
         sequences = [sample[key][:max_seq_length] for sample in samples]
         padded_sequences = [
             torch.nn.functional.pad(
-                seq,
-                (0, max_seq_length - len(seq)),
-                value=pad_value
+                seq, (0, max_seq_length - len(seq)), value=pad_value
             )
             for seq in sequences
         ]

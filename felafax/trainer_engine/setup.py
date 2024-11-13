@@ -3,6 +3,7 @@
 import os
 import jax
 
+
 def setup_environment(trainer_config):
     """
     Sets up the environment variables and JAX configurations.

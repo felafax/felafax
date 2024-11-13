@@ -105,7 +105,6 @@ class TrainerConfig:
     num_tpus: int = jax.device_count()
 
 
-
 # Core trainer class -- add non-essential things in private functions.
 class Trainer:
     def __init__(
