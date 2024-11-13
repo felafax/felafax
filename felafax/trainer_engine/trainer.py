@@ -90,10 +90,8 @@ class TrainerConfig:
     # Model configuration
     model_name: str = "meta-llama/Llama-3.2-1B"
 
-    # Checkpointer configuration
-    checkpointer_config: CheckpointerConfig = CheckpointerConfig(
-        checkpoint_dir="/mnt/persistent-disk/models/llama3.2-1b/"
-    )
+    # Environment configuration
+    base_dir: str = "/mnt/persistent-disk"
 
     # Remove old checkpoint_dir since it's now in checkpointer_config
     param_dtype: str = "float32"
@@ -105,6 +103,7 @@ class TrainerConfig:
 
     # Hardware/parallelism configuration
     num_tpus: int = jax.device_count()
+
 
 
 # Core trainer class -- add non-essential things in private functions.
