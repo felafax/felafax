@@ -101,10 +101,10 @@ The GPU utilization and VRAM utilization graphs can be found below. However, we 
 Note: We couldn't run the JIT-compiled version of the 405B model due to infrastructure and VRAM constraints (we need to investigate this further). The entire training run was executed in JAX eager mode, so there is significant potential for performance improvements.
 
 - GPU utilization:
-  ![image](./misc/assets/amd_405b_run_sep22/gpu_utilization.png)
+  ![image](./misc/assets/amd_405B_run_sep22/gpu_utilization.png)
 - VRAM  utilization:
-  ![image](./misc/assets/amd_405b_run_sep22/vram_utilization.png)
-- rocm-smi data can be found [here](misc/assets/amd_405b_run_sep22/rocm_smi_cleaned_405b_batchsize16_seqlen64.csv).
+  ![image](./misc/assets/amd_405B_run_sep22/vram_utilization.png)
+- rocm-smi data can be found [here](./misc/assets/amd_405b_run_sep22/rocm_smi_cleaned_405b_batchsize16_seqlen64.csv).
 
 ## Credits:
 - Google Deepmind's [Gemma repo](https://github.com/google-deepmind/gemma).
