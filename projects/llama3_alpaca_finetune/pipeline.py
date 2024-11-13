@@ -7,7 +7,7 @@ from .dataset import AlpacaDataset, AlpacaDatasetConfig
 ########################################################
 # Configure the dataset pipeline
 ########################################################
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
 dataset_config = AlpacaDatasetConfig(
     data_source="yahma/alpaca-cleaned",
     max_seq_length=32,

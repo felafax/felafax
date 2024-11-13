@@ -5,6 +5,6 @@
         "felafax-models": true,
         "felafax-config": true,
         "**/__init__.py": true,
-        "**/.archive": true,
+        "**/~archive": true,
     }
 }
