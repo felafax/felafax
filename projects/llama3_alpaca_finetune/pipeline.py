@@ -3,6 +3,7 @@ from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.setup import setup_environment
 from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
 from .dataset import AlpacaDataset, AlpacaDatasetConfig
+from felafax.trainer_engine import utils
 
 ########################################################
 # Configure the dataset pipeline
@@ -54,3 +55,9 @@ trainer = Trainer(
 
 # Run training
 trainer.train()
+
+# Upload exported model to HF
+utils.upload_dir_to_hf(
+    dir_path=f"{trainer_config.base_dir}/hf_export/",
+    repo_name="felarof01/test-llama3-alpaca",
+)
