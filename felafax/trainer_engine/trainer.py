@@ -16,7 +16,10 @@ import optax
 from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_model,
+    save_model_to_hf,
 )
+
+import os
 
 
 def get_mesh(num_tpus: int):
@@ -232,4 +235,15 @@ class Trainer:
 
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
+
+        # After training, convert and save the model in Hugging Face format
+        export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
+        save_model_to_hf(
+            model=self.model,
+            model_config=self.model_config,
+            output_dir=export_dir,
+            tokenizer_name=self.trainer_config.model_name,  # Use the same tokenizer as the original model
+        )
+
+        print("Hugging Face model saved at:", export_dir)
 
