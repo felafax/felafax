@@ -16,7 +16,10 @@ import optax
 from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_model,
+    save_model_to_hf,
 )
+
+import os
 
 
 def get_mesh(num_tpus: int):
@@ -31,7 +34,7 @@ def get_mesh(num_tpus: int):
     print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
     mesh = jax.sharding.Mesh(
-        device_mesh, axis_names=("batch", "fsdp", "replica")
+        device_mesh, axis_names=("batch", "fsdp", "mp")
     )
     return mesh
 
@@ -232,4 +235,15 @@ class Trainer:
 
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
+
+        # After training, convert and save the model in Hugging Face format
+        export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
+        save_model_to_hf(
+            model=self.model,
+            model_config=self.model_config,
+            output_dir=export_dir,
+            tokenizer_name=self.trainer_config.model_name,  # Use the same tokenizer as the original model
+        )
+
+        print("Hugging Face model saved at:", export_dir)
 
