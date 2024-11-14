@@ -31,7 +31,7 @@ def get_mesh(num_tpus: int):
     print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
     mesh = jax.sharding.Mesh(
-        device_mesh, axis_names=("batch", "fsdp", "replica")
+        device_mesh, axis_names=("batch", "fsdp", "mp")
     )
     return mesh
 

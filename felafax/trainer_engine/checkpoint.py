@@ -165,35 +165,25 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
 
 
 def _make_torch_to_jax():
-    """Creates a closure converts PyTorch to JAX tensors with sharding annotations."""
+    """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
     # Import here to avoid circular dependency
     from felafax.trainer_engine.trainer import get_mesh
 
     mesh = get_mesh(jax.device_count())
 
-    def _torch_to_jax(tensor):
+    def _torch_to_jax(tensor, sharding_spec):
         jax_array = jnp.array(tensor.detach().numpy())
-
-        # TODO: Simple sharding rules, replace with better.
-        if len(jax_array.shape) == 0 or np.prod(jax_array.shape) == 1:
-            sharding = NamedSharding(mesh, PS())
-        elif len(jax_array.shape) == 1:
-            sharding = NamedSharding(mesh, PS(("fsdp",)))
-        elif len(jax_array.shape) == 2:
-            sharding = NamedSharding(mesh, PS(("fsdp", "replica")))
-        else:
-            sharding = NamedSharding(mesh, PS(()))
-
+        sharding = NamedSharding(mesh, sharding_spec)
         return jax.device_put(jax_array, sharding)
 
     return _torch_to_jax
 
-
-def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
-    """Downloads and converts HuggingFace model to Equinox model.
+# TODO(refactor): Move load model into models/llama.
+def _load_from_hf(model_name: str) -> Tuple[LlamaForCausalLM, LlamaConfig]:
+    """Downloads and converts Hugging Face model to Equinox model.
 
     Args:
-        model_name: Name of the HuggingFace model to load
+        model_name: Name of the Hugging Face model to load
 
     Returns:
         tuple: (eqx_model, model_config)
@@ -213,66 +203,72 @@ def _load_from_hf(model_name: str) -> tuple[LlamaForCausalLM, LlamaConfig]:
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.embed_tokens.weight),
+        torch_to_jax(hf_model.model.embed_tokens.weight, PS(('mp', 'fsdp'))),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.model.norm.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.norm.weight),
+        torch_to_jax(hf_model.model.norm.weight, PS()),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.lm_head.weight,
         eqx_model,
-        torch_to_jax(hf_model.lm_head.weight),
+        torch_to_jax(hf_model.lm_head.weight, PS(('fsdp', 'mp'))),
     )
 
-    # Copy layer weights
-    for i, layer in enumerate(eqx_model.model.layers):
+    # Copy layer weights with appropriate sharding
+    for i in range(len(eqx_model.model.layers)):
         hf_layer = hf_model.model.layers[i]
+
+        # Self-attention weights
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.q_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.q_proj.weight),
+            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(('fsdp', 'mp'))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.k_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.k_proj.weight),
+            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(('fsdp', 'mp'))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.v_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.v_proj.weight),
+            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(('fsdp', 'mp'))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.o_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.o_proj.weight),
+            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(('mp', 'fsdp'))),
         )
+
+        # MLP weights
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.gate_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.gate_proj.weight),
+            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(('fsdp', 'mp'))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.up_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.up_proj.weight),
+            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(('fsdp', 'mp'))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.down_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.down_proj.weight),
+            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(('mp', 'fsdp'))),
         )
+
+        # Layer norms
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].input_layernorm.weight,
             eqx_model,
-            torch_to_jax(hf_layer.input_layernorm.weight),
+            torch_to_jax(hf_layer.input_layernorm.weight, PS()),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].post_attention_layernorm.weight,
             eqx_model,
-            torch_to_jax(hf_layer.post_attention_layernorm.weight),
+            torch_to_jax(hf_layer.post_attention_layernorm.weight, PS()),
         )
 
     return eqx_model, model_config
