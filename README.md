@@ -34,10 +34,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 
 - **LLaMa-3/3.1 PyTorch XLA**
   - LoRA and full-precision training support
-
-- **Gemma2 Models (2B, 9B, 27B)**
-  - Optimized for Cloud TPUs
-  - Fast full-precision training
+  - WIP (refactoring code)
 
 ## Setup
 
