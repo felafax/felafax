@@ -20,7 +20,7 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 
 | Felafax supports | Free Notebooks |
 |-------------------|-----------------|
-| **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/github/felarof99/felafax/blob/main/.archive/Llama3_1_8b_on_Free_Colab_TPU.ipynb) |
+| **Llama 3.1 (8B)** | [▶️ Start for free on Google Colab TPU](https://colab.research.google.com/github/felafax/felafax/blob/main/~archive/Llama3_1_8b_on_Free_Colab_TPU.ipynb) |
 
 ## Goal
 Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPUs, and Intel GPUs).
@@ -34,10 +34,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 
 - **LLaMa-3/3.1 PyTorch XLA**
   - LoRA and full-precision training support
-
-- **Gemma2 Models (2B, 9B, 27B)**
-  - Optimized for Cloud TPUs
-  - Fast full-precision training
+  - [codepointer](https://github.com/felafax/felafax/tree/main/~archive/llama3_pytorch_xla)
 
 ## Setup
 
