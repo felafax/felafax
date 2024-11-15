@@ -34,7 +34,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 
 - **LLaMa-3/3.1 PyTorch XLA**
   - LoRA and full-precision training support
-  - WIP (refactoring code)
+  - [codepointer](https://github.com/felafax/felafax/tree/main/~archive/llama3_pytorch_xla)
 
 ## Setup
 
