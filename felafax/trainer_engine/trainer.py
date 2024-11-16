@@ -24,7 +24,9 @@ import os
 
 def get_mesh(num_tpus: int):
     mesh_shape = None
-    if num_tpus == 4:
+    if num_tpus == 1:
+        mesh_shape = (1, 1, 1)
+    elif num_tpus == 4:
         mesh_shape = (1, 2, 2)
     elif num_tpus == 8:
         mesh_shape = (2, 2, 2)
@@ -100,7 +102,7 @@ class TrainerConfig:
     
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"
-
+    hf_token: Optional[str] = None
 
 
 # Core trainer class -- add non-essential things in private functions.
@@ -123,6 +125,7 @@ class Trainer:
 
         self.model, self.model_config = load_model(
             model_name=trainer_config.model_name,
+            token=trainer_config.hf_token,
         )
         self.configure_optimizers()
 

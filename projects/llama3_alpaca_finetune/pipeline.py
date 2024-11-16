@@ -8,7 +8,9 @@ from felafax.trainer_engine import utils
 ########################################################
 # Configure the dataset pipeline
 ########################################################
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
+tokenizer = AutoTokenizer.from_pretrained(
+    "meta-llama/Llama-3.2-1B", token="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"
+)
 dataset_config = AlpacaDatasetConfig(
     data_source="yahma/alpaca-cleaned",
     max_seq_length=32,
@@ -16,7 +18,7 @@ dataset_config = AlpacaDatasetConfig(
     num_workers=4,
     mask_prompt=False,
     train_test_split=0.15,
-    max_examples=None,  # Set to an integer to limit examples
+    max_examples=100,  # Set to an integer to limit examples
     seed=42,
 )
 alpaca_dataset = AlpacaDataset(config=dataset_config)
@@ -30,10 +32,11 @@ val_dataloader = alpaca_dataset.val_dataloader()
 # Configure the trainer pipeline
 ########################################################
 trainer_config = TrainerConfig(
-    model_name="meta-llama/Llama-2-7b-hf",
-    num_steps=20,  # Adjust the number of training steps
-    num_tpus=4,  # Adjust based on available TPUs
-    base_dir="/mnt/persistent-disk",
+    model_name="meta-llama/Llama-3.2-1B",
+    hf_token="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",
+    num_steps=5,
+    num_tpus=1,
+    base_dir="/Users/felarof99/Workspaces/GITHUB/building/",
 )
 
 # Set up the training environment using trainer_config
