@@ -116,20 +116,28 @@ class Trainer:
             lora_rank=trainer_config.lora_rank if trainer_config.use_lora else 0,
         )
 
-        lora_params, _ = eqx.partition(
-            self.model,
+        # Partition model parameters into trainable params and static params
+        self.model_params, self.model_static = eqx.partition(
+            self.model, eqx.is_array
+        )
+
+        # Filter to get lora_params
+        self.lora_params, _ = eqx.partition(
+            self.model_params,
             filter_spec=_is_lora_param_filter_spec(self.model),
             is_leaf=eqx.is_array,
         )
-        self.configure_optimizers(lora_params)
 
-    def configure_optimizers(self, params):
+        # Initialize the optimizer with lora_params
+        self.configure_optimizers(self.lora_params)
+
+    def configure_optimizers(self, lora_params):
         self.optimizer = optax.adam(learning_rate=1e-3)
-        self.opt_state = self.optimizer.init(params)
+        self.opt_state = self.optimizer.init(lora_params)
 
-    @functools.partial(jax.jit, static_argnames="self")
-    def forward(self, lora_params, model_static, batch):
-        model = eqx.combine(lora_params, model_static)
+    # @functools.partial(jax.jit, static_argnames=("self", "model_static"))
+    def forward(self, model_params, model_static, batch):
+        model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]
         labels = batch["labels"]
         attention_mask = batch.get("attention_mask", None)
@@ -151,23 +159,44 @@ class Trainer:
         )
         return loss, accuracy
 
-    @functools.partial(jax.jit, static_argnames=("self", "optimizer"))
+    # @functools.partial(
+    #     jax.jit, static_argnames=("self", "model_static", "optimizer")
+    # )
     def training_step(
-        self, lora_params, model_static, optimizer, optimizer_state, batch
+        self, model_params, model_static, optimizer, optimizer_state, batch
     ):
+        # Compute gradients w.r.t. model_params
         grad_fn = jax.value_and_grad(self.forward, argnums=0, has_aux=True)
-        (loss, accuracy), grads = grad_fn(
-            lora_params,
-            model_static=model_static,
-            batch=batch,
+        (loss, accuracy), grads = grad_fn(model_params, model_static, batch)
+
+        # Filter gradients to only include lora_params
+        lora_grads, _ = eqx.partition(
+            grads,
+            filter_spec=_is_lora_param_filter_spec(self.model),
+            is_leaf=eqx.is_array,
         )
 
+        # Update lora_params
+        lora_params = eqx.partition(
+            model_params,
+            filter_spec=_is_lora_param_filter_spec(self.model),
+            is_leaf=eqx.is_array,
+        )
         updates, optimizer_state = optimizer.update(
-            grads, optimizer_state, lora_params
+            lora_grads, optimizer_state, lora_params
         )
-        lora_params = optax.apply_updates(lora_params, updates)
 
-        return loss, (accuracy, lora_params, optimizer_state)
+        self.lora_params = optax.apply_updates(self.lora_params, updates)
+
+        # Update model_params with the updated lora_params
+        model_params = eqx.tree_at(
+            lambda params: params,
+            model_params,
+            self.lora_params,
+            is_leaf=_is_lora_param_filter_spec(self.model),
+        )
+
+        return loss, (accuracy, model_params, optimizer_state)
 
     def validation_step(
         self, *, model_params, model_static, optimizer, optimizer_state, batch
@@ -175,11 +204,8 @@ class Trainer:
         pass
 
     def train(self):
-        lora_params, model_static = eqx.partition(
-            self.model,
-            filter_spec=_is_lora_param_filter_spec(self.model),
-            is_leaf=eqx.is_inexact_array,
-        )
+        model_params = self.model_params
+        model_static = self.model_static
         optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
 
@@ -192,7 +218,7 @@ class Trainer:
                 break
 
             if step:
-                # Printing metrics of previous step, so that XLA pipelining is not disrupted.
+                # Printing metrics of previous step to avoid disrupting XLA pipelining
                 print(
                     f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
                 )
@@ -203,8 +229,8 @@ class Trainer:
                 optimizer_state, NamedSharding(self.mesh, PS())
             )
 
-            loss, (accuracy, lora_params, optimizer_state) = self.training_step(
-                lora_params=lora_params,
+            loss, (accuracy, model_params, optimizer_state) = self.training_step(
+                model_params=model_params,
                 model_static=model_static,
                 optimizer=self.optimizer,
                 optimizer_state=optimizer_state,
@@ -216,23 +242,26 @@ class Trainer:
             prev_accuracy = accuracy
 
             if self.checkpointer:
+                combined_model = eqx.combine(model_params, model_static)
                 self.checkpointer.save_checkpoint(
-                    model=eqx.combine(lora_params, model_static),
+                    model=combined_model,
                     model_config=self.model_config,
                     step=step + 1,
                 )
 
         # Save final checkpoint
         if self.checkpointer:
+            combined_model = eqx.combine(model_params, model_static)
             self.checkpointer.save_checkpoint(
-                model=eqx.combine(lora_params, model_static),
+                model=combined_model,
                 model_config=self.model_config,
                 step=step + 1,
             )
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.directory)
 
-        self.model = eqx.combine(lora_params, model_static)
+        # Update the model with the trained parameters
+        self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
 
         # Call export method to save the model
