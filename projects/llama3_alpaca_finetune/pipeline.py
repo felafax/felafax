@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from transformers import AutoTokenizer
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from felafax.trainer_engine.setup import setup_environment
@@ -5,11 +7,19 @@ from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
 from .dataset import AlpacaDataset, AlpacaDatasetConfig
 from felafax.trainer_engine import utils
 
+# Before running this script:
+# 1. Create a .env file in the same directory as this file
+# 2. Add your HuggingFace token to the .env file in the format:
+#    HF_TOKEN=<your_token>
+
+load_dotenv()
+HF_TOKEN = os.getenv("HF_TOKEN")
+
 ########################################################
 # Configure the dataset pipeline
 ########################################################
 tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.2-1B", token="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"
+    "meta-llama/Llama-3.2-1B", token=HF_TOKEN
 )
 dataset_config = AlpacaDatasetConfig(
     data_source="yahma/alpaca-cleaned",
@@ -33,7 +43,7 @@ val_dataloader = alpaca_dataset.val_dataloader()
 ########################################################
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
-    hf_token="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",
+    hf_token=HF_TOKEN,
     num_steps=5,
     num_tpus=1,
     base_dir="/Users/felarof99/Workspaces/GITHUB/building/",
