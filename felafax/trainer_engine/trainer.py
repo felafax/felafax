@@ -9,6 +9,7 @@ import equinox as eqx
 import quax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
+import jax.tree_util as jtu
 from jax.sharding import NamedSharding, PartitionSpec as PS
 from felafax.trainer_engine.utils import named_tree_map
 
@@ -62,9 +63,7 @@ def merge_lora_params(model):
             )
         return module
 
-    model = eqx.tree_map(
-        merge_fn, model, is_leaf=lambda x: isinstance(x, eqx.Module)
-    )
+    model = jtu.tree_map(merge_fn, model, is_leaf=eqx.is_array)
     return model
 
 
@@ -125,7 +124,7 @@ class Trainer:
         self.configure_optimizers(lora_params)
 
     def configure_optimizers(self, params):
-        self.optimizer = optax.sgd(learning_rate=1e-3)
+        self.optimizer = optax.adam(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(params)
 
     # @functools.partial(jax.jit, static_argnames=("self"))
