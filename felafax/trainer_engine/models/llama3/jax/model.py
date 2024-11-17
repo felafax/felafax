@@ -1,8 +1,9 @@
-"""Equinox implementation of the Llama model."""
+"""Equinox implementation of the Llama model with LoRA support."""
 
 import jax
 import jax.numpy as jnp
 import equinox as eqx
+from typing import Optional
 
 
 class LlamaEmbedding(eqx.Module):
@@ -17,25 +18,38 @@ class LlamaEmbedding(eqx.Module):
         return jnp.take(self.weight, x, axis=0)
 
 
-# TODO: Need to change this to equnix.linear or define my own quax.
+# TODO(lora): Need to change this to equnix.linear or define my own quax.
+# TODO(lora): Remove static=True to do full fine-tuning.
 class LlamaLinear(eqx.Module):
-    weight: jnp.ndarray
-    bias: jnp.ndarray | None
+    weight: jnp.ndarray = eqx.field(static=True)
+    bias: Optional[jnp.ndarray] = eqx.field(static=True)
+    lora_A: Optional[jnp.ndarray]
+    lora_B: Optional[jnp.ndarray]
 
-    def __init__(self, in_features, out_features, bias=False):
+    def __init__(self, in_features, out_features, bias=False, rank=0, key=None):
+        if key is not None:
+            keys = jax.random.split(key, 4)
+        else:
+            keys = jax.random.split(jax.random.PRNGKey(99), 4)
         self.weight = jax.random.normal(
-            jax.random.PRNGKey(0), (out_features, in_features)
+            keys[0],
+            (out_features, in_features),
         )
-        self.bias = (
-            jax.random.normal(jax.random.PRNGKey(1), (out_features,))
-            if bias
-            else None
-        )
+        self.bias = jax.random.normal(keys[1], (out_features,)) if bias else None
+        if rank > 0:
+            self.lora_A = jax.random.normal(keys[2], (in_features, rank))
+            self.lora_B = jax.random.normal(keys[3], (rank, out_features))
+        else:
+            self.lora_A = None
+            self.lora_B = None
 
     def __call__(self, x):
-        y = jnp.dot(x, self.weight.T)
+        y = x @ self.weight.T
         if self.bias is not None:
             y += self.bias
+        if self.lora_A is not None and self.lora_B is not None:
+            lora_update = x @ self.lora_A @ self.lora_B.T
+            y += lora_update
         return y
 
 
@@ -101,7 +115,7 @@ class LlamaSdpaAttention(eqx.Module):
     max_position_embeddings: int
     rope_theta: float
 
-    def __init__(self, config):
+    def __init__(self, config, key):
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -116,25 +130,34 @@ class LlamaSdpaAttention(eqx.Module):
                 f" and `num_heads`: {self.num_heads})."
             )
 
+        keys = jax.random.split(key, 4)
         self.q_proj = LlamaLinear(
             self.hidden_size,
             self.num_heads * self.head_dim,
             bias=config.attention_bias,
+            rank=config.lora_rank,
+            key=keys[0],
         )
         self.k_proj = LlamaLinear(
             self.hidden_size,
             self.num_key_value_heads * self.head_dim,
             bias=config.attention_bias,
+            rank=config.lora_rank,
+            key=keys[1],
         )
         self.v_proj = LlamaLinear(
             self.hidden_size,
             self.num_key_value_heads * self.head_dim,
             bias=config.attention_bias,
+            rank=config.lora_rank,
+            key=keys[2],
         )
         self.o_proj = LlamaLinear(
             self.num_heads * self.head_dim,
             self.hidden_size,
             bias=config.attention_bias,
+            rank=config.lora_rank,
+            key=keys[3],
         )
 
         self.rotary_emb = LlamaRotaryEmbedding(config)
@@ -222,10 +245,17 @@ class LlamaMLP(eqx.Module):
     up_proj: LlamaLinear
     down_proj: LlamaLinear
 
-    def __init__(self, hidden_size, intermediate_size):
-        self.gate_proj = LlamaLinear(hidden_size, intermediate_size, bias=False)
-        self.up_proj = LlamaLinear(hidden_size, intermediate_size, bias=False)
-        self.down_proj = LlamaLinear(intermediate_size, hidden_size, bias=False)
+    def __init__(self, hidden_size, intermediate_size, key):
+        keys = jax.random.split(key, 3)
+        self.gate_proj = LlamaLinear(
+            hidden_size, intermediate_size, bias=False, rank=0, key=keys[0]
+        )
+        self.up_proj = LlamaLinear(
+            hidden_size, intermediate_size, bias=False, rank=0, key=keys[1]
+        )
+        self.down_proj = LlamaLinear(
+            intermediate_size, hidden_size, bias=False, rank=0, key=keys[2]
+        )
 
     def __call__(self, x):
         return self.down_proj(jax.nn.silu(self.gate_proj(x)) * self.up_proj(x))
@@ -237,9 +267,12 @@ class LlamaDecoderLayer(eqx.Module):
     input_layernorm: LlamaRMSNorm
     post_attention_layernorm: LlamaRMSNorm
 
-    def __init__(self, config):
-        self.self_attn = LlamaSdpaAttention(config)
-        self.mlp = LlamaMLP(config.hidden_size, config.intermediate_size)
+    def __init__(self, config, key):
+        keys = jax.random.split(key, 2)
+        self.self_attn = LlamaSdpaAttention(config, keys[0])
+        self.mlp = LlamaMLP(
+            config.hidden_size, config.intermediate_size, keys[1]
+        )
         self.input_layernorm = LlamaRMSNorm(
             config.hidden_size, config.rms_norm_eps
         )
@@ -268,10 +301,12 @@ class LlamaModel(eqx.Module):
     layers: list[LlamaDecoderLayer]
     norm: LlamaRMSNorm
 
-    def __init__(self, config):
+    def __init__(self, config, key):
         self.embed_tokens = LlamaEmbedding(config.vocab_size, config.hidden_size)
+        layer_keys = jax.random.split(key, config.num_hidden_layers)
         self.layers = [
-            LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)
+            LlamaDecoderLayer(config, layer_keys[i])
+            for i in range(config.num_hidden_layers)
         ]
         self.norm = LlamaRMSNorm(config.hidden_size, config.rms_norm_eps)
 
@@ -290,10 +325,15 @@ class LlamaForCausalLM(eqx.Module):
     model: LlamaModel
     lm_head: LlamaLinear
 
-    def __init__(self, config):
-        self.model = LlamaModel(config)
+    def __init__(self, config, key):
+        key1, key2 = jax.random.split(key)
+        self.model = LlamaModel(config, key1)
         self.lm_head = LlamaLinear(
-            config.hidden_size, config.vocab_size, bias=False
+            config.hidden_size,
+            config.vocab_size,
+            bias=False,
+            rank=config.lora_rank,
+            key=key2,
         )
 
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
@@ -344,6 +384,8 @@ class LlamaConfig:
         self.eos_token_id = kwargs.get("eos_token_id", None)
         self.pad_token_id = kwargs.get("pad_token_id", None)
         self.torch_dtype = kwargs.get("torch_dtype", None)
+
+        self.lora_rank = kwargs.get("lora_rank", 0)  # Default 0 means no LoRA
 
     def __repr__(self):
         return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"

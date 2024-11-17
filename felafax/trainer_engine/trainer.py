@@ -10,13 +10,21 @@ import quax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
 from jax.sharding import NamedSharding, PartitionSpec as PS
+from felafax.trainer_engine.utils import named_tree_map
 
 import optax
+import os
 
 from felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_model,
+    load_llama_from_hf,
     save_model_to_hf,
+)
+from felafax.trainer_engine.models.llama3.jax.model import (
+    LlamaForCausalLM,
+    LlamaConfig,
+    LlamaLinear,
 )
 
 import os
@@ -35,9 +43,7 @@ def get_mesh(num_tpus: int):
 
     print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
-    mesh = jax.sharding.Mesh(
-        device_mesh, axis_names=("batch", "fsdp", "mp")
-    )
+    mesh = jax.sharding.Mesh(device_mesh, axis_names=("batch", "fsdp", "mp"))
     return mesh
 
 
@@ -99,7 +105,11 @@ class TrainerConfig:
     num_epochs: int = 1
     num_steps: int = 5
     num_tpus: int = jax.device_count()
-    
+
+    # LoRA configuration
+    use_lora: bool = True  # Enable or disable LoRA training
+    lora_rank: int = 4  # Rank for LoRA matrices
+
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"
     hf_token: Optional[str] = None
@@ -123,24 +133,36 @@ class Trainer:
         self.mesh = mesh if mesh else get_mesh(trainer_config.num_tpus)
         self.checkpointer = checkpointer
 
-        self.model, self.model_config = load_model(
+        # Load the model and model_config
+        self.model, self.model_config = load_llama_from_hf(
             model_name=trainer_config.model_name,
             token=trainer_config.hf_token,
+            lora_rank=trainer_config.lora_rank if trainer_config.use_lora else 0,
         )
+
         self.configure_optimizers()
 
     def configure_optimizers(self):
-        self.optimizer = optax.sgd(learning_rate=1e-3)
-        self.opt_state = self.optimizer.init(
-            eqx.filter(self.model, eqx.is_array)
+        is_lora_param_filter_spec = named_tree_map(
+            lambda path_str, value: "lora_A" in path_str or "lora_B" in path_str,
+            self.model,
+            is_leaf=eqx.is_inexact_array,
         )
 
-    # TODO: Add microbatching (nando ref).
-    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
-    def forward(self, model_params, model_static, batch):
-        """Computes loss for a single forward and backward pass."""
-        model = eqx.combine(model_params, model_static)
+        # Partition the model into lora_params and model_static
+        self.lora_params, self.model_static = eqx.partition(
+            self.model,
+            filter_spec=is_lora_param_filter_spec,
+            is_leaf=eqx.is_inexact_array,
+        )
 
+        # Initialize the optimizer with lora_params
+        self.optimizer = optax.adam(learning_rate=1e-3)
+        self.opt_state = self.optimizer.init(self.lora_params)
+
+    @functools.partial(jax.jit, static_argnames=("self",))
+    def forward(self, lora_params, model_static, batch):
+        model = eqx.combine(lora_params, model_static)
         input_ids = batch["input_ids"]
         labels = batch["labels"]
         attention_mask = batch.get("attention_mask", None)
@@ -163,19 +185,39 @@ class Trainer:
         return loss, accuracy
 
     def training_step(
-        self, model_params, model_static, optimizer, optimizer_state, batch
+        self, lora_params, model_static, optimizer, optimizer_state, batch
     ):
-        grad_fn = jax.value_and_grad(self.forward, argnums=(0), has_aux=True)
+        grad_fn = jax.value_and_grad(self.forward, argnums=0, has_aux=True)
         (loss, accuracy), grads = grad_fn(
-            model_params,
+            lora_params,
             model_static=model_static,
             batch=batch,
         )
-        updates, optimizer_state = optimizer.update(
-            grads, optimizer_state, model_params
+
+        updates, optimizer_state = optimizer.update(grads, optimizer_state)
+        lora_params = optax.apply_updates(lora_params, updates)
+
+        return loss, accuracy, lora_params, optimizer_state
+
+    def merge_lora_params(self):
+        def merge_fn(module):
+            if (
+                isinstance(module, LlamaLinear)
+                and module.lora_A is not None
+                and module.lora_B is not None
+            ):
+                delta_weight = module.lora_A @ module.lora_B.T
+                new_weight = module.weight + delta_weight
+                module = eqx.tree_at(lambda m: m.weight, module, new_weight)
+                # Optionally set lora_A and lora_B to None
+                module = eqx.tree_at(
+                    lambda m: (m.lora_A, m.lora_B), module, (None, None)
+                )
+            return module
+
+        self.model = eqx.tree_map(
+            merge_fn, self.model, is_leaf=lambda x: isinstance(x, eqx.Module)
         )
-        model_params = optax.apply_updates(model_params, updates)
-        return loss, (accuracy, model_params, optimizer_state)
 
     def validation_step(
         self, *, model_params, model_static, optimizer, optimizer_state, batch
@@ -183,7 +225,8 @@ class Trainer:
         pass
 
     def train(self):
-        model_params, model_static = eqx.partition(self.model, eqx.is_array)
+        lora_params = self.lora_params
+        model_static = self.model_static
         optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
 
@@ -207,12 +250,12 @@ class Trainer:
                 optimizer_state, NamedSharding(self.mesh, PS())
             )
 
-            loss, (accuracy, model_params, optimizer_state) = self.training_step(
-                model_params=model_params,
-                model_static=model_static,
-                optimizer=self.optimizer,
-                optimizer_state=optimizer_state,
-                batch=batch,
+            loss, accuracy, lora_params, optimizer_state = self.training_step(
+                lora_params,
+                model_static,
+                self.optimizer,
+                optimizer_state,
+                batch,
             )
 
             prev_step = step + 1
@@ -221,7 +264,7 @@ class Trainer:
 
             if self.checkpointer:
                 self.checkpointer.save_checkpoint(
-                    model=eqx.combine(model_params, model_static),
+                    model=eqx.combine(lora_params, model_static),
                     model_config=self.model_config,
                     step=step + 1,
                 )
@@ -229,14 +272,14 @@ class Trainer:
         # Save final checkpoint
         if self.checkpointer:
             self.checkpointer.save_checkpoint(
-                model=eqx.combine(model_params, model_static),
+                model=eqx.combine(lora_params, model_static),
                 model_config=self.model_config,
                 step=step + 1,
             )
             self.checkpointer.wait_until_finished()
-            print("Final checkpoint saved at:", self.checkpointer.checkpoint_dir)
+            print("Final checkpoint saved at:", self.checkpointer.directory)
 
-        self.model = eqx.combine(model_params, model_static)
+        self.model = eqx.combine(lora_params, model_static)
         print("Training completed!")
 
         # After training, convert and save the model in Hugging Face format
@@ -249,4 +292,3 @@ class Trainer:
         )
 
         print("Hugging Face model saved at:", export_dir)
-

@@ -5,16 +5,16 @@ import json
 import jax
 import jax.numpy as jnp
 import numpy as np
+import torch
 
 import equinox as eqx
-import torch
 import orbax.checkpoint as ocp
-from transformers import LlamaForCausalLM as HFLlamaForCausalLM
+from transformers import LlamaForCausalLM as HFLlamaForCausalLM, AutoTokenizer
 from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
     LlamaForCausalLM,
+    LlamaLinear,
 )
-
 
 from typing import Optional, Tuple
 from jaxtyping import PyTree
@@ -113,7 +113,7 @@ class Checkpointer:
 
 def load_model(model_name: str, token: Optional[str] = None):
     """Loads a model from a checkpoint or Hugging Face.
-    
+
     Args:
         model_name: Name or path of the model to load
         token: HuggingFace token for accessing gated models
@@ -156,6 +156,9 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
         rms_norm_eps=hf_model.config.rms_norm_eps,
         rope_theta=hf_model.config.rope_theta,
         attention_bias=hf_model.config.attention_bias,
+        lora_rank=hf_model.config.lora_rank
+        if hasattr(hf_model.config, "lora_rank")
+        else 0,
     )
 
 
@@ -173,27 +176,31 @@ def _make_torch_to_jax():
 
     return _torch_to_jax
 
+
 # TODO(refactor): Move load model into models/llama.
-def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[LlamaForCausalLM, LlamaConfig]:
+def load_llama_from_hf(
+    model_name: str, token: Optional[str] = None, lora_rank: int = 0
+) -> Tuple[LlamaForCausalLM, LlamaConfig]:
     """Downloads and converts Hugging Face model to Equinox model.
 
     Args:
         model_name: Name of the Hugging Face model to load
         token: HuggingFace token for accessing gated models
+        lora_rank: Rank for LoRA parameters (set to 0 for no LoRA)
 
     Returns:
         tuple: (eqx_model, model_config)
     """
     # Load HF model
     hf_model = HFLlamaForCausalLM.from_pretrained(
-        model_name, 
-        torch_dtype=torch.float32,
-        token=token
+        model_name, torch_dtype=torch.float32, token=token
     )
 
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
-    eqx_model = LlamaForCausalLM(model_config)
+    model_config.lora_rank = lora_rank
+    key = jax.random.PRNGKey(99)
+    eqx_model = LlamaForCausalLM(model_config, key)
 
     torch_to_jax = _make_torch_to_jax()
 
@@ -201,7 +208,7 @@ def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[Ll
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.embed_tokens.weight, PS(('mp', 'fsdp'))),
+        torch_to_jax(hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.model.norm.weight,
@@ -211,7 +218,7 @@ def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[Ll
     eqx_model = eqx.tree_at(
         lambda t: t.lm_head.weight,
         eqx_model,
-        torch_to_jax(hf_model.lm_head.weight, PS(('fsdp', 'mp'))),
+        torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
     )
 
     # Copy layer weights with appropriate sharding
@@ -222,39 +229,39 @@ def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[Ll
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.q_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.k_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.v_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.o_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(('mp', 'fsdp'))),
+            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(("mp", "fsdp"))),
         )
 
         # MLP weights
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.gate_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.up_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.down_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(('mp', 'fsdp'))),
+            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(("mp", "fsdp"))),
         )
 
         # Layer norms
@@ -270,6 +277,7 @@ def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[Ll
         )
 
     return eqx_model, model_config
+
 
 def save_model_to_hf(
     model: eqx.Module,

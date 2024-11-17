@@ -45,7 +45,7 @@ trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
     hf_token=HF_TOKEN,
     num_steps=5,
-    num_tpus=1,
+    num_tpus=4,
     base_dir="/Users/felarof99/Workspaces/GITHUB/building/",
 )
 
