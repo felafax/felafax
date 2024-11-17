@@ -127,7 +127,7 @@ class Trainer:
         self.optimizer = optax.adam(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(params)
 
-    # @functools.partial(jax.jit, static_argnames=("self"))
+    @functools.partial(jax.jit, static_argnames="self")
     def forward(self, lora_params, model_static, batch):
         model = eqx.combine(lora_params, model_static)
         input_ids = batch["input_ids"]
@@ -151,6 +151,7 @@ class Trainer:
         )
         return loss, accuracy
 
+    @functools.partial(jax.jit, static_argnames=("self", "optimizer"))
     def training_step(
         self, lora_params, model_static, optimizer, optimizer_state, batch
     ):
