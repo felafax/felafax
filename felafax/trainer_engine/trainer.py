@@ -157,14 +157,13 @@ class Trainer:
         )
 
         # Initialize the optimizer with lora_params
-        self.optimizer = optax.adam(learning_rate=1e-3)
+        self.optimizer = optax.sgd(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(self.lora_params)
-        breakpoint()
+
 
     # @functools.partial(jax.jit, static_argnames=("self",))
     def forward(self, lora_params, model_static, batch):
         model = eqx.combine(lora_params, model_static)
-        breakpoint()
         input_ids = batch["input_ids"]
         labels = batch["labels"]
         attention_mask = batch.get("attention_mask", None)
@@ -254,12 +253,12 @@ class Trainer:
                 optimizer_state, NamedSharding(self.mesh, PS())
             )
 
-            loss, accuracy, lora_params, optimizer_state = self.training_step(
-                lora_params,
-                model_static,
-                self.optimizer,
-                optimizer_state,
-                batch,
+            loss, (accuracy, lora_params, optimizer_state) = self.training_step(
+                lora_params=lora_params,
+                model_static=model_static,
+                optimizer=self.optimizer,
+                optimizer_state=optimizer_state,
+                batch=batch,
             )
 
             prev_step = step + 1
