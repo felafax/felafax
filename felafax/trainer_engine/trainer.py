@@ -27,8 +27,6 @@ from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaLinear,
 )
 
-import os
-
 
 def get_mesh(num_tpus: int):
     mesh_shape = None
@@ -47,57 +45,27 @@ def get_mesh(num_tpus: int):
     return mesh
 
 
-def _preprocess_batch(batch):
-    # Convert PyTorch tensors to JAX arrays
-    batch = {
-        k: v if isinstance(v, jax.Array) else jax.numpy.array(v.numpy())
-        for k, v in batch.items()
-    }
-    batch["input_ids"] = batch["input_ids"].astype(jnp.int32)
-    batch["labels"] = batch["labels"].astype(jnp.int32)
+def merge_lora_params(model):
+    def merge_fn(module):
+        if (
+            isinstance(module, LlamaLinear)
+            and module.lora_A is not None
+            and module.lora_B is not None
+        ):
+            delta_weight = module.lora_A @ module.lora_B.T
+            new_weight = module.weight + delta_weight
+            module = eqx.tree_at(lambda m: m.weight, module, new_weight)
 
-    # Add position IDs to batch
-    seq_length = batch["input_ids"].shape[1]
-    batch["position_ids"] = jnp.repeat(
-        jnp.arange(seq_length)[None, :],
-        batch["input_ids"].shape[0],
-        axis=0,
+            # Optionally set lora_A and lora_B to None
+            module = eqx.tree_at(
+                lambda m: (m.lora_A, m.lora_B), module, (None, None)
+            )
+        return module
+
+    model = eqx.tree_map(
+        merge_fn, model, is_leaf=lambda x: isinstance(x, eqx.Module)
     )
-    return batch
-
-
-def _is_lora_param_filter_spec(model):
-    is_lora_param_filter_spec = named_tree_map(
-        lambda path_str, value: "lora_A" in path_str or "lora_B" in path_str,
-        model,
-        is_leaf=eqx.is_inexact_array,
-    )
-    return is_lora_param_filter_spec
-
-
-def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
-    if mask is None:
-        mask = jnp.ones(tokens.shape[:2])
-    mask = mask.astype(jnp.float32)
-
-    valid_text_length = jnp.maximum(jnp.sum(mask, axis=-1), 1e-10)
-
-    logits = logits.astype(jnp.float32)  # for numerical stability
-    token_log_prob = jnp.squeeze(
-        jnp.take_along_axis(
-            jax.nn.log_softmax(logits, axis=-1),
-            jnp.expand_dims(tokens, -1),
-            axis=-1,
-        ),
-        -1,
-    )
-    token_log_prob = jnp.where(mask > 0.0, token_log_prob, jnp.array(0.0))
-    loss = -jnp.mean(jnp.sum(token_log_prob, axis=-1) / valid_text_length)
-    correct = jnp.where(
-        mask > 0.0, jnp.argmax(logits, axis=-1) == tokens, jnp.array(False)
-    )
-    accuracy = jnp.mean(jnp.sum(correct, axis=-1) / valid_text_length)
-    return loss, accuracy
+    return model
 
 
 # Define configuration flags and default values
@@ -152,7 +120,7 @@ class Trainer:
         lora_params, _ = eqx.partition(
             self.model,
             filter_spec=_is_lora_param_filter_spec(self.model),
-            is_leaf=eqx.is_inexact_array,
+            is_leaf=eqx.is_array,
         )
         self.configure_optimizers(lora_params)
 
@@ -200,26 +168,6 @@ class Trainer:
         lora_params = optax.apply_updates(lora_params, updates)
 
         return loss, (accuracy, lora_params, optimizer_state)
-
-    def merge_lora_params(self):
-        def merge_fn(module):
-            if (
-                isinstance(module, LlamaLinear)
-                and module.lora_A is not None
-                and module.lora_B is not None
-            ):
-                delta_weight = module.lora_A @ module.lora_B.T
-                new_weight = module.weight + delta_weight
-                module = eqx.tree_at(lambda m: m.weight, module, new_weight)
-                # Optionally set lora_A and lora_B to None
-                module = eqx.tree_at(
-                    lambda m: (m.lora_A, m.lora_B), module, (None, None)
-                )
-            return module
-
-        self.model = eqx.tree_map(
-            merge_fn, self.model, is_leaf=lambda x: isinstance(x, eqx.Module)
-        )
 
     def validation_step(
         self, *, model_params, model_static, optimizer, optimizer_state, batch
@@ -287,13 +235,70 @@ class Trainer:
         self.model = eqx.combine(lora_params, model_static)
         print("Training completed!")
 
+        # Call export method to save the model
+        self.export()
+
+    def export(self):
         # After training, convert and save the model in Hugging Face format
+        self.model = merge_lora_params(self.model)
         export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
         save_model_to_hf(
             model=self.model,
             model_config=self.model_config,
             output_dir=export_dir,
-            tokenizer_name=self.trainer_config.model_name,  # Use the same tokenizer as the original model
+            tokenizer_name=self.trainer_config.model_name,
         )
-
         print("Hugging Face model saved at:", export_dir)
+
+
+def _preprocess_batch(batch):
+    # Convert PyTorch tensors to JAX arrays
+    batch = {
+        k: v if isinstance(v, jax.Array) else jax.numpy.array(v.numpy())
+        for k, v in batch.items()
+    }
+    batch["input_ids"] = batch["input_ids"].astype(jnp.int32)
+    batch["labels"] = batch["labels"].astype(jnp.int32)
+
+    # Add position IDs to batch
+    seq_length = batch["input_ids"].shape[1]
+    batch["position_ids"] = jnp.repeat(
+        jnp.arange(seq_length)[None, :],
+        batch["input_ids"].shape[0],
+        axis=0,
+    )
+    return batch
+
+
+def _is_lora_param_filter_spec(model):
+    is_lora_param_filter_spec = named_tree_map(
+        lambda path_str, value: "lora_A" in path_str or "lora_B" in path_str,
+        model,
+        is_leaf=eqx.is_array,
+    )
+    return is_lora_param_filter_spec
+
+
+def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
+    if mask is None:
+        mask = jnp.ones(tokens.shape[:2])
+    mask = mask.astype(jnp.float32)
+
+    valid_text_length = jnp.maximum(jnp.sum(mask, axis=-1), 1e-10)
+
+    logits = logits.astype(jnp.float32)  # for numerical stability
+    token_log_prob = jnp.squeeze(
+        jnp.take_along_axis(
+            jax.nn.log_softmax(logits, axis=-1),
+            jnp.expand_dims(tokens, -1),
+            axis=-1,
+        ),
+        -1,
+    )
+    token_log_prob = jnp.where(mask > 0.0, token_log_prob, jnp.array(0.0))
+    loss = -jnp.mean(jnp.sum(token_log_prob, axis=-1) / valid_text_length)
+    correct = jnp.where(
+        mask > 0.0, jnp.argmax(logits, axis=-1) == tokens, jnp.array(False)
+    )
+    accuracy = jnp.mean(jnp.sum(correct, axis=-1) / valid_text_length)
+    return loss, accuracy
