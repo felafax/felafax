@@ -25,8 +25,10 @@ class LlamaLinear(eqx.Module):
     bias: Optional[jnp.ndarray]
     lora_A: Optional[jnp.ndarray]
     lora_B: Optional[jnp.ndarray]
+    alpha: float = 1.0
+    rank: int = 0
 
-    def __init__(self, in_features, out_features, bias=False, rank=0, key=None):
+    def __init__(self, in_features, out_features, bias=False, rank=0, alpha=1.0, key=None):
         if key is not None:
             keys = jax.random.split(key, 4)
         else:
@@ -36,9 +38,12 @@ class LlamaLinear(eqx.Module):
             (out_features, in_features),
         )
         self.bias = jax.random.normal(keys[1], (out_features,)) if bias else None
+        self.rank = rank
+        self.alpha = alpha
         if rank > 0:
-            self.lora_A = jax.random.normal(keys[2], (in_features, rank))
-            self.lora_B = jax.random.normal(keys[3], (rank, out_features))
+            # Initialize LoRA parameters to zeros
+            self.lora_A = jnp.zeros((in_features, rank))
+            self.lora_B = jnp.zeros((rank, out_features))
         else:
             self.lora_A = None
             self.lora_B = None
@@ -48,7 +53,8 @@ class LlamaLinear(eqx.Module):
         if self.bias is not None:
             y += self.bias
         if self.lora_A is not None and self.lora_B is not None:
-            lora_update = x @ self.lora_A @ self.lora_B
+            scaling = self.alpha / self.rank
+            lora_update = (x @ self.lora_A @ self.lora_B) * scaling
             y += lora_update
         return y
 

@@ -44,7 +44,7 @@ val_dataloader = alpaca_dataset.val_dataloader()
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
     hf_token=HF_TOKEN,
-    num_steps=5,
+    num_steps=20,
     num_tpus=4,
     base_dir="/Users/felarof99/Workspaces/GITHUB/building/",
 )
@@ -69,8 +69,8 @@ trainer = Trainer(
 # Run training
 trainer.train()
 
-# Upload exported model to HF
-utils.upload_dir_to_hf(
-    dir_path=f"{trainer_config.base_dir}/hf_export/",
-    repo_name="felarof01/test-llama3-alpaca",
-)
+# # Upload exported model to HF
+# utils.upload_dir_to_hf(
+#     dir_path=f"{trainer_config.base_dir}/hf_export/",
+#     repo_name="felarof01/test-llama3-alpaca",
+# )

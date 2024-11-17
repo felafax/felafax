@@ -107,7 +107,7 @@ class TrainerConfig:
     num_tpus: int = jax.device_count()
 
     # LoRA configuration
-    use_lora: bool = True  # Enable or disable LoRA training
+    use_lora: bool = True # Enable or disable LoRA training
     lora_rank: int = 4  # Rank for LoRA matrices
 
     # Environment configuration
@@ -200,7 +200,7 @@ class Trainer:
         )
         lora_params = optax.apply_updates(lora_params, updates)
 
-        return loss, accuracy, lora_params, optimizer_state
+        return loss, (accuracy, lora_params, optimizer_state)
 
     def merge_lora_params(self):
         def merge_fn(module):
