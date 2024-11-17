@@ -66,6 +66,15 @@ def _preprocess_batch(batch):
     return batch
 
 
+def _is_lora_param_filter_spec(model):
+    is_lora_param_filter_spec = named_tree_map(
+        lambda path_str, value: "lora_A" in path_str or "lora_B" in path_str,
+        model,
+        is_leaf=eqx.is_inexact_array,
+    )
+    return is_lora_param_filter_spec
+
+
 def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
     if mask is None:
         mask = jnp.ones(tokens.shape[:2])
@@ -107,7 +116,7 @@ class TrainerConfig:
     num_tpus: int = jax.device_count()
 
     # LoRA configuration
-    use_lora: bool = True # Enable or disable LoRA training
+    use_lora: bool = True  # Enable or disable LoRA training
     lora_rank: int = 4  # Rank for LoRA matrices
 
     # Environment configuration
@@ -140,28 +149,18 @@ class Trainer:
             lora_rank=trainer_config.lora_rank if trainer_config.use_lora else 0,
         )
 
-        self.configure_optimizers()
-
-    def configure_optimizers(self):
-        is_lora_param_filter_spec = named_tree_map(
-            lambda path_str, value: "lora_A" in path_str or "lora_B" in path_str,
+        lora_params, _ = eqx.partition(
             self.model,
+            filter_spec=_is_lora_param_filter_spec(self.model),
             is_leaf=eqx.is_inexact_array,
         )
+        self.configure_optimizers(lora_params)
 
-        # Partition the model into lora_params and model_static
-        self.lora_params, self.model_static = eqx.partition(
-            self.model,
-            filter_spec=is_lora_param_filter_spec,
-            is_leaf=eqx.is_inexact_array,
-        )
-
-        # Initialize the optimizer with lora_params
+    def configure_optimizers(self, params):
         self.optimizer = optax.sgd(learning_rate=1e-3)
-        self.opt_state = self.optimizer.init(self.lora_params)
+        self.opt_state = self.optimizer.init(params)
 
-
-    # @functools.partial(jax.jit, static_argnames=("self",))
+    # @functools.partial(jax.jit, static_argnames=("self"))
     def forward(self, lora_params, model_static, batch):
         model = eqx.combine(lora_params, model_static)
         input_ids = batch["input_ids"]
@@ -228,8 +227,11 @@ class Trainer:
         pass
 
     def train(self):
-        lora_params = self.lora_params
-        model_static = self.model_static
+        lora_params, model_static = eqx.partition(
+            self.model,
+            filter_spec=_is_lora_param_filter_spec(self.model),
+            is_leaf=eqx.is_inexact_array,
+        )
         optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
 
