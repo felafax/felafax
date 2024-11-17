@@ -21,8 +21,8 @@ class LlamaEmbedding(eqx.Module):
 # TODO(lora): Need to change this to equnix.linear or define my own quax.
 # TODO(lora): Remove static=True to do full fine-tuning.
 class LlamaLinear(eqx.Module):
-    weight: jnp.ndarray = eqx.field(static=True)
-    bias: Optional[jnp.ndarray] = eqx.field(static=True)
+    weight: jnp.ndarray
+    bias: Optional[jnp.ndarray]
     lora_A: Optional[jnp.ndarray]
     lora_B: Optional[jnp.ndarray]
 
@@ -48,7 +48,7 @@ class LlamaLinear(eqx.Module):
         if self.bias is not None:
             y += self.bias
         if self.lora_A is not None and self.lora_B is not None:
-            lora_update = x @ self.lora_A @ self.lora_B.T
+            lora_update = x @ self.lora_A @ self.lora_B
             y += lora_update
         return y
 
@@ -245,16 +245,16 @@ class LlamaMLP(eqx.Module):
     up_proj: LlamaLinear
     down_proj: LlamaLinear
 
-    def __init__(self, hidden_size, intermediate_size, key):
+    def __init__(self, hidden_size, intermediate_size, key, rank=0):
         keys = jax.random.split(key, 3)
         self.gate_proj = LlamaLinear(
-            hidden_size, intermediate_size, bias=False, rank=0, key=keys[0]
+            hidden_size, intermediate_size, bias=False, rank=rank, key=keys[0]
         )
         self.up_proj = LlamaLinear(
-            hidden_size, intermediate_size, bias=False, rank=0, key=keys[1]
+            hidden_size, intermediate_size, bias=False, rank=rank, key=keys[1]
         )
         self.down_proj = LlamaLinear(
-            intermediate_size, hidden_size, bias=False, rank=0, key=keys[2]
+            intermediate_size, hidden_size, bias=False, rank=rank, key=keys[2]
         )
 
     def __call__(self, x):
@@ -271,7 +271,10 @@ class LlamaDecoderLayer(eqx.Module):
         keys = jax.random.split(key, 2)
         self.self_attn = LlamaSdpaAttention(config, keys[0])
         self.mlp = LlamaMLP(
-            config.hidden_size, config.intermediate_size, keys[1]
+            config.hidden_size,
+            config.intermediate_size,
+            keys[1],
+            config.lora_rank,
         )
         self.input_layernorm = LlamaRMSNorm(
             config.hidden_size, config.rms_norm_eps

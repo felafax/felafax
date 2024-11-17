@@ -159,10 +159,12 @@ class Trainer:
         # Initialize the optimizer with lora_params
         self.optimizer = optax.adam(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(self.lora_params)
+        breakpoint()
 
-    @functools.partial(jax.jit, static_argnames=("self",))
+    # @functools.partial(jax.jit, static_argnames=("self",))
     def forward(self, lora_params, model_static, batch):
         model = eqx.combine(lora_params, model_static)
+        breakpoint()
         input_ids = batch["input_ids"]
         labels = batch["labels"]
         attention_mask = batch.get("attention_mask", None)
@@ -194,7 +196,9 @@ class Trainer:
             batch=batch,
         )
 
-        updates, optimizer_state = optimizer.update(grads, optimizer_state)
+        updates, optimizer_state = optimizer.update(
+            grads, optimizer_state, lora_params
+        )
         lora_params = optax.apply_updates(lora_params, updates)
 
         return loss, accuracy, lora_params, optimizer_state
