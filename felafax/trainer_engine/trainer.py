@@ -83,8 +83,8 @@ class TrainerConfig:
     num_tpus: int = jax.device_count()
 
     # LoRA configuration
-    use_lora: bool = True # Enable or disable LoRA training
-    lora_rank: int = 4 # Rank for LoRA matrices
+    use_lora: bool = True  # Enable or disable LoRA training
+    lora_rank: int = 4  # Rank for LoRA matrices
 
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"
@@ -168,7 +168,9 @@ class Trainer:
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
         grad_fn = jax.value_and_grad(self.forward, argnums=0, has_aux=True)
-        (loss, accuracy), grads = grad_fn(model_params, model_static, batch)
+        (loss, accuracy), grads = grad_fn(
+            model_params, model_static=model_static, batch=batch
+        )
 
         # Filter gradients to only include lora_params
         lora_grads, _ = eqx.partition(
@@ -236,27 +238,25 @@ class Trainer:
             prev_accuracy = accuracy
 
             if self.checkpointer:
-                combined_model = eqx.combine(model_params, model_static)
                 self.checkpointer.save_checkpoint(
-                    model=combined_model,
+                    model=eqx.combine(model_params, model_static),
                     model_config=self.model_config,
                     step=step + 1,
                 )
 
+        # Update the model with the trained parameters
+        self.model = eqx.combine(model_params, model_static)
+        print("Training completed!")
+
         # Save final checkpoint
         if self.checkpointer:
-            combined_model = eqx.combine(model_params, model_static)
             self.checkpointer.save_checkpoint(
-                model=combined_model,
+                model=self.model,
                 model_config=self.model_config,
                 step=step + 1,
             )
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.directory)
-
-        # Update the model with the trained parameters
-        self.model = eqx.combine(model_params, model_static)
-        print("Training completed!")
 
     def export(self):
         # After training, convert and save the model in Hugging Face format

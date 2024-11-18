@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import equinox as eqx
 from typing import Optional, Any, List
 import ml_dtypes
+import jax.nn.initializers as init
 
 
 class LlamaEmbedding(eqx.Module):
@@ -79,8 +80,13 @@ class LlamaLinear(eqx.Module):
         self.alpha = alpha
 
         if rank > 0:
-            # Initialize LoRA parameters to zeros
-            self.lora_A = jnp.zeros((in_features, rank), dtype=self.param_dtype)
+            # Initialize lora_A using Kaiming uniform initialization
+            he_uniform = init.he_uniform()
+            self.lora_A = he_uniform(
+                keys[2], (in_features, rank), dtype=self.param_dtype
+            )
+
+            # Initialize lora_B with zeros
             self.lora_B = jnp.zeros((rank, out_features), dtype=self.param_dtype)
         else:
             self.lora_A = None
