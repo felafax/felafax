@@ -7,6 +7,14 @@ from typing import Optional, Any, List
 import ml_dtypes
 import jax.nn.initializers as init
 
+DTYPE_MAP = {
+    "float32": jnp.float32,
+    "float16": jnp.float16,
+    "bfloat16": jnp.bfloat16,
+    "int32": jnp.int32,
+    "int64": jnp.int64,
+}
+
 
 class LlamaEmbedding(eqx.Module):
     weight: jnp.ndarray
@@ -595,21 +603,23 @@ class LlamaConfig:
 
         self.lora_rank = kwargs.get("lora_rank", 0)  # Default 0 means no LoRA
 
-        # Precision at which parameters are stored.
-        self.param_dtype = kwargs.get(
-            "param_dtype",
-            jnp.bfloat16,  # ml_dtypes.float8_e4m3fn
-        )
+        # Store dtype names as strings
+        self._param_dtype = kwargs.get("param_dtype", "bfloat16")
+        self._compute_dtype = kwargs.get("compute_dtype", "bfloat16")
 
-        # Precision at which computations are performed and returned.
-        self.compute_dtype = kwargs.get(
-            "compute_dtype",
-            jnp.bfloat16,  # ml_dtypes.float8_e4m3fn
-        )
+    @property
+    def param_dtype(self):
+        """Gets the parameter dtype, converting from string to JAX dtype."""
+        return DTYPE_MAP.get(self._param_dtype, jnp.bfloat16)
 
-    def __repr__(self):
-        return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"
+    @property
+    def compute_dtype(self):
+        """Gets the compute dtype, converting from string to JAX dtype."""
+        return DTYPE_MAP.get(self._compute_dtype, jnp.bfloat16)
 
     def to_dict(self):
         """Serializes the configuration to a dictionary."""
         return self.__dict__
+
+    def __repr__(self):
+        return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"
