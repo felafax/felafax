@@ -163,9 +163,6 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
         rms_norm_eps=hf_model.config.rms_norm_eps,
         rope_theta=hf_model.config.rope_theta,
         attention_bias=hf_model.config.attention_bias,
-        lora_rank=hf_model.config.lora_rank
-        if hasattr(hf_model.config, "lora_rank")
-        else 0,
     )
 
 
@@ -213,6 +210,7 @@ def load_llama_from_hf(
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
     model_config.lora_rank = lora_rank
+
     key = jax.random.PRNGKey(99)
     eqx_model = LlamaForCausalLM(
         model_config,
@@ -227,6 +225,7 @@ def load_llama_from_hf(
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
+        # Copy embedding weights at float32 precision.
         torch_to_jax_float32(
             hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))
         ),

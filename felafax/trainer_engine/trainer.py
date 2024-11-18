@@ -82,9 +82,9 @@ class TrainerConfig:
     num_steps: int = 5
     num_tpus: int = jax.device_count()
 
-    # LoRA configuration
-    use_lora: bool = True  # Enable or disable LoRA training
-    lora_rank: int = 4  # Rank for LoRA matrices
+    # lora configuration
+    lora_rank: int = 4  # Rank for lora matrices
+    use_lora: bool = False  # Enable or disable lora training
 
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"
@@ -115,27 +115,31 @@ class Trainer:
             token=trainer_config.hf_token,
             lora_rank=trainer_config.lora_rank if trainer_config.use_lora else 0,
         )
-
-        # Partition model parameters into trainable params and static params
         self.model_params, self.model_static = eqx.partition(
             self.model, eqx.is_array
         )
-        # Filter to get lora_params
-        self.is_lora_param_filter_spec = _make_lora_params_filter_spec(
-            self.model
-        )
-        lora_params, _ = eqx.partition(
-            self.model_params,
-            filter_spec=self.is_lora_param_filter_spec,
-            is_leaf=eqx.is_array,
-        )
 
-        # Initialize the optimizer with lora_params
-        self.configure_optimizers(lora_params)
+        if trainer_config.use_lora:
+            # If using lora, create optimizer state only for the lora parameters.
+            # Step 1: Create filter spec to identify lora params in the model pytree.
+            self.is_lora_param_filter_spec = _make_lora_params_filter_spec(
+                self.model
+            )
+            # Step 2: Partition the model parameters into lora and non-lora params.
+            lora_params, _ = eqx.partition(
+                self.model_params,
+                filter_spec=self.is_lora_param_filter_spec,
+                is_leaf=eqx.is_array,
+            )
+            optimizer_params = lora_params
+        else:
+            optimizer_params = self.model_params
 
-    def configure_optimizers(self, lora_params):
+        self.configure_optimizers(optimizer_params)
+
+    def configure_optimizers(self, optimizer_params):
         self.optimizer = optax.adam(learning_rate=1e-3)
-        self.opt_state = self.optimizer.init(lora_params)
+        self.opt_state = self.optimizer.init(optimizer_params)
 
     @functools.partial(jax.jit, static_argnames=("self", "model_static"))
     def forward(self, model_params, model_static, batch):
@@ -148,10 +152,10 @@ class Trainer:
         logits = model(input_ids, attention_mask, position_ids)
 
         # Shift for next-token prediction
-        shifted_logits = logits[..., :-1, :]  # Remove last logit
-        shifted_labels = labels[..., 1:]  # Remove first token
+        shifted_logits = logits[..., :-1, :] 
+        shifted_labels = labels[..., 1:] 
 
-        # If using attention mask, shift it too
+        # If using attention mask, shift it too.
         shifted_mask = None
         if attention_mask is not None:
             shifted_mask = attention_mask[..., 1:]
@@ -172,26 +176,34 @@ class Trainer:
             model_params, model_static=model_static, batch=batch
         )
 
-        # Filter gradients to only include lora_params
-        lora_grads, _ = eqx.partition(
-            grads,
-            filter_spec=self.is_lora_param_filter_spec,
-            is_leaf=eqx.is_array,
-        )
+        if self.trainer_config.use_lora:
+            # If using lora, only extract gradients for the lora params.
+            # Step 1: Partition the gradients into lora and non-lora grads.
+            lora_grads, _ = eqx.partition(
+                grads,
+                filter_spec=self.is_lora_param_filter_spec,
+                is_leaf=eqx.is_array,
+            )
+            # Step 2: Partition the model parameters into lora and non-lora params.
+            lora_params, non_lora_params = eqx.partition(
+                model_params,
+                filter_spec=self.is_lora_param_filter_spec,
+                is_leaf=eqx.is_array,
+            )
+            # Step 3: Calculate updates to apply for each lora param using lora grad and apply them. 
+            updates, optimizer_state = optimizer.update(
+                lora_grads, optimizer_state, lora_params
+            )
+            lora_params = optax.apply_updates(lora_params, updates)
+            # Step 4: Combine the updated lora params and non-lora params.
+            model_params = eqx.combine(lora_params, non_lora_params)
+        else:
+            # If not using lora, calculate updates to apply for all model params and apply them.
+            updates, optimizer_state = optimizer.update(
+                grads, optimizer_state, model_params
+            )
+            model_params = optax.apply_updates(model_params, updates)
 
-        # Update lora_params
-        lora_params, non_lora_params = eqx.partition(
-            model_params,
-            filter_spec=self.is_lora_param_filter_spec,
-            is_leaf=eqx.is_array,
-        )
-        updates, optimizer_state = optimizer.update(
-            lora_grads, optimizer_state, lora_params
-        )
-        lora_params = optax.apply_updates(lora_params, updates)
-
-        # Update model_params with the updated lora_params
-        model_params = eqx.combine(lora_params, non_lora_params)
         return loss, (accuracy, model_params, optimizer_state)
 
     def validation_step(
