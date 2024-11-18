@@ -6,6 +6,7 @@ share/
 __pycache__/
 felafax/lib64
 felafax/pyvenv.cfg
+**/.env
 
 .vscode/*
 **/.ipynb_checkpoints/*

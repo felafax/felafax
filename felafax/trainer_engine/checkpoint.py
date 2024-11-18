@@ -111,19 +111,14 @@ class Checkpointer:
         return self.checkpoint_mgr.directory
 
 
-def load_model(
-    model_name: str,
-) -> Tuple[LlamaForCausalLM, LlamaConfig]:
-    """Loads model from Hugging Face.
-
+def load_model(model_name: str, token: Optional[str] = None):
+    """Loads a model from a checkpoint or Hugging Face.
+    
     Args:
-        model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b').
-
-    Returns:
-        tuple: (model, model_config)
+        model_name: Name or path of the model to load
+        token: HuggingFace token for accessing gated models
     """
-    model, model_config = load_llama_from_hf(model_name)
-    return model, model_config
+    return load_llama_from_hf(model_name, token=token)
 
 
 def load_checkpoint_or_model(
@@ -179,18 +174,21 @@ def _make_torch_to_jax():
     return _torch_to_jax
 
 # TODO(refactor): Move load model into models/llama.
-def load_llama_from_hf(model_name: str) -> Tuple[LlamaForCausalLM, LlamaConfig]:
+def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[LlamaForCausalLM, LlamaConfig]:
     """Downloads and converts Hugging Face model to Equinox model.
 
     Args:
         model_name: Name of the Hugging Face model to load
+        token: HuggingFace token for accessing gated models
 
     Returns:
         tuple: (eqx_model, model_config)
     """
     # Load HF model
     hf_model = HFLlamaForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch.float32
+        model_name, 
+        torch_dtype=torch.float32,
+        token=token
     )
 
     # Create config and initialize Equinox model
