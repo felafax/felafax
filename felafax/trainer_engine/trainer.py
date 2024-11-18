@@ -115,7 +115,7 @@ class Trainer:
             token=trainer_config.hf_token,
             lora_rank=trainer_config.lora_rank if trainer_config.use_lora else 0,
         )
-        self.model_params, self.model_static = eqx.partition(
+        model_params, model_static = eqx.partition(
             self.model, eqx.is_array
         )
 
@@ -127,13 +127,14 @@ class Trainer:
             )
             # Step 2: Partition the model parameters into lora and non-lora params.
             lora_params, _ = eqx.partition(
-                self.model_params,
+                model_params,
                 filter_spec=self.is_lora_param_filter_spec,
                 is_leaf=eqx.is_array,
             )
             optimizer_params = lora_params
+            # TODO(lora): Add jax.lax.stop_gradient to non-lora params in the model tree.
         else:
-            optimizer_params = self.model_params
+            optimizer_params = model_params
 
         self.configure_optimizers(optimizer_params)
 
@@ -141,7 +142,7 @@ class Trainer:
         self.optimizer = optax.adam(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(optimizer_params)
 
-    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
+    # @functools.partial(jax.jit, static_argnames=("self", "model_static"))
     def forward(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]
@@ -165,9 +166,9 @@ class Trainer:
         )
         return loss, accuracy
 
-    @functools.partial(
-        jax.jit, static_argnames=("self", "model_static", "optimizer")
-    )
+    # @functools.partial(
+    #     jax.jit, static_argnames=("self", "model_static", "optimizer")
+    # )
     def training_step(
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
@@ -212,8 +213,9 @@ class Trainer:
         pass
 
     def train(self):
-        model_params = self.model_params
-        model_static = self.model_static
+        model_params, model_static = eqx.partition(
+            self.model, eqx.is_array
+        )
         optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
 
