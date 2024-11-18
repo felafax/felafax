@@ -84,7 +84,7 @@ class TrainerConfig:
 
     # LoRA configuration
     use_lora: bool = True  # Enable or disable LoRA training
-    lora_rank: int = 4  # Rank for LoRA matrices
+    lora_rank: int = 16  # Rank for LoRA matrices
 
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"

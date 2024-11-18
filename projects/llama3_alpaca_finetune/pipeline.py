@@ -14,7 +14,7 @@ if HF_TOKEN is None:
     HF_TOKEN = input(
         "Please input your HuggingFace token. Alternatively, you can create a .env file in the `llama3_alpaca_finetune` folder and specify HF_TOKEN there: "
     )
-
+TEST_MODE = True
 
 ########################################################
 # Configure the dataset pipeline
@@ -29,7 +29,10 @@ dataset_config = AlpacaDatasetConfig(
     num_workers=4,
     mask_prompt=False,
     train_test_split=0.15,
-    max_examples=100,  # Set to an integer to limit examples
+    
+    # Setting max_examples limits the number of examples in the dataset.
+    # This is useful for testing the pipeline without running the entire dataset.
+    max_examples=100 if TEST_MODE else None,
     seed=42,
 )
 alpaca_dataset = AlpacaDataset(config=dataset_config)
@@ -48,6 +51,7 @@ trainer_config = TrainerConfig(
     num_steps=100,
     num_tpus=4,
     base_dir="/mnt/persistent-disk/",
+    
 )
 
 # Set up the training environment using trainer_config
