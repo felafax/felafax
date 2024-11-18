@@ -48,7 +48,7 @@ val_dataloader = alpaca_dataset.val_dataloader()
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
     hf_token=HF_TOKEN,
-    num_steps=100,
+    num_steps=20,
     num_tpus=4,
     base_dir="/mnt/persistent-disk/",
     

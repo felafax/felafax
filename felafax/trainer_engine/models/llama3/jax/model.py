@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 from typing import Optional, Any, List
+import ml_dtypes
 
 
 class LlamaEmbedding(eqx.Module):
@@ -477,11 +478,12 @@ class LlamaConfig:
         self.lora_rank = kwargs.get("lora_rank", 0)  # Default 0 means no LoRA
 
         # Precision at which parameters are stored.
-        self.param_dtype = kwargs.get("param_dtype", jnp.float32)  
+        self.param_dtype = kwargs.get("param_dtype", jnp.bfloat16 # ml_dtypes.float8_e4m3fn
+                                      )  
 
         # Precision at which computations are performed and returned.
         self.compute_dtype = kwargs.get(
-            "compute_dtype", jnp.float32
+            "compute_dtype", jnp.bfloat16 # ml_dtypes.float8_e4m3fn
         )  
 
     def __repr__(self):
