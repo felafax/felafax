@@ -7,13 +7,14 @@ from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
 from .dataset import AlpacaDataset, AlpacaDatasetConfig
 from felafax.trainer_engine import utils
 
-# Before running this script:
-# 1. Create a .env file in the same directory as this file
-# 2. Add your HuggingFace token to the .env file in the format:
-#    HF_TOKEN=<your_token>
 
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN is None:
+    HF_TOKEN = input(
+        "Please input your HuggingFace token. Alternatively, you can create a .env file in the `llama3_alpaca_finetune` folder and specify HF_TOKEN there: "
+    )
+
 
 ########################################################
 # Configure the dataset pipeline
@@ -44,9 +45,9 @@ val_dataloader = alpaca_dataset.val_dataloader()
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
     hf_token=HF_TOKEN,
-    num_steps=20,
+    num_steps=100,
     num_tpus=4,
-    base_dir="/Users/felarof99/Workspaces/GITHUB/building/",
+    base_dir="/mnt/persistent-disk/",
 )
 
 # Set up the training environment using trainer_config
@@ -68,6 +69,9 @@ trainer = Trainer(
 
 # Run training
 trainer.train()
+
+# Export the model in HF format
+# trainer.export()
 
 # # Upload exported model to HF
 # utils.upload_dir_to_hf(

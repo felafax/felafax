@@ -28,7 +28,9 @@ class LlamaLinear(eqx.Module):
     alpha: float = 1.0
     rank: int = 0
 
-    def __init__(self, in_features, out_features, bias=False, rank=0, alpha=1.0, key=None):
+    def __init__(
+        self, in_features, out_features, bias=False, rank=0, alpha=1.0, key=None
+    ):
         if key is not None:
             keys = jax.random.split(key, 4)
         else:

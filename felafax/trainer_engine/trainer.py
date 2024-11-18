@@ -120,22 +120,22 @@ class Trainer:
         self.model_params, self.model_static = eqx.partition(
             self.model, eqx.is_array
         )
-
         # Filter to get lora_params
-        self.lora_params, _ = eqx.partition(
+        self.is_lora_param_filter_spec = _make_lora_params_filter_spec(self.model)
+        lora_params, _ = eqx.partition(
             self.model_params,
-            filter_spec=_is_lora_param_filter_spec(self.model),
+            filter_spec=self.is_lora_param_filter_spec,
             is_leaf=eqx.is_array,
         )
 
         # Initialize the optimizer with lora_params
-        self.configure_optimizers(self.lora_params)
+        self.configure_optimizers(lora_params)
 
     def configure_optimizers(self, lora_params):
         self.optimizer = optax.adam(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(lora_params)
 
-    # @functools.partial(jax.jit, static_argnames=("self", "model_static"))
+    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
     def forward(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]
@@ -159,43 +159,35 @@ class Trainer:
         )
         return loss, accuracy
 
-    # @functools.partial(
-    #     jax.jit, static_argnames=("self", "model_static", "optimizer")
-    # )
+    @functools.partial(
+        jax.jit, static_argnames=("self", "model_static", "optimizer")
+    )
     def training_step(
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
-        # Compute gradients w.r.t. model_params
         grad_fn = jax.value_and_grad(self.forward, argnums=0, has_aux=True)
         (loss, accuracy), grads = grad_fn(model_params, model_static, batch)
 
         # Filter gradients to only include lora_params
         lora_grads, _ = eqx.partition(
             grads,
-            filter_spec=_is_lora_param_filter_spec(self.model),
+            filter_spec=self.is_lora_param_filter_spec,
             is_leaf=eqx.is_array,
         )
 
         # Update lora_params
-        lora_params = eqx.partition(
+        lora_params, non_lora_params = eqx.partition(
             model_params,
-            filter_spec=_is_lora_param_filter_spec(self.model),
+            filter_spec=self.is_lora_param_filter_spec,
             is_leaf=eqx.is_array,
         )
         updates, optimizer_state = optimizer.update(
             lora_grads, optimizer_state, lora_params
         )
-
-        self.lora_params = optax.apply_updates(self.lora_params, updates)
+        lora_params = optax.apply_updates(lora_params, updates)
 
         # Update model_params with the updated lora_params
-        model_params = eqx.tree_at(
-            lambda params: params,
-            model_params,
-            self.lora_params,
-            is_leaf=_is_lora_param_filter_spec(self.model),
-        )
-
+        model_params = eqx.combine(lora_params, non_lora_params)
         return loss, (accuracy, model_params, optimizer_state)
 
     def validation_step(
@@ -264,9 +256,6 @@ class Trainer:
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
 
-        # Call export method to save the model
-        self.export()
-
     def export(self):
         # After training, convert and save the model in Hugging Face format
         self.model = merge_lora_params(self.model)
@@ -299,13 +288,12 @@ def _preprocess_batch(batch):
     return batch
 
 
-def _is_lora_param_filter_spec(model):
-    is_lora_param_filter_spec = named_tree_map(
+def _make_lora_params_filter_spec(model):
+    return named_tree_map(
         lambda path_str, value: "lora_A" in path_str or "lora_B" in path_str,
         model,
         is_leaf=eqx.is_array,
     )
-    return is_lora_param_filter_spec
 
 
 def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
