@@ -3,19 +3,25 @@
 import jax
 import jax.numpy as jnp
 import equinox as eqx
-from typing import Optional
+from typing import Optional, Any, List
 
 
 class LlamaEmbedding(eqx.Module):
     weight: jnp.ndarray
+    param_dtype: Any
+    compute_dtype: Any
 
-    def __init__(self, num_embeddings, embedding_dim):
-        self.weight = jax.random.normal(
-            jax.random.PRNGKey(0), (num_embeddings, embedding_dim)
-        )
+    def __init__(self, num_embeddings, embedding_dim, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
+        if key is None:
+            key = jax.random.PRNGKey(99)
+        self.weight = jax.random.normal(key, (num_embeddings, embedding_dim), dtype=self.param_dtype)
 
     def __call__(self, x):
-        return jnp.take(self.weight, x, axis=0)
+        weight = self.weight.astype(self.compute_dtype)
+        embeddings = jnp.take(weight, x, axis=0)
+        return embeddings.astype(self.compute_dtype)
 
 
 # TODO(lora): Need to change this to equnix.linear or define my own quax.
@@ -27,54 +33,74 @@ class LlamaLinear(eqx.Module):
     lora_B: Optional[jnp.ndarray]
     alpha: float = 1.0
     rank: int = 0
+    param_dtype: Any
+    compute_dtype: Any
 
     def __init__(
-        self, in_features, out_features, bias=False, rank=0, alpha=1.0, key=None
+        self, in_features, out_features, bias=False, rank=0, alpha=1.0, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None
     ):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
         if key is not None:
             keys = jax.random.split(key, 4)
         else:
             keys = jax.random.split(jax.random.PRNGKey(99), 4)
+            
         self.weight = jax.random.normal(
             keys[0],
             (out_features, in_features),
+            dtype=self.param_dtype,
         )
-        self.bias = jax.random.normal(keys[1], (out_features,)) if bias else None
+        self.bias = jax.random.normal(keys[1], (out_features,), dtype=self.param_dtype) if bias else None
+
         self.rank = rank
         self.alpha = alpha
+
         if rank > 0:
             # Initialize LoRA parameters to zeros
-            self.lora_A = jnp.zeros((in_features, rank))
-            self.lora_B = jnp.zeros((rank, out_features))
+            self.lora_A = jnp.zeros((in_features, rank), dtype=self.param_dtype)
+            self.lora_B = jnp.zeros((rank, out_features), dtype=self.param_dtype)
         else:
             self.lora_A = None
             self.lora_B = None
 
     def __call__(self, x):
-        y = x @ self.weight.T
+        x = x.astype(self.compute_dtype)
+        weight = self.weight.astype(self.compute_dtype)
+        
+        y = x @ weight.T
         if self.bias is not None:
-            y += self.bias
+            y += self.bias.astype(self.compute_dtype)
         if self.lora_A is not None and self.lora_B is not None:
+            lora_A = self.lora_A.astype(self.compute_dtype)
+            lora_B = self.lora_B.astype(self.compute_dtype)
             scaling = self.alpha / self.rank
-            lora_update = (x @ self.lora_A @ self.lora_B) * scaling
+            lora_update = (x @ lora_A @ lora_B) * scaling
             y += lora_update
-        return y
+        return y.astype(self.compute_dtype)
 
 
 class LlamaRotaryEmbedding(eqx.Module):
     inv_freq: jnp.ndarray
     max_seq_len_cached: int
+    param_dtype: Any
+    compute_dtype: Any
 
-    def __init__(self, config):
+    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
+
         dim = config.hidden_size // config.num_attention_heads
         self.max_seq_len_cached = config.max_position_embeddings
         inv_freq = 1.0 / (
-            config.rope_theta
-            ** (jnp.arange(0, dim, 2).astype(jnp.float32) / dim)
+            config.rope_theta ** (jnp.arange(0, dim, 2).astype(jnp.float32) / dim)
         )
-        self.inv_freq = inv_freq
+        # TODO(mixed_precision): always using float32 for inv_freq.
+        self.inv_freq = inv_freq.astype(jnp.float32)
 
     def __call__(self, x, position_ids):
+        # TODO(mixed_precision): check if x should be retained as float32 for rotary embeddings.
+        x = x.astype(jnp.float32)
         seq_len = position_ids.shape[1]
         t = position_ids.astype(jnp.float32)
         inv_freq = self.inv_freq
@@ -92,21 +118,26 @@ class LlamaRotaryEmbedding(eqx.Module):
         )  # Shape: (batch_size, seq_len, dim)
         cos = jnp.cos(emb)
         sin = jnp.sin(emb)
-        return cos.astype(x.dtype), sin.astype(x.dtype)
+        return cos.astype(jnp.float32), sin.astype(jnp.float32)
 
 
 class LlamaRMSNorm(eqx.Module):
     weight: jnp.ndarray
     eps: float
+    param_dtype: Any
+    compute_dtype: Any
 
-    def __init__(self, hidden_size, eps=1e-6):
-        self.weight = jnp.ones(hidden_size)
+    def __init__(self, hidden_size, eps=1e-6, param_dtype=jnp.float32, compute_dtype=jnp.float32):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
+        self.weight = jnp.ones(hidden_size, dtype=self.param_dtype)
         self.eps = eps
 
     def __call__(self, hidden_states):
-        variance = jnp.mean(hidden_states**2, axis=-1, keepdims=True)
+        hidden_states = hidden_states.astype(self.compute_dtype)
+        variance = jnp.mean(hidden_states ** 2, axis=-1, keepdims=True)
         hidden_states = hidden_states * jax.lax.rsqrt(variance + self.eps)
-        return self.weight * hidden_states
+        return (self.weight.astype(self.compute_dtype) * hidden_states).astype(self.compute_dtype)
 
 
 class LlamaSdpaAttention(eqx.Module):
@@ -122,8 +153,14 @@ class LlamaSdpaAttention(eqx.Module):
     hidden_size: int
     max_position_embeddings: int
     rope_theta: float
+    param_dtype: Any
+    compute_dtype: Any
 
-    def __init__(self, config, key):
+    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
+        if key is None:
+            key = jax.random.PRNGKey(99)
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -144,6 +181,8 @@ class LlamaSdpaAttention(eqx.Module):
             self.num_heads * self.head_dim,
             bias=config.attention_bias,
             rank=config.lora_rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
             key=keys[0],
         )
         self.k_proj = LlamaLinear(
@@ -151,6 +190,8 @@ class LlamaSdpaAttention(eqx.Module):
             self.num_key_value_heads * self.head_dim,
             bias=config.attention_bias,
             rank=config.lora_rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
             key=keys[1],
         )
         self.v_proj = LlamaLinear(
@@ -158,6 +199,8 @@ class LlamaSdpaAttention(eqx.Module):
             self.num_key_value_heads * self.head_dim,
             bias=config.attention_bias,
             rank=config.lora_rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
             key=keys[2],
         )
         self.o_proj = LlamaLinear(
@@ -165,12 +208,15 @@ class LlamaSdpaAttention(eqx.Module):
             self.hidden_size,
             bias=config.attention_bias,
             rank=config.lora_rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
             key=keys[3],
         )
 
-        self.rotary_emb = LlamaRotaryEmbedding(config)
+        self.rotary_emb = LlamaRotaryEmbedding(config, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype)
 
     def __call__(self, x, position_ids, attention_mask=None):
+        x = x.astype(self.compute_dtype)
         def jax_apply_rotary_pos_emb(q, k, cos, sin):
             q_embed = (q * cos) + (jax_rotate_half(q) * sin)
             k_embed = (k * cos) + (jax_rotate_half(k) * sin)
@@ -245,28 +291,38 @@ class LlamaSdpaAttention(eqx.Module):
 
         attn_output = self.o_proj(attn_output)
 
-        return attn_output
+        return attn_output.astype(self.compute_dtype)
 
 
 class LlamaMLP(eqx.Module):
     gate_proj: LlamaLinear
     up_proj: LlamaLinear
     down_proj: LlamaLinear
+    param_dtype: Any
+    compute_dtype: Any
 
-    def __init__(self, hidden_size, intermediate_size, key, rank=0):
+    def __init__(self, hidden_size, intermediate_size, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None, rank=0):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
         keys = jax.random.split(key, 3)
         self.gate_proj = LlamaLinear(
-            hidden_size, intermediate_size, bias=False, rank=rank, key=keys[0]
+            hidden_size, intermediate_size, bias=False, rank=rank,
+            param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[0]
         )
         self.up_proj = LlamaLinear(
-            hidden_size, intermediate_size, bias=False, rank=rank, key=keys[1]
+            hidden_size, intermediate_size, bias=False, rank=rank,
+            param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[1]
         )
         self.down_proj = LlamaLinear(
-            intermediate_size, hidden_size, bias=False, rank=rank, key=keys[2]
+            intermediate_size, hidden_size, bias=False, rank=rank,
+            param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[2]
         )
 
     def __call__(self, x):
-        return self.down_proj(jax.nn.silu(self.gate_proj(x)) * self.up_proj(x))
+        x = x.astype(self.compute_dtype)
+        hidden = jax.nn.silu(self.gate_proj(x)) * self.up_proj(x)
+        output = self.down_proj(hidden)
+        return output.astype(self.compute_dtype)
 
 
 class LlamaDecoderLayer(eqx.Module):
@@ -274,21 +330,29 @@ class LlamaDecoderLayer(eqx.Module):
     mlp: LlamaMLP
     input_layernorm: LlamaRMSNorm
     post_attention_layernorm: LlamaRMSNorm
+    param_dtype: Any
+    compute_dtype: Any
 
-    def __init__(self, config, key):
+    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
         keys = jax.random.split(key, 2)
-        self.self_attn = LlamaSdpaAttention(config, keys[0])
+        self.self_attn = LlamaSdpaAttention(
+            config, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[0]
+        )
         self.mlp = LlamaMLP(
             config.hidden_size,
             config.intermediate_size,
-            keys[1],
-            config.lora_rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
+            key=keys[1],
+            rank=config.lora_rank,
         )
         self.input_layernorm = LlamaRMSNorm(
-            config.hidden_size, config.rms_norm_eps
+            config.hidden_size, config.rms_norm_eps, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype
         )
         self.post_attention_layernorm = LlamaRMSNorm(
-            config.hidden_size, config.rms_norm_eps
+            config.hidden_size, config.rms_norm_eps, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype
         )
 
     def __call__(self, hidden_states, attention_mask=None, position_ids=None):
@@ -304,22 +368,32 @@ class LlamaDecoderLayer(eqx.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
-        return hidden_states
+        return hidden_states.astype(self.compute_dtype)
 
 
 class LlamaModel(eqx.Module):
     embed_tokens: LlamaEmbedding
-    layers: list[LlamaDecoderLayer]
+    layers: List[LlamaDecoderLayer]
     norm: LlamaRMSNorm
+    param_dtype: Any
+    compute_dtype: Any
 
-    def __init__(self, config, key):
-        self.embed_tokens = LlamaEmbedding(config.vocab_size, config.hidden_size)
+    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+        self.param_dtype = param_dtype
+        self.compute_dtype = compute_dtype
+        if key is None:
+            key = jax.random.PRNGKey(99)
+
+        self.embed_tokens = LlamaEmbedding(config.vocab_size, config.hidden_size, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=key)
+        
         layer_keys = jax.random.split(key, config.num_hidden_layers)
         self.layers = [
-            LlamaDecoderLayer(config, layer_keys[i])
+            LlamaDecoderLayer(config, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=layer_keys[i])
             for i in range(config.num_hidden_layers)
         ]
-        self.norm = LlamaRMSNorm(config.hidden_size, config.rms_norm_eps)
+        self.norm = LlamaRMSNorm(
+            config.hidden_size, config.rms_norm_eps, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype
+        )
 
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.embed_tokens(input_ids)
@@ -329,28 +403,32 @@ class LlamaModel(eqx.Module):
 
         hidden_states = self.norm(hidden_states)
 
-        return hidden_states
+        return hidden_states.astype(self.compute_dtype)
 
 
 class LlamaForCausalLM(eqx.Module):
     model: LlamaModel
     lm_head: LlamaLinear
 
-    def __init__(self, config, key):
+    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+        if key is None:
+            key = jax.random.PRNGKey(99)
         key1, key2 = jax.random.split(key)
-        self.model = LlamaModel(config, key1)
+        self.model = LlamaModel(config, param_dtype=param_dtype, compute_dtype=compute_dtype, key=key1)
         self.lm_head = LlamaLinear(
             config.hidden_size,
             config.vocab_size,
             bias=False,
             rank=config.lora_rank,
+            param_dtype=param_dtype,
+            compute_dtype=compute_dtype,
             key=key2,
         )
 
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.model(input_ids, attention_mask, position_ids)
         logits = self.lm_head(hidden_states)
-        return logits
+        return logits.astype(self.model.compute_dtype)
 
 
 class LlamaConfig:
@@ -397,6 +475,14 @@ class LlamaConfig:
         self.torch_dtype = kwargs.get("torch_dtype", None)
 
         self.lora_rank = kwargs.get("lora_rank", 0)  # Default 0 means no LoRA
+
+        # Precision at which parameters are stored.
+        self.param_dtype = kwargs.get("param_dtype", jnp.float32)  
+
+        # Precision at which computations are performed and returned.
+        self.compute_dtype = kwargs.get(
+            "compute_dtype", jnp.float32
+        )  
 
     def __repr__(self):
         return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"

@@ -14,7 +14,7 @@ if HF_TOKEN is None:
     HF_TOKEN = input(
         "Please input your HuggingFace token. Alternatively, you can create a .env file in the `llama3_alpaca_finetune` folder and specify HF_TOKEN there: "
     )
-TEST_MODE = True
+TEST_MODE = False
 
 ########################################################
 # Configure the dataset pipeline

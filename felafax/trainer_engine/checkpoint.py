@@ -16,7 +16,7 @@ from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaLinear,
 )
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 from jaxtyping import PyTree
 from jax.sharding import NamedSharding, PartitionSpec as PS
 from jax.experimental import mesh_utils
@@ -123,23 +123,30 @@ def load_model(model_name: str, token: Optional[str] = None):
 
 def load_checkpoint_or_model(
     model_name: str,
-    checkpointer: Checkpointer,
-) -> Tuple[LlamaForCausalLM, LlamaConfig]:
-    """Loads checkpoint from local storage using Orbax or downloads from HF.
+    checkpointer,
+    param_dtype=jnp.float32,
+    compute_dtype=jnp.float32,
+) -> LlamaForCausalLM:
+    """Loads checkpoint from local storage using Orbax or downloads from HF with specified dtypes.
 
     Args:
         model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
         checkpointer: An instance of Checkpointer to manage loading
+        param_dtype: The dtype in which parameters are stored and loaded
+        output_dtype: The dtype in which computations are performed and outputs are returned
 
     Returns:
         tuple: (model, model_config)
     """
     has_checkpoints = len(checkpointer.checkpoint_mgr.all_steps()) > 0
     if has_checkpoints:
+        # Restores the model in whatever dtypes are stored in the checkpoint.
         model, model_config = checkpointer.restore_checkpoint()
         return model, model_config
 
-    model, model_config = load_model(model_name)
+    model, model_config = load_llama_from_hf(
+        model_name, param_dtype=param_dtype, compute_dtype=compute_dtype
+    )
     return model, model_config
 
 
@@ -162,15 +169,14 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
     )
 
 
-def _make_torch_to_jax():
+def _make_torch_to_jax(dtype):
     """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
     # Import here to avoid circular dependency
     from felafax.trainer_engine.trainer import get_mesh
-
     mesh = get_mesh(jax.device_count())
 
     def _torch_to_jax(tensor, sharding_spec):
-        jax_array = jnp.array(tensor.detach().numpy())
+        jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
         sharding = NamedSharding(mesh, sharding_spec)
         return jax.device_put(jax_array, sharding)
 
@@ -179,17 +185,24 @@ def _make_torch_to_jax():
 
 # TODO(refactor): Move load model into models/llama.
 def load_llama_from_hf(
-    model_name: str, token: Optional[str] = None, lora_rank: int = 0
-) -> Tuple[LlamaForCausalLM, LlamaConfig]:
-    """Downloads and converts Hugging Face model to Equinox model.
+    model_name: str,
+    token: Optional[str] = None,
+    lora_rank: int = 0,
+    param_dtype: Any = jnp.float32,
+    compute_dtype: Any = jnp.float32,
+) -> LlamaForCausalLM:
+    """Downloads and converts Hugging Face model to Equinox model with specified dtypes.
 
     Args:
         model_name: Name of the Hugging Face model to load
         token: HuggingFace token for accessing gated models
         lora_rank: Rank for LoRA parameters (set to 0 for no LoRA)
+        param_dtype: The dtype in which parameters are stored
+        output_dtype: The dtype in which computations are performed
 
     Returns:
-        tuple: (eqx_model, model_config)
+        eqx_model: LlamaForCausalLM model with specified dtypes
+        model_config: Configuration of the model
     """
     # Load HF model
     hf_model = HFLlamaForCausalLM.from_pretrained(
@@ -200,15 +213,20 @@ def load_llama_from_hf(
     model_config = create_llama_config_from_hf_model(hf_model)
     model_config.lora_rank = lora_rank
     key = jax.random.PRNGKey(99)
-    eqx_model = LlamaForCausalLM(model_config, key)
-
-    torch_to_jax = _make_torch_to_jax()
+    eqx_model = LlamaForCausalLM(
+        model_config,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype,
+        key=key
+    )
+    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32)
+    torch_to_jax = _make_torch_to_jax(dtype=param_dtype)
 
     # Copy weights from HF model to Equinox model
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))),
+        torch_to_jax_float32(hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.model.norm.weight,

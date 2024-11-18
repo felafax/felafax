@@ -83,7 +83,7 @@ class TrainerConfig:
     num_tpus: int = jax.device_count()
 
     # LoRA configuration
-    use_lora: bool = True  # Enable or disable LoRA training
+    use_lora: bool = False# Enable or disable LoRA training
     lora_rank: int = 16  # Rank for LoRA matrices
 
     # Environment configuration
