@@ -12,12 +12,21 @@ class LlamaEmbedding(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
-    def __init__(self, num_embeddings, embedding_dim, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+    def __init__(
+        self,
+        num_embeddings,
+        embedding_dim,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+        key=None,
+    ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
         if key is None:
             key = jax.random.PRNGKey(99)
-        self.weight = jax.random.normal(key, (num_embeddings, embedding_dim), dtype=self.param_dtype)
+        self.weight = jax.random.normal(
+            key, (num_embeddings, embedding_dim), dtype=self.param_dtype
+        )
 
     def __call__(self, x):
         weight = self.weight.astype(self.compute_dtype)
@@ -38,7 +47,15 @@ class LlamaLinear(eqx.Module):
     compute_dtype: Any
 
     def __init__(
-        self, in_features, out_features, bias=False, rank=0, alpha=1.0, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None
+        self,
+        in_features,
+        out_features,
+        bias=False,
+        rank=0,
+        alpha=1.0,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+        key=None,
     ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
@@ -46,13 +63,17 @@ class LlamaLinear(eqx.Module):
             keys = jax.random.split(key, 4)
         else:
             keys = jax.random.split(jax.random.PRNGKey(99), 4)
-            
+
         self.weight = jax.random.normal(
             keys[0],
             (out_features, in_features),
             dtype=self.param_dtype,
         )
-        self.bias = jax.random.normal(keys[1], (out_features,), dtype=self.param_dtype) if bias else None
+        self.bias = (
+            jax.random.normal(keys[1], (out_features,), dtype=self.param_dtype)
+            if bias
+            else None
+        )
 
         self.rank = rank
         self.alpha = alpha
@@ -68,7 +89,7 @@ class LlamaLinear(eqx.Module):
     def __call__(self, x):
         x = x.astype(self.compute_dtype)
         weight = self.weight.astype(self.compute_dtype)
-        
+
         y = x @ weight.T
         if self.bias is not None:
             y += self.bias.astype(self.compute_dtype)
@@ -87,14 +108,17 @@ class LlamaRotaryEmbedding(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
-    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32):
+    def __init__(
+        self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32
+    ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
 
         dim = config.hidden_size // config.num_attention_heads
         self.max_seq_len_cached = config.max_position_embeddings
         inv_freq = 1.0 / (
-            config.rope_theta ** (jnp.arange(0, dim, 2).astype(jnp.float32) / dim)
+            config.rope_theta
+            ** (jnp.arange(0, dim, 2).astype(jnp.float32) / dim)
         )
         # TODO(mixed_precision): always using float32 for inv_freq.
         self.inv_freq = inv_freq.astype(jnp.float32)
@@ -128,7 +152,13 @@ class LlamaRMSNorm(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
-    def __init__(self, hidden_size, eps=1e-6, param_dtype=jnp.float32, compute_dtype=jnp.float32):
+    def __init__(
+        self,
+        hidden_size,
+        eps=1e-6,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+    ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
         self.weight = jnp.ones(hidden_size, dtype=self.param_dtype)
@@ -136,9 +166,11 @@ class LlamaRMSNorm(eqx.Module):
 
     def __call__(self, hidden_states):
         hidden_states = hidden_states.astype(self.compute_dtype)
-        variance = jnp.mean(hidden_states ** 2, axis=-1, keepdims=True)
+        variance = jnp.mean(hidden_states**2, axis=-1, keepdims=True)
         hidden_states = hidden_states * jax.lax.rsqrt(variance + self.eps)
-        return (self.weight.astype(self.compute_dtype) * hidden_states).astype(self.compute_dtype)
+        return (self.weight.astype(self.compute_dtype) * hidden_states).astype(
+            self.compute_dtype
+        )
 
 
 class LlamaSdpaAttention(eqx.Module):
@@ -157,7 +189,13 @@ class LlamaSdpaAttention(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
-    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+    def __init__(
+        self,
+        config,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+        key=None,
+    ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
         if key is None:
@@ -214,10 +252,15 @@ class LlamaSdpaAttention(eqx.Module):
             key=keys[3],
         )
 
-        self.rotary_emb = LlamaRotaryEmbedding(config, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype)
+        self.rotary_emb = LlamaRotaryEmbedding(
+            config,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
+        )
 
     def __call__(self, x, position_ids, attention_mask=None):
         x = x.astype(self.compute_dtype)
+
         def jax_apply_rotary_pos_emb(q, k, cos, sin):
             q_embed = (q * cos) + (jax_rotate_half(q) * sin)
             k_embed = (k * cos) + (jax_rotate_half(k) * sin)
@@ -302,21 +345,44 @@ class LlamaMLP(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
-    def __init__(self, hidden_size, intermediate_size, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None, rank=0):
+    def __init__(
+        self,
+        hidden_size,
+        intermediate_size,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+        key=None,
+        rank=0,
+    ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
         keys = jax.random.split(key, 3)
         self.gate_proj = LlamaLinear(
-            hidden_size, intermediate_size, bias=False, rank=rank,
-            param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[0]
+            hidden_size,
+            intermediate_size,
+            bias=False,
+            rank=rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
+            key=keys[0],
         )
         self.up_proj = LlamaLinear(
-            hidden_size, intermediate_size, bias=False, rank=rank,
-            param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[1]
+            hidden_size,
+            intermediate_size,
+            bias=False,
+            rank=rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
+            key=keys[1],
         )
         self.down_proj = LlamaLinear(
-            intermediate_size, hidden_size, bias=False, rank=rank,
-            param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[2]
+            intermediate_size,
+            hidden_size,
+            bias=False,
+            rank=rank,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
+            key=keys[2],
         )
 
     def __call__(self, x):
@@ -334,12 +400,21 @@ class LlamaDecoderLayer(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
-    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+    def __init__(
+        self,
+        config,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+        key=None,
+    ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
         keys = jax.random.split(key, 2)
         self.self_attn = LlamaSdpaAttention(
-            config, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=keys[0]
+            config,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
+            key=keys[0],
         )
         self.mlp = LlamaMLP(
             config.hidden_size,
@@ -350,10 +425,16 @@ class LlamaDecoderLayer(eqx.Module):
             rank=config.lora_rank,
         )
         self.input_layernorm = LlamaRMSNorm(
-            config.hidden_size, config.rms_norm_eps, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype
+            config.hidden_size,
+            config.rms_norm_eps,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
         )
         self.post_attention_layernorm = LlamaRMSNorm(
-            config.hidden_size, config.rms_norm_eps, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype
+            config.hidden_size,
+            config.rms_norm_eps,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
         )
 
     def __call__(self, hidden_states, attention_mask=None, position_ids=None):
@@ -379,21 +460,41 @@ class LlamaModel(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
 
-    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+    def __init__(
+        self,
+        config,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+        key=None,
+    ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
         if key is None:
             key = jax.random.PRNGKey(99)
 
-        self.embed_tokens = LlamaEmbedding(config.vocab_size, config.hidden_size, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=key)
-        
+        self.embed_tokens = LlamaEmbedding(
+            config.vocab_size,
+            config.hidden_size,
+            param_dtype=jnp.float32,
+            compute_dtype=jnp.float32,
+            key=key,
+        )
+
         layer_keys = jax.random.split(key, config.num_hidden_layers)
         self.layers = [
-            LlamaDecoderLayer(config, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype, key=layer_keys[i])
+            LlamaDecoderLayer(
+                config,
+                param_dtype=self.param_dtype,
+                compute_dtype=self.compute_dtype,
+                key=layer_keys[i],
+            )
             for i in range(config.num_hidden_layers)
         ]
         self.norm = LlamaRMSNorm(
-            config.hidden_size, config.rms_norm_eps, param_dtype=self.param_dtype, compute_dtype=self.compute_dtype
+            config.hidden_size,
+            config.rms_norm_eps,
+            param_dtype=self.param_dtype,
+            compute_dtype=self.compute_dtype,
         )
 
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
@@ -411,11 +512,22 @@ class LlamaForCausalLM(eqx.Module):
     model: LlamaModel
     lm_head: LlamaLinear
 
-    def __init__(self, config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=None):
+    def __init__(
+        self,
+        config,
+        param_dtype=jnp.float32,
+        compute_dtype=jnp.float32,
+        key=None,
+    ):
         if key is None:
             key = jax.random.PRNGKey(99)
         key1, key2 = jax.random.split(key)
-        self.model = LlamaModel(config, param_dtype=param_dtype, compute_dtype=compute_dtype, key=key1)
+        self.model = LlamaModel(
+            config,
+            param_dtype=param_dtype,
+            compute_dtype=compute_dtype,
+            key=key1,
+        )
         self.lm_head = LlamaLinear(
             config.hidden_size,
             config.vocab_size,
@@ -478,13 +590,16 @@ class LlamaConfig:
         self.lora_rank = kwargs.get("lora_rank", 0)  # Default 0 means no LoRA
 
         # Precision at which parameters are stored.
-        self.param_dtype = kwargs.get("param_dtype", jnp.bfloat16 # ml_dtypes.float8_e4m3fn
-                                      )  
+        self.param_dtype = kwargs.get(
+            "param_dtype",
+            jnp.bfloat16,  # ml_dtypes.float8_e4m3fn
+        )
 
         # Precision at which computations are performed and returned.
         self.compute_dtype = kwargs.get(
-            "compute_dtype", jnp.bfloat16 # ml_dtypes.float8_e4m3fn
-        )  
+            "compute_dtype",
+            jnp.bfloat16,  # ml_dtypes.float8_e4m3fn
+        )
 
     def __repr__(self):
         return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"

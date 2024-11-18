@@ -173,6 +173,7 @@ def _make_torch_to_jax(dtype):
     """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
     # Import here to avoid circular dependency
     from felafax.trainer_engine.trainer import get_mesh
+
     mesh = get_mesh(jax.device_count())
 
     def _torch_to_jax(tensor, sharding_spec):
@@ -217,7 +218,7 @@ def load_llama_from_hf(
         model_config,
         param_dtype=param_dtype,
         compute_dtype=compute_dtype,
-        key=key
+        key=key,
     )
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype)
@@ -226,7 +227,9 @@ def load_llama_from_hf(
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
-        torch_to_jax_float32(hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))),
+        torch_to_jax_float32(
+            hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))
+        ),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.model.norm.weight,

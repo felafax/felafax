@@ -29,7 +29,6 @@ dataset_config = AlpacaDatasetConfig(
     num_workers=4,
     mask_prompt=False,
     train_test_split=0.15,
-    
     # Setting max_examples limits the number of examples in the dataset.
     # This is useful for testing the pipeline without running the entire dataset.
     max_examples=100 if TEST_MODE else None,
@@ -51,7 +50,6 @@ trainer_config = TrainerConfig(
     num_steps=20,
     num_tpus=4,
     base_dir="/mnt/persistent-disk/",
-    
 )
 
 # Set up the training environment using trainer_config

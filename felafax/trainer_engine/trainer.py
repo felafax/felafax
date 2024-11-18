@@ -83,7 +83,7 @@ class TrainerConfig:
     num_tpus: int = jax.device_count()
 
     # LoRA configuration
-    use_lora: bool = False# Enable or disable LoRA training
+    use_lora: bool = False  # Enable or disable LoRA training
     lora_rank: int = 16  # Rank for LoRA matrices
 
     # Environment configuration
@@ -121,7 +121,9 @@ class Trainer:
             self.model, eqx.is_array
         )
         # Filter to get lora_params
-        self.is_lora_param_filter_spec = _make_lora_params_filter_spec(self.model)
+        self.is_lora_param_filter_spec = _make_lora_params_filter_spec(
+            self.model
+        )
         lora_params, _ = eqx.partition(
             self.model_params,
             filter_spec=self.is_lora_param_filter_spec,
