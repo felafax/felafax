@@ -1,4 +1,5 @@
 import os
+import jax
 from dotenv import load_dotenv
 from transformers import AutoTokenizer
 from felafax.trainer_engine.trainer import Trainer, TrainerConfig
@@ -48,8 +49,8 @@ trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
     hf_token=HF_TOKEN,
     num_steps=20,
-    num_tpus=4,
-    base_dir="/mnt/persistent-disk/",
+    num_tpus=jax.device_count(),
+    base_dir="/Users/felarof99/Workspaces/GITHUB/building/checkpoints/",
 )
 
 # Set up the training environment using trainer_config

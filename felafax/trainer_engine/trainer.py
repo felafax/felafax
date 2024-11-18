@@ -83,8 +83,8 @@ class TrainerConfig:
     num_tpus: int = jax.device_count()
 
     # LoRA configuration
-    use_lora: bool = False  # Enable or disable LoRA training
-    lora_rank: int = 16  # Rank for LoRA matrices
+    use_lora: bool = True # Enable or disable LoRA training
+    lora_rank: int = 4 # Rank for LoRA matrices
 
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"
@@ -137,7 +137,7 @@ class Trainer:
         self.optimizer = optax.adam(learning_rate=1e-3)
         self.opt_state = self.optimizer.init(lora_params)
 
-    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
+    # @functools.partial(jax.jit, static_argnames=("self", "model_static"))
     def forward(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]
@@ -161,9 +161,9 @@ class Trainer:
         )
         return loss, accuracy
 
-    @functools.partial(
-        jax.jit, static_argnames=("self", "model_static", "optimizer")
-    )
+    # @functools.partial(
+    #     jax.jit, static_argnames=("self", "model_static", "optimizer")
+    # )
     def training_step(
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
