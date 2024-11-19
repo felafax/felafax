@@ -437,6 +437,8 @@ class LlamaMLP(eqx.Module):
     ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
+        if key is None:
+            key = jax.random.PRNGKey(99)
         keys = jax.random.split(key, 3)
         self.gate_proj = LlamaLinear(
             hidden_size,
@@ -490,6 +492,8 @@ class LlamaDecoderLayer(eqx.Module):
     ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
+        if key is None:
+            key = jax.random.PRNGKey(99)
         keys = jax.random.split(key, 2)
         self.self_attn = LlamaSdpaAttention(
             config,
