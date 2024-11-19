@@ -1,46 +1,41 @@
 """
-test_l3.1_8b_equivalence.py
+test_llama_port.py
 
-This script serves as a comprehensive test suite for validating the equivalence
-between the original PyTorch implementation of the Llama model and its JAX/Equinox
-port. It performs the following key tasks:
+This script provides a comprehensive suite of tests to validate the equivalence between the original PyTorch implementation of the Llama model and its JAX/Equinox port. The main objectives of this script are:
 
-1. Imports both the Hugging Face Transformers Llama model and the custom JAX/Equinox
-   implementation.
-2. Defines test functions for each major component of the Llama architecture, including:
+1. **Importing Necessary Models and Implementations**: It imports both the Llama model from Hugging Face Transformers and the custom implementation using JAX/Equinox.
+
+2. **Defining Test Functions for Core Components**: The script includes test functions for each major component of the Llama architecture, such as:
    - Token Embedding
-   - Linear Transformations
+   - Linear Layers
    - RMS Normalization
    - Multi-Layer Perceptron (MLP)
    - Self-Attention Mechanism
    - Decoder Layer
-   - Full Model
+   - Complete Model
    - Causal Language Model
 
-3. For each component, the test:
-   - Initializes both PyTorch and JAX/Equinox versions
-   - Copies weights from the PyTorch model to the JAX/Equinox model
-   - Generates identical inputs for both versions
-   - Computes outputs using both implementations
-   - Asserts that the outputs are numerically close, within a specified tolerance
+3. **Comparative Testing for Each Component**: For every component, the script:
+   - Initializes both the PyTorch and JAX/Equinox versions.
+   - Transfers weights from the PyTorch model to the JAX/Equinox model.
+   - Generates identical inputs for both implementations.
+   - Computes outputs using both versions.
+   - Verifies that the outputs are numerically close within a specified tolerance.
 
-The primary purposes of this script are to:
-- Ensure that the JAX/Equinox implementation correctly replicates the behavior of
-  the original PyTorch model.
-- Verify that each component of the Llama architecture has been accurately ported.
-- Catch any discrepancies or errors in the porting process.
-- Provide a reliable test suite for ongoing development and refactoring of the
-  JAX/Equinox implementation.
+The primary goals of this test suite are to:
 
-Usage:
-    Run this script using pytest to validate the equivalence of the PyTorch and
-    JAX/Equinox implementations of the Llama model. All tests should pass if the
-    porting process has been successful.
+- Ensure that the JAX/Equinox implementation faithfully replicates the behavior of the original PyTorch model.
+- Confirm that each component of the Llama architecture has been accurately ported to JAX/Equinox.
+- Identify any discrepancies or errors that may have arisen during the porting process.
+- Provide a dependable testing framework for ongoing development and refactoring of the JAX/Equinox implementation.
 
-Note:
-    This test suite is crucial for maintaining the integrity and accuracy of the
-    JAX/Equinox port. It should be run after any significant changes to the
-    implementation and as part of the continuous integration process.
+**Usage Instructions**:
+
+To validate the equivalence between the PyTorch and JAX/Equinox implementations of the Llama model, run this script using `pytest`. Successful execution, with all tests passing, indicates a successful porting process.
+
+**Note**:
+
+Maintaining the integrity and accuracy of the JAX/Equinox port is crucial. This test suite should be executed after any significant modifications to the implementation and should be integrated into the continuous integration (CI) process.
 """
 
 import pytest

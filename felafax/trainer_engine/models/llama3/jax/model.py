@@ -16,6 +16,73 @@ DTYPE_MAP = {
 }
 
 
+class LlamaConfig:
+    def __init__(self, **kwargs):
+        self.vocab_size = kwargs.get("vocab_size", 32000)
+        self.hidden_size = kwargs.get("hidden_size", 4096)
+        self.intermediate_size = kwargs.get("intermediate_size", 11008)
+        self.num_hidden_layers = kwargs.get("num_hidden_layers", 32)
+        self.num_attention_heads = kwargs.get("num_attention_heads", 32)
+        self.num_key_value_heads = kwargs.get("num_key_value_heads", 32)
+        self.max_position_embeddings = kwargs.get(
+            "max_position_embeddings", 2048
+        )
+        self.rms_norm_eps = kwargs.get("rms_norm_eps", 1e-6)
+
+        # New attributes
+        self.rope_theta = kwargs.get("rope_theta", 10000.0)
+        self.attention_bias = kwargs.get("attention_bias", False)
+        self.hidden_act = kwargs.get("hidden_act", "silu")
+        self.initializer_range = kwargs.get("initializer_range", 0.02)
+        self.use_cache = kwargs.get("use_cache", True)
+        self.tie_word_embeddings = kwargs.get("tie_word_embeddings", False)
+        self.rope_scaling = kwargs.get("rope_scaling", None)
+
+        # Derived attributes
+        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.pretraining_tp = kwargs.get("pretraining_tp", 1)
+
+        # Optional attributes
+        self.bias = kwargs.get(
+            "bias", False
+        )  # For compatibility with some attention implementations
+        self.rope_type = kwargs.get("rope_type", "default")
+        self.partial_rotary_factor = kwargs.get("partial_rotary_factor", 1.0)
+
+        # Dropout rates (usually 0.0 for inference)
+        self.attention_dropout = kwargs.get("attention_dropout", 0.0)
+        self.hidden_dropout = kwargs.get("hidden_dropout", 0.0)
+
+        # Additional optional parameters
+        self.bos_token_id = kwargs.get("bos_token_id", None)
+        self.eos_token_id = kwargs.get("eos_token_id", None)
+        self.pad_token_id = kwargs.get("pad_token_id", None)
+        self.torch_dtype = kwargs.get("torch_dtype", None)
+
+        self.lora_rank = kwargs.get("lora_rank", 0)  # Default 0 means no LoRA
+
+        # Store dtype names as strings
+        self._param_dtype = kwargs.get("param_dtype", "bfloat16")
+        self._compute_dtype = kwargs.get("compute_dtype", "bfloat16")
+
+    @property
+    def param_dtype(self):
+        """Gets the parameter dtype, converting from string to JAX dtype."""
+        return DTYPE_MAP.get(self._param_dtype, jnp.bfloat16)
+
+    @property
+    def compute_dtype(self):
+        """Gets the compute dtype, converting from string to JAX dtype."""
+        return DTYPE_MAP.get(self._compute_dtype, jnp.bfloat16)
+
+    def to_dict(self):
+        """Serializes the configuration to a dictionary."""
+        return self.__dict__
+
+    def __repr__(self):
+        return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"
+
+
 class LlamaEmbedding(eqx.Module):
     weight: jnp.ndarray
     param_dtype: Any
@@ -556,70 +623,3 @@ class LlamaForCausalLM(eqx.Module):
         hidden_states = self.model(input_ids, attention_mask, position_ids)
         logits = self.lm_head(hidden_states)
         return logits.astype(self.model.compute_dtype)
-
-
-class LlamaConfig:
-    def __init__(self, **kwargs):
-        self.vocab_size = kwargs.get("vocab_size", 32000)
-        self.hidden_size = kwargs.get("hidden_size", 4096)
-        self.intermediate_size = kwargs.get("intermediate_size", 11008)
-        self.num_hidden_layers = kwargs.get("num_hidden_layers", 32)
-        self.num_attention_heads = kwargs.get("num_attention_heads", 32)
-        self.num_key_value_heads = kwargs.get("num_key_value_heads", 32)
-        self.max_position_embeddings = kwargs.get(
-            "max_position_embeddings", 2048
-        )
-        self.rms_norm_eps = kwargs.get("rms_norm_eps", 1e-6)
-
-        # New attributes
-        self.rope_theta = kwargs.get("rope_theta", 10000.0)
-        self.attention_bias = kwargs.get("attention_bias", False)
-        self.hidden_act = kwargs.get("hidden_act", "silu")
-        self.initializer_range = kwargs.get("initializer_range", 0.02)
-        self.use_cache = kwargs.get("use_cache", True)
-        self.tie_word_embeddings = kwargs.get("tie_word_embeddings", False)
-        self.rope_scaling = kwargs.get("rope_scaling", None)
-
-        # Derived attributes
-        self.head_dim = self.hidden_size // self.num_attention_heads
-        self.pretraining_tp = kwargs.get("pretraining_tp", 1)
-
-        # Optional attributes
-        self.bias = kwargs.get(
-            "bias", False
-        )  # For compatibility with some attention implementations
-        self.rope_type = kwargs.get("rope_type", "default")
-        self.partial_rotary_factor = kwargs.get("partial_rotary_factor", 1.0)
-
-        # Dropout rates (usually 0.0 for inference)
-        self.attention_dropout = kwargs.get("attention_dropout", 0.0)
-        self.hidden_dropout = kwargs.get("hidden_dropout", 0.0)
-
-        # Additional optional parameters
-        self.bos_token_id = kwargs.get("bos_token_id", None)
-        self.eos_token_id = kwargs.get("eos_token_id", None)
-        self.pad_token_id = kwargs.get("pad_token_id", None)
-        self.torch_dtype = kwargs.get("torch_dtype", None)
-
-        self.lora_rank = kwargs.get("lora_rank", 0)  # Default 0 means no LoRA
-
-        # Store dtype names as strings
-        self._param_dtype = kwargs.get("param_dtype", "bfloat16")
-        self._compute_dtype = kwargs.get("compute_dtype", "bfloat16")
-
-    @property
-    def param_dtype(self):
-        """Gets the parameter dtype, converting from string to JAX dtype."""
-        return DTYPE_MAP.get(self._param_dtype, jnp.bfloat16)
-
-    @property
-    def compute_dtype(self):
-        """Gets the compute dtype, converting from string to JAX dtype."""
-        return DTYPE_MAP.get(self._compute_dtype, jnp.bfloat16)
-
-    def to_dict(self):
-        """Serializes the configuration to a dictionary."""
-        return self.__dict__
-
-    def __repr__(self):
-        return f"LlamaConfig({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"
