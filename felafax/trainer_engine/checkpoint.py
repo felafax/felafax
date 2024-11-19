@@ -5,18 +5,18 @@ import json
 import jax
 import jax.numpy as jnp
 import numpy as np
+import torch
 
 import equinox as eqx
-import torch
 import orbax.checkpoint as ocp
-from transformers import LlamaForCausalLM as HFLlamaForCausalLM
+from transformers import LlamaForCausalLM as HFLlamaForCausalLM, AutoTokenizer
 from felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
     LlamaForCausalLM,
+    LlamaLinear,
 )
 
-
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 from jaxtyping import PyTree
 from jax.sharding import NamedSharding, PartitionSpec as PS
 from jax.experimental import mesh_utils
@@ -113,7 +113,7 @@ class Checkpointer:
 
 def load_model(model_name: str, token: Optional[str] = None):
     """Loads a model from a checkpoint or Hugging Face.
-    
+
     Args:
         model_name: Name or path of the model to load
         token: HuggingFace token for accessing gated models
@@ -123,23 +123,30 @@ def load_model(model_name: str, token: Optional[str] = None):
 
 def load_checkpoint_or_model(
     model_name: str,
-    checkpointer: Checkpointer,
-) -> Tuple[LlamaForCausalLM, LlamaConfig]:
-    """Loads checkpoint from local storage using Orbax or downloads from HF.
+    checkpointer,
+    param_dtype=jnp.float32,
+    compute_dtype=jnp.float32,
+) -> LlamaForCausalLM:
+    """Loads checkpoint from local storage using Orbax or downloads from HF with specified dtypes.
 
     Args:
         model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
         checkpointer: An instance of Checkpointer to manage loading
+        param_dtype: The dtype in which parameters are stored and loaded
+        output_dtype: The dtype in which computations are performed and outputs are returned
 
     Returns:
         tuple: (model, model_config)
     """
     has_checkpoints = len(checkpointer.checkpoint_mgr.all_steps()) > 0
     if has_checkpoints:
+        # Restores the model in whatever dtypes are stored in the checkpoint.
         model, model_config = checkpointer.restore_checkpoint()
         return model, model_config
 
-    model, model_config = load_model(model_name)
+    model, model_config = load_llama_from_hf(
+        model_name, param_dtype=param_dtype, compute_dtype=compute_dtype
+    )
     return model, model_config
 
 
@@ -159,7 +166,7 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
     )
 
 
-def _make_torch_to_jax():
+def _make_torch_to_jax(dtype):
     """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
     # Import here to avoid circular dependency
     from felafax.trainer_engine.trainer import get_mesh
@@ -167,41 +174,61 @@ def _make_torch_to_jax():
     mesh = get_mesh(jax.device_count())
 
     def _torch_to_jax(tensor, sharding_spec):
-        jax_array = jnp.array(tensor.detach().numpy())
+        jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
         sharding = NamedSharding(mesh, sharding_spec)
         return jax.device_put(jax_array, sharding)
 
     return _torch_to_jax
 
+
 # TODO(refactor): Move load model into models/llama.
-def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[LlamaForCausalLM, LlamaConfig]:
-    """Downloads and converts Hugging Face model to Equinox model.
+def load_llama_from_hf(
+    model_name: str,
+    token: Optional[str] = None,
+    lora_rank: int = 0,
+    param_dtype: Any = jnp.float32,
+    compute_dtype: Any = jnp.float32,
+) -> LlamaForCausalLM:
+    """Downloads and converts Hugging Face model to Equinox model with specified dtypes.
 
     Args:
         model_name: Name of the Hugging Face model to load
         token: HuggingFace token for accessing gated models
+        lora_rank: Rank for LoRA parameters (set to 0 for no LoRA)
+        param_dtype: The dtype in which parameters are stored
+        output_dtype: The dtype in which computations are performed
 
     Returns:
-        tuple: (eqx_model, model_config)
+        eqx_model: LlamaForCausalLM model with specified dtypes
+        model_config: Configuration of the model
     """
     # Load HF model
     hf_model = HFLlamaForCausalLM.from_pretrained(
-        model_name, 
-        torch_dtype=torch.float32,
-        token=token
+        model_name, torch_dtype=torch.float32, token=token
     )
 
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
-    eqx_model = LlamaForCausalLM(model_config)
+    model_config.lora_rank = lora_rank
 
-    torch_to_jax = _make_torch_to_jax()
+    key = jax.random.PRNGKey(99)
+    eqx_model = LlamaForCausalLM(
+        model_config,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype,
+        key=key,
+    )
+    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32)
+    torch_to_jax = _make_torch_to_jax(dtype=param_dtype)
 
     # Copy weights from HF model to Equinox model
     eqx_model = eqx.tree_at(
         lambda t: t.model.embed_tokens.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.embed_tokens.weight, PS(('mp', 'fsdp'))),
+        # Copy embedding weights at float32 precision.
+        torch_to_jax_float32(
+            hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))
+        ),
     )
     eqx_model = eqx.tree_at(
         lambda t: t.model.norm.weight,
@@ -211,7 +238,7 @@ def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[Ll
     eqx_model = eqx.tree_at(
         lambda t: t.lm_head.weight,
         eqx_model,
-        torch_to_jax(hf_model.lm_head.weight, PS(('fsdp', 'mp'))),
+        torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
     )
 
     # Copy layer weights with appropriate sharding
@@ -222,39 +249,39 @@ def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[Ll
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.q_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.k_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.v_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].self_attn.o_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(('mp', 'fsdp'))),
+            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(("mp", "fsdp"))),
         )
 
         # MLP weights
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.gate_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.up_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(('fsdp', 'mp'))),
+            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(("fsdp", "mp"))),
         )
         eqx_model = eqx.tree_at(
             lambda t: t.model.layers[i].mlp.down_proj.weight,
             eqx_model,
-            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(('mp', 'fsdp'))),
+            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(("mp", "fsdp"))),
         )
 
         # Layer norms
@@ -270,6 +297,7 @@ def load_llama_from_hf(model_name: str, token: Optional[str] = None) -> Tuple[Ll
         )
 
     return eqx_model, model_config
+
 
 def save_model_to_hf(
     model: eqx.Module,
