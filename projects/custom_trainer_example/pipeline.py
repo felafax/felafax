@@ -10,7 +10,7 @@ from .dataset import AlpacaDataset, AlpacaDatasetConfig
 from felafax.trainer_engine import utils
 
 ########################################################
-# The custom_trainer_example demonstrates the advantages of Felafax's component like design. You can easily out or extend any of the components.
+# The custom_trainer_example demonstrates the advantages of Felafax's component like design. You can easily extend any of the components.
 
 # In this project, we customizer the optimizer to use consine schedule and weight decay.
 ########################################################
