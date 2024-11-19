@@ -2,7 +2,6 @@ import os
 import jax
 from dotenv import load_dotenv
 from transformers import AutoTokenizer
-from .trainer import CustomTrainer  # Import your custom trainer
 from felafax.trainer_engine.trainer import TrainerConfig
 from felafax.trainer_engine.setup import setup_environment
 from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
@@ -11,9 +10,9 @@ from felafax.trainer_engine import utils
 
 ########################################################
 # The custom_trainer_example demonstrates the advantages of Felafax's component like design. You can easily extend any of the components.
-
-# In this project, we customizer the optimizer to use consine schedule and weight decay.
+# In this project, we customize the Trainer's optimizer to use consine schedule and weight decay.
 ########################################################
+from .trainer import CustomTrainer  # Import your custom trainer
 
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
