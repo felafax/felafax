@@ -81,9 +81,8 @@ class TrainerConfig:
     num_epochs: int = 1
     num_steps: int = 5
     num_tpus: int = jax.device_count()
-    learning_rate: float = 1e-5
-    weight_decay: float = 0.01
-    max_grad_norm: float = 1.0
+
+    learning_rate: float = 1e-3
 
     # lora configuration
     lora_rank: int = 4  # Rank for lora matrices
@@ -118,9 +117,7 @@ class Trainer:
             token=trainer_config.hf_token,
             lora_rank=trainer_config.lora_rank if trainer_config.use_lora else 0,
         )
-        model_params, model_static = eqx.partition(
-            self.model, eqx.is_array
-        )
+        model_params, model_static = eqx.partition(self.model, eqx.is_array)
 
         if trainer_config.use_lora:
             # If using lora, create optimizer state only for the lora parameters.
@@ -142,30 +139,9 @@ class Trainer:
         self.configure_optimizers(optimizer_params)
 
     def configure_optimizers(self, optimizer_params):
-        warmup_steps = self.trainer_config.num_steps // 10
-        total_steps = self.trainer_config.num_steps
-        learning_rate = self.trainer_config.learning_rate
-        
-        if self.trainer_config.use_lora:
-            schedule_fn = optax.constant_schedule(learning_rate)
-            weight_decay = 0.0
-        else:
-            schedule_fn = optax.warmup_cosine_decay_schedule(
-                init_value=0.0,
-                peak_value=learning_rate,
-                warmup_steps=warmup_steps,
-                decay_steps=total_steps,
-            )
-            weight_decay = self.trainer_config.weight_decay
-        
-        optimizer = optax.chain(
-            optax.clip_by_global_norm(1.0),
-            optax.adamw(
-                learning_rate=schedule_fn,
-                weight_decay=weight_decay
-            )
+        self.optimizer = optax.adam(
+            learning_rate=self.trainer_config.learning_rate
         )
-        self.optimizer = optimizer
         self.opt_state = self.optimizer.init(optimizer_params)
 
     @functools.partial(jax.jit, static_argnames=("self", "model_static"))
@@ -179,8 +155,8 @@ class Trainer:
         logits = model(input_ids, attention_mask, position_ids)
 
         # Shift for next-token prediction
-        shifted_logits = logits[..., :-1, :] 
-        shifted_labels = labels[..., 1:] 
+        shifted_logits = logits[..., :-1, :]
+        shifted_labels = labels[..., 1:]
 
         # If using attention mask, shift it too.
         shifted_mask = None
@@ -217,7 +193,7 @@ class Trainer:
                 filter_spec=self.is_lora_param_filter_spec,
                 is_leaf=eqx.is_array,
             )
-            # Step 3: Calculate updates to apply for each lora param using lora grad and apply them. 
+            # Step 3: Calculate updates to apply for each lora param using lora grad and apply them.
             updates, optimizer_state = optimizer.update(
                 lora_grads, optimizer_state, lora_params
             )
@@ -239,9 +215,7 @@ class Trainer:
         pass
 
     def train(self):
-        model_params, model_static = eqx.partition(
-            self.model, eqx.is_array
-        )
+        model_params, model_static = eqx.partition(self.model, eqx.is_array)
         optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
 
