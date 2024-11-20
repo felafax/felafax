@@ -5,7 +5,7 @@ from transformers import AutoTokenizer
 from src.felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from src.felafax.trainer_engine.setup import setup_environment
 from src.felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
-from .dataset import AlpacaDataset, AlpacaDatasetConfig
+from src.felafax.trainer_engine.data.base import DefaultDatasetLoader, DatasetConfig
 from src.felafax.trainer_engine import utils
 
 
@@ -23,23 +23,22 @@ TEST_MODE = False
 tokenizer = AutoTokenizer.from_pretrained(
     "meta-llama/Llama-3.2-1B", token=HF_TOKEN
 )
-dataset_config = AlpacaDatasetConfig(
+dataset_config = DatasetConfig(
     data_source="yahma/alpaca-cleaned",
     max_seq_length=32,
     batch_size=8,
     num_workers=4,
     mask_prompt=False,
     train_test_split=0.15,
+    prompt_style="alpaca",
     # Setting max_examples limits the number of examples in the dataset.
     # This is useful for testing the pipeline without running the entire dataset.
     max_examples=100 if TEST_MODE else None,
     seed=42,
 )
-alpaca_dataset = AlpacaDataset(config=dataset_config)
-alpaca_dataset.setup(tokenizer=tokenizer)
-
-train_dataloader = alpaca_dataset.train_dataloader()
-val_dataloader = alpaca_dataset.val_dataloader()
+dataset = DefaultDatasetLoader(config=dataset_config, tokenizer=tokenizer)
+train_dataloader = dataset.train_dataloader()
+val_dataloader = dataset.val_dataloader()
 
 
 ########################################################
