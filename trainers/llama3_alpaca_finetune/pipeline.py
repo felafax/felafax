@@ -9,14 +9,20 @@ from src.felafax.trainer_engine.data.base import DefaultDatasetLoader, DatasetCo
 from src.felafax.trainer_engine import utils
 
 
+
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
 if HF_TOKEN is None:
     HF_TOKEN = input(
         "Please input your HuggingFace token. Alternatively, you can create a .env file in the `llama3_alpaca_finetune` folder and specify HF_TOKEN there: "
     )
-TEST_MODE = False
+BASE_DIR = os.getenv("BASE_DIR")
+if BASE_DIR is None:
+    BASE_DIR = input(
+        "Please input the base directory for the training run. This is the directory where model is downloaded, checkpoints and export will be stored: "
+    )
 
+TEST_MODE = False
 ########################################################
 # Configure the dataset pipeline
 ########################################################
