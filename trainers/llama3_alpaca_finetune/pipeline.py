@@ -4,10 +4,17 @@ from dotenv import load_dotenv
 from transformers import AutoTokenizer
 from src.felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from src.felafax.trainer_engine.setup import setup_environment
-from src.felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
-from src.felafax.trainer_engine.data.base import DefaultDatasetLoader, DatasetConfig
+from src.felafax.trainer_engine.checkpoint import (
+    Checkpointer,
+    CheckpointerConfig,
+)
+from src.felafax.trainer_engine.data.base import (
+    DatasetConfig,
+    load_data,
+    create_dataloader,
+    SFTDataset,
+)
 from src.felafax.trainer_engine import utils
-
 
 
 load_dotenv()
@@ -23,12 +30,14 @@ if BASE_DIR is None:
     )
 
 TEST_MODE = False
+
 ########################################################
 # Configure the dataset pipeline
 ########################################################
 tokenizer = AutoTokenizer.from_pretrained(
     "meta-llama/Llama-3.2-1B", token=HF_TOKEN
 )
+
 dataset_config = DatasetConfig(
     data_source="yahma/alpaca-cleaned",
     max_seq_length=32,
@@ -36,15 +45,38 @@ dataset_config = DatasetConfig(
     num_workers=4,
     mask_prompt=False,
     train_test_split=0.15,
-    prompt_style="alpaca",
     # Setting max_examples limits the number of examples in the dataset.
     # This is useful for testing the pipeline without running the entire dataset.
     max_examples=100 if TEST_MODE else None,
     seed=42,
 )
-dataset = DefaultDatasetLoader(config=dataset_config, tokenizer=tokenizer)
-train_dataloader = dataset.train_dataloader()
-val_dataloader = dataset.val_dataloader()
+
+# Download and load the data files
+train_data, val_data = load_data(config=dataset_config)
+
+# Create datasets for SFT (supervised fine-tuning)
+train_dataset = SFTDataset(
+    config=dataset_config,
+    data=train_data,
+    tokenizer=tokenizer,
+)
+val_dataset = SFTDataset(
+    config=dataset_config,
+    data=val_data,
+    tokenizer=tokenizer,
+)
+
+# Create dataloaders
+train_dataloader = create_dataloader(
+    config=dataset_config,
+    dataset=train_dataset,
+    shuffle=True,
+)
+val_dataloader = create_dataloader(
+    config=dataset_config,
+    dataset=val_dataset,
+    shuffle=False,
+)
 
 
 ########################################################
@@ -58,7 +90,7 @@ trainer_config = TrainerConfig(
     use_lora=True,
     lora_rank=8,
     learning_rate=1e-3,
-    base_dir="~/",
+    base_dir=BASE_DIR,
 )
 
 # Set up the training environment using trainer_config
