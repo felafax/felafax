@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 import torch
 from datasets import load_dataset
@@ -28,7 +28,7 @@ class DatasetConfig:
     max_seq_length: int = 64
     num_workers: int = 4
     ignore_index: int = -100
-    prompt_style: Union[str, BasePromptTemplate] = "alpaca"
+    prompt_style: str = "alpaca"  # Kept for compatibility
     mask_prompt: bool = False
     pad_id: int = 0
 
@@ -134,44 +134,46 @@ class DefaultDatasetLoader:
 
 
 class SFTDataset(Dataset):
-    """Creates a dataset for supervised fine-tuning."""
+    """Dataset for Supervised Fine-Tuning (SFT)."""
 
     def __init__(
         self,
-        data: List[Dict[str, str]],
-        tokenizer: Any,
-        prompt_template: Union[str, BasePromptTemplate],
-        max_seq_length: int = -1,
-        mask_prompt: bool = True,
+        data: List[Dict[str, Any]],
+        tokenizer: PreTrainedTokenizerBase,
+        max_seq_length: int = 512,
+        mask_prompt: bool = False,
         ignore_index: int = -100,
-        transform: Optional[Callable[[Any], Any]] = None,
-    ) -> None:
+    ):
         self.data = data
         self.tokenizer = tokenizer
-        self.prompt_template = prompt_template
         self.max_seq_length = max_seq_length
         self.mask_prompt = mask_prompt
         self.ignore_index = ignore_index
-        self.transform = transform
         self.eos_token_id = (
             self.tokenizer.eos_token_id
             if self.tokenizer.eos_token_id is not None
             else self.tokenizer.pad_token_id
         )
 
-    def __len__(self) -> int:
+    def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
+        """Default method to apply prompt formatting. Returns prompt and response.
+        Override this method in subclasses for custom behavior."""
+        prompt = (
+            "Below is an instruction that describes a task. "
+            "Write a response that appropriately completes the request.\n\n"
+            f"### Instruction:\n{example['instruction']}\n\n### Response:\n"
+        )
+        response = example["output"]
+        return prompt, response
+
+    def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx: int) -> Dict[str, Union[torch.Tensor, int]]:
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
         example = self.data[idx]
 
-        # Apply any transform function to the example if provided
-        if self.transform is not None:
-            example = self.transform(example)
-
-        prompt = self.prompt_template.apply(
-            prompt=example.get("instruction", ""), **example
-        )
+        # Apply the prompt formatting
+        prompt, response = self.apply_format(example)
 
         # Encode the prompt with special tokens
         encoded_prompt = self.tokenizer.encode(
@@ -183,7 +185,7 @@ class SFTDataset(Dataset):
 
         # Encode the response with special tokens
         encoded_response = self.tokenizer.encode(
-            example.get("output", ""),
+            response,
             add_special_tokens=True,
             max_length=self.max_seq_length,
             truncation=True,
