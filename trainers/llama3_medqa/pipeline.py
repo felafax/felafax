@@ -35,7 +35,7 @@ BASE_DIR = os.getenv("BASE_DIR") or input(
 ########################################################
 # Initialize tokenizer
 tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.2-1B", token=HF_TOKEN
+    "meta-llama/Llama-3.2-1B-Instruct", token=HF_TOKEN
 )
 
 # Create dataset configuration for MedQA
@@ -55,9 +55,10 @@ train_dataloader, val_dataloader = create_med_qa_loaders(
 # Configure the trainer pipeline
 ########################################################
 trainer_config = TrainerConfig(
-    model_name="meta-llama/Llama-3.2-1B",
+    model_name="meta-llama/Llama-3.2-1B-Instruct",
     hf_token=HF_TOKEN,
-    num_steps=20,
+    num_epochs=1,
+    num_steps=None,
     num_tpus=jax.device_count(),
     use_lora=True,
     lora_rank=8,
@@ -83,16 +84,16 @@ trainer = Trainer(
 )
 
 # Run training
-# trainer.train()
+trainer.train()
 
-export_dir = "felafax-storage/checkpoints/llama3_medqa_base/"
+export_dir = f"{trainer_config.base_dir}/hf_export/"
 
 # Export the model in HF format
 trainer.export(export_dir=export_dir)
 
 # Upload exported model to HF
 utils.upload_dir_to_hf(
-    dir_path=export_dir,
-    repo_name="felarof01/test-llama3-medqa-base",
+    dir_path=export_dir, 
+    repo_name="felarof01/test-llama3-medqa-finetuned",
     token=HF_TOKEN,
 )

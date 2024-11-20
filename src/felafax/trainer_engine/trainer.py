@@ -81,7 +81,7 @@ class TrainerConfig:
 
     # Training configuration
     num_epochs: int = 1
-    num_steps: int = 5
+    num_steps: Optional[int] = None
     num_tpus: int = jax.device_count()
 
     learning_rate: float = 1e-3
@@ -237,40 +237,44 @@ class Trainer:
         prev_loss = 0.0
         prev_accuracy = 0.0
 
-        for step, batch in enumerate(self.train_dataloader):
-            if step >= max_steps:
-                break
+        for epoch in range(self.trainer_config.num_epochs):
+            for step, batch in enumerate(self.train_dataloader):
+                if step >= max_steps:
+                    break
 
-            if step:
-                # Printing metrics of previous step to avoid disrupting XLA pipelining
-                print(
-                    f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
+                if step:
+                    # Printing metrics of previous step to avoid disrupting XLA pipelining
+                    print(
+                        f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
+                    )
+                pass
+
+                batch = _preprocess_batch(batch)
+                batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
+                optimizer_state = jax.device_put(
+                    optimizer_state, NamedSharding(self.mesh, PS())
                 )
 
-            batch = _preprocess_batch(batch)
-            batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
-            optimizer_state = jax.device_put(
-                optimizer_state, NamedSharding(self.mesh, PS())
-            )
-
-            loss, (accuracy, model_params, optimizer_state) = self.training_step(
-                model_params=model_params,
-                model_static=model_static,
-                optimizer=self.optimizer,
-                optimizer_state=optimizer_state,
-                batch=batch,
-            )
-
-            prev_step = step + 1
-            prev_loss = loss
-            prev_accuracy = accuracy
-
-            if self.checkpointer:
-                self.checkpointer.save_checkpoint(
-                    model=eqx.combine(model_params, model_static),
-                    model_config=self.model_config,
-                    step=step + 1,
+                loss, (accuracy, model_params, optimizer_state) = self.training_step(
+                    model_params=model_params,
+                    model_static=model_static,
+                    optimizer=self.optimizer,
+                    optimizer_state=optimizer_state,
+                    batch=batch,
                 )
+
+                prev_step = step + 1
+                prev_loss = loss
+                prev_accuracy = accuracy
+
+                if self.checkpointer:
+                    self.checkpointer.save_checkpoint(
+                        model=eqx.combine(model_params, model_static),
+                        model_config=self.model_config,
+                        step=step + 1,
+                    )
+                pass
+            pass
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
