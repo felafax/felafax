@@ -288,7 +288,8 @@ class Trainer:
 
     def export(self):
         # After training, convert and save the model in Hugging Face format
-        self.model = merge_lora_params(self.model)
+        if self.trainer_config.use_lora:
+            self.model = merge_lora_params(self.model)
         export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
         save_model_to_hf(
             model=self.model,
