@@ -92,6 +92,11 @@ class SFTDataset(Dataset):
         self.mask_prompt = mask_prompt
         self.ignore_index = ignore_index
         self.transform = transform
+        self.eos_token_id = (
+            self.tokenizer.eos_token_id
+            if self.tokenizer.eos_token_id is not None
+            else self.tokenizer.pad_token_id
+        )
 
     def __len__(self) -> int:
         return len(self.data)
@@ -124,7 +129,10 @@ class SFTDataset(Dataset):
         )
 
         # Concatenate the encoded prompt and response
-        encoded_prompt_and_response = encoded_prompt + encoded_response
+        encoded_prompt_and_response = (
+            encoded_prompt + encoded_response + [self.eos_token_id]
+        )
+
         # Truncate the combined sequence to the max_seq_length if necessary
         if self.max_seq_length > 0:
             encoded_prompt_and_response = encoded_prompt_and_response[

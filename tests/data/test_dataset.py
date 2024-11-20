@@ -263,6 +263,10 @@ def test_special_tokens_added(tokenizer):
     assert (
         sample_ids[0] == tokenizer.bos_token_id
     ), "BOS token should be at the start"
+    
+    # Verify EOS token is present in sequence
+    eos_token_id = tokenizer.eos_token_id or tokenizer.pad_token_id
+    assert eos_token_id in sample_ids, "EOS token not found in sequence"
 
 
 def test_sequences_padded_to_max_length(tokenizer):
