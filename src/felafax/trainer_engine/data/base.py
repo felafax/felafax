@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import torch
 from torch.utils.data import Dataset
 from torch import Tensor
-from felafax.trainer_engine.data.prompts import BasePromptTemplate
+from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 
 @dataclass
@@ -57,7 +57,7 @@ class SFTDataset(Dataset):
         data: A list of samples (dicts). The target/label should be under the key 'output'.
             Other necessary data should be under keys compatible with the prompt template.
         tokenizer: The tokenizer to use, matching the one used to pretrain the model.
-        prompt_template: The prompt style to apply. Refer to `felafax.trainer_engine.prompts`
+        prompt_template: The prompt style to apply. Refer to `src.felafax.trainer_engine.prompts`
             for available styles.
         max_seq_length: Maximum sequence length. Sequences longer than this will be truncated.
         mask_prompt: If `True`, masks the prompt section in `labels` using `ignore_index`.
@@ -92,6 +92,11 @@ class SFTDataset(Dataset):
         self.mask_prompt = mask_prompt
         self.ignore_index = ignore_index
         self.transform = transform
+        self.eos_token_id = (
+            self.tokenizer.eos_token_id
+            if self.tokenizer.eos_token_id is not None
+            else self.tokenizer.pad_token_id
+        )
 
     def __len__(self) -> int:
         return len(self.data)
@@ -124,7 +129,10 @@ class SFTDataset(Dataset):
         )
 
         # Concatenate the encoded prompt and response
-        encoded_prompt_and_response = encoded_prompt + encoded_response
+        encoded_prompt_and_response = (
+            encoded_prompt + encoded_response + [self.eos_token_id]
+        )
+
         # Truncate the combined sequence to the max_seq_length if necessary
         if self.max_seq_length > 0:
             encoded_prompt_and_response = encoded_prompt_and_response[

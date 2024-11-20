@@ -11,18 +11,18 @@ import jax.numpy as jnp
 from jax.experimental import mesh_utils
 import jax.tree_util as jtu
 from jax.sharding import NamedSharding, PartitionSpec as PS
-from felafax.trainer_engine.utils import named_tree_map
+from src.felafax.trainer_engine.utils import named_tree_map
 
 import optax
 import os
 
-from felafax.trainer_engine.checkpoint import (
+from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_model,
     load_llama_from_hf,
     save_model_to_hf,
 )
-from felafax.trainer_engine.models.llama3.jax.model import (
+from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaForCausalLM,
     LlamaConfig,
     LlamaLinear,
@@ -100,10 +100,14 @@ class Trainer:
         trainer_config: TrainerConfig,
         train_dataloader: Any,
         val_dataloader: Any,
+        model: Optional[eqx.Module] = None,
+        model_config: Optional[LlamaConfig] = None,
         mesh: Optional[jax.sharding.Mesh] = None,
         checkpointer: Optional[Checkpointer] = None,
     ):
-        assert trainer_config.model_name, "model_name must be provided"
+        assert trainer_config.model_name or model is not None, (
+            "Either model_name must be provided in trainer_config or an existing model must be passed."
+        )
 
         self.trainer_config = trainer_config
         self.train_dataloader = train_dataloader
@@ -111,12 +115,20 @@ class Trainer:
         self.mesh = mesh if mesh else get_mesh(trainer_config.num_tpus)
         self.checkpointer = checkpointer
 
-        # Load the model and model_config
-        self.model, self.model_config = load_llama_from_hf(
-            model_name=trainer_config.model_name,
-            token=trainer_config.hf_token,
-            lora_rank=trainer_config.lora_rank if trainer_config.use_lora else 0,
-        )
+        if model is not None and model_config is not None:
+            # Use the provided model and model_config
+            self.model = model
+            self.model_config = model_config
+        else:
+            # Load the model and model_config from HuggingFace
+            self.model, self.model_config = load_llama_from_hf(
+                model_name=trainer_config.model_name,
+                token=trainer_config.hf_token,
+                lora_rank=self.trainer_config.lora_rank if self.trainer_config.use_lora else 0,
+                param_dtype=jnp.dtype(trainer_config.param_dtype),
+                compute_dtype=jnp.dtype(trainer_config.output_dtype),
+            )
+
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
 
         if trainer_config.use_lora:

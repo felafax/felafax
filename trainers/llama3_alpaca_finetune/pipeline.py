@@ -2,17 +2,12 @@ import os
 import jax
 from dotenv import load_dotenv
 from transformers import AutoTokenizer
-from felafax.trainer_engine.trainer import TrainerConfig
-from felafax.trainer_engine.setup import setup_environment
-from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
+from src.felafax.trainer_engine.trainer import Trainer, TrainerConfig
+from src.felafax.trainer_engine.setup import setup_environment
+from src.felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
 from .dataset import AlpacaDataset, AlpacaDatasetConfig
-from felafax.trainer_engine import utils
+from src.felafax.trainer_engine import utils
 
-########################################################
-# The custom_trainer_example demonstrates the advantages of Felafax's component like design. You can easily extend any of the components.
-# In this project, we customize the Trainer's optimizer to use consine schedule and weight decay.
-########################################################
-from .trainer import CustomTrainer  # Import your custom trainer
 
 load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -55,10 +50,10 @@ trainer_config = TrainerConfig(
     hf_token=HF_TOKEN,
     num_steps=20,
     num_tpus=jax.device_count(),
-    base_dir="/Users/felarof99/Workspaces/GITHUB/building/checkpoints/",
-    learning_rate=1e-4,  # You can customize other configurations as needed
-    weight_decay=0.01,
-    max_grad_norm=1.0,
+    use_lora=True,
+    lora_rank=8,
+    learning_rate=1e-3,
+    base_dir="/mnt/persistent-disk/",
 )
 
 # Set up the training environment using trainer_config
@@ -70,8 +65,8 @@ checkpointer_config = CheckpointerConfig(
 )
 checkpointer = Checkpointer(config=checkpointer_config)
 
-# Initialize the custom trainer
-trainer = CustomTrainer(
+# Put everything together and initialize the trainer
+trainer = Trainer(
     trainer_config=trainer_config,
     train_dataloader=train_dataloader,
     val_dataloader=val_dataloader,
@@ -81,7 +76,7 @@ trainer = CustomTrainer(
 # Run training
 trainer.train()
 
-# Export the model in HF format (if needed)
+# Export the model in HF format
 # trainer.export()
 
 # # Upload exported model to HF
@@ -89,4 +84,3 @@ trainer.train()
 #     dir_path=f"{trainer_config.base_dir}/hf_export/",
 #     repo_name="felarof01/test-llama3-alpaca",
 # )
-

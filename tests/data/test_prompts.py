@@ -5,7 +5,7 @@ pytest --capture=no tests/test_prompts.py
 
 import pytest
 from transformers import AutoTokenizer
-from felafax.trainer_engine.data.prompts import (
+from src.felafax.trainer_engine.data.prompts import (
     BasePromptTemplate,
     AlpacaPromptTemplate,
     DefaultPromptTemplate,

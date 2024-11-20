@@ -10,7 +10,7 @@ import torch
 import equinox as eqx
 import orbax.checkpoint as ocp
 from transformers import LlamaForCausalLM as HFLlamaForCausalLM, AutoTokenizer
-from felafax.trainer_engine.models.llama3.jax.model import (
+from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
     LlamaForCausalLM,
     LlamaLinear,
@@ -169,7 +169,7 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
 def _make_torch_to_jax(dtype):
     """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
     # Import here to avoid circular dependency
-    from felafax.trainer_engine.trainer import get_mesh
+    from src.felafax.trainer_engine.trainer import get_mesh
 
     mesh = get_mesh(jax.device_count())
 
