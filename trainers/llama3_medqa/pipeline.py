@@ -4,7 +4,10 @@ import os
 from transformers import AutoTokenizer
 from src.felafax.trainer_engine.trainer import Trainer, TrainerConfig
 from src.felafax.trainer_engine.setup import setup_environment
-from src.felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
+from src.felafax.trainer_engine.checkpoint import (
+    Checkpointer,
+    CheckpointerConfig,
+)
 from src.felafax.trainer_engine.data.base import (
     DatasetConfig,
     load_data,
@@ -16,26 +19,23 @@ from .dataset import create_med_qa_loaders, DatasetConfig
 
 
 load_dotenv()
-HF_TOKEN = os.getenv("HF_TOKEN")
-if HF_TOKEN is None:
-    HF_TOKEN = input(
-        "Please input your HuggingFace token. Alternatively, you can create a .env file in the `llama3_alpaca_finetune` folder and specify HF_TOKEN there: "
-    )
-BASE_DIR = os.getenv("BASE_DIR")
-if BASE_DIR is None:
-    BASE_DIR = input(
-        "Please input the base directory for the training run. This is the directory where model is downloaded, checkpoints and export will be stored: "
-    )
-
 TEST_MODE = False
+HF_TOKEN = os.getenv("HF_TOKEN") or input(
+    "Please enter your HuggingFace token: "
+)
+BASE_DIR = os.getenv("BASE_DIR") or input(
+    "Please enter the base directory for the training run: "
+)
+# Tip: To avoid entering these values manually, create a .env file in the `llama3_medqa` folder with:
+#   HF_TOKEN=your_huggingface_token
+#   BASE_DIR=path_to_base_directory
 
 ########################################################
 # Configure the dataset pipeline
 ########################################################
 # Initialize tokenizer
 tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.2-1B", 
-    token=HF_TOKEN
+    "meta-llama/Llama-3.2-1B", token=HF_TOKEN
 )
 
 # Create dataset configuration for MedQA
@@ -43,13 +43,12 @@ medqa_config = DatasetConfig(
     data_source="ngram/medchat-qa",
     batch_size=32,
     max_seq_length=128,
-    split="train"
+    split="train",
 )
 
 # Create dataloaders for SFT
 train_dataloader, val_dataloader = create_med_qa_loaders(
-    config=medqa_config,
-    tokenizer=tokenizer
+    config=medqa_config, tokenizer=tokenizer
 )
 
 ########################################################
@@ -86,11 +85,14 @@ trainer = Trainer(
 # Run training
 # trainer.train()
 
-# Export the model in HF format
-trainer.export(export_dir=f"{trainer_config.base_dir}/hf_export/")
+export_dir = "felafax-storage/checkpoints/llama3_medqa_base/"
 
-# # Upload exported model to HF
-# utils.upload_dir_to_hf(
-#     dir_path=f"{trainer_config.base_dir}/hf_export/",
-#     repo_name="felarof01/test-llama3-alpaca",
-# )
+# Export the model in HF format
+trainer.export(export_dir=export_dir)
+
+# Upload exported model to HF
+utils.upload_dir_to_hf(
+    dir_path=export_dir,
+    repo_name="felarof01/test-llama3-medqa-base",
+    token=HF_TOKEN,
+)

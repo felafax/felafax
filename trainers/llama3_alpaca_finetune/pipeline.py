@@ -18,18 +18,16 @@ from src.felafax.trainer_engine import utils
 
 
 load_dotenv()
-HF_TOKEN = os.getenv("HF_TOKEN")
-if HF_TOKEN is None:
-    HF_TOKEN = input(
-        "Please input your HuggingFace token. Alternatively, you can create a .env file in the `llama3_alpaca_finetune` folder and specify HF_TOKEN there: "
-    )
-BASE_DIR = os.getenv("BASE_DIR")
-if BASE_DIR is None:
-    BASE_DIR = input(
-        "Please input the base directory for the training run. This is the directory where model is downloaded, checkpoints and export will be stored: "
-    )
-
 TEST_MODE = False
+HF_TOKEN = os.getenv("HF_TOKEN") or input(
+    "Please enter your HuggingFace token: "
+)
+BASE_DIR = os.getenv("BASE_DIR") or input(
+    "Please enter the base directory for the training run: "
+)
+# Tip: To avoid entering these values manually, create a .env file in the `llama3_alpaca_finetune` folder with:
+#   HF_TOKEN=your_huggingface_token
+#   BASE_DIR=path_to_base_directory
 
 ########################################################
 # Configure the dataset pipeline
@@ -113,11 +111,14 @@ trainer = Trainer(
 # Run training
 trainer.train()
 
-# Export the model in HF format
-# trainer.export()
+export_dir = f"{trainer_config.base_dir}/hf_export/"
 
-# # Upload exported model to HF
+# Run this to export the model in HF format
+# trainer.export(export_dir=export_dir)
+
+# Run this to upload the exported model to HF
 # utils.upload_dir_to_hf(
-#     dir_path=f"{trainer_config.base_dir}/hf_export/",
+#     dir_path=export_dir,
 #     repo_name="felarof01/test-llama3-alpaca",
+#     token=HF_TOKEN,
 # )
