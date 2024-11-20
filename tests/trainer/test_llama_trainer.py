@@ -1,8 +1,8 @@
-from felafax.trainer_engine.models.llama3.jax.model import (
+from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
     LlamaForCausalLM,
 )
-from felafax.trainer_engine.trainer import Trainer, TrainerConfig
+from src.felafax.trainer_engine.trainer import Trainer, TrainerConfig
 import jax.numpy as jnp
 
 

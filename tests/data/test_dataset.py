@@ -12,13 +12,13 @@ import torch
 from torch.utils.data import DataLoader
 from datasets import load_dataset
 
-from felafax.trainer_engine.data.base import (
+from src.felafax.trainer_engine.data.base import (
     BaseDataset,
     SFTDataset,
     get_sft_collate_fn,
     DatasetConfig,
 )
-from felafax.trainer_engine.data.prompts import BasePromptTemplate
+from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 
 

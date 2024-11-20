@@ -48,7 +48,7 @@ import equinox as eqx
 
 from typing import Optional, Tuple
 
-from felafax.trainer_engine.models.llama3.jax.model import (
+from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaEmbedding,
     LlamaLinear,
     LlamaRotaryEmbedding,
@@ -905,7 +905,7 @@ def test_llama_for_causal_lm(hf_model, eqx_config):
 
 def test_load_checkpoint(hf_model):
     """Tests loading weights from checkpoint."""
-    from felafax.trainer_engine.checkpoint import load_llama_from_hf
+    from src.felafax.trainer_engine.checkpoint import load_llama_from_hf
     eqx_model, _ = load_llama_from_hf("meta-llama/Meta-Llama-3.1-8B")
 
     # Create input for testing

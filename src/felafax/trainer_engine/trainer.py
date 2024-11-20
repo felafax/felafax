@@ -11,18 +11,18 @@ import jax.numpy as jnp
 from jax.experimental import mesh_utils
 import jax.tree_util as jtu
 from jax.sharding import NamedSharding, PartitionSpec as PS
-from felafax.trainer_engine.utils import named_tree_map
+from src.felafax.trainer_engine.utils import named_tree_map
 
 import optax
 import os
 
-from felafax.trainer_engine.checkpoint import (
+from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_model,
     load_llama_from_hf,
     save_model_to_hf,
 )
-from felafax.trainer_engine.models.llama3.jax.model import (
+from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaForCausalLM,
     LlamaConfig,
     LlamaLinear,

@@ -2,11 +2,11 @@ import os
 import jax
 from dotenv import load_dotenv
 from transformers import AutoTokenizer
-from felafax.trainer_engine.trainer import TrainerConfig
-from felafax.trainer_engine.setup import setup_environment
-from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
+from src.felafax.trainer_engine.trainer import TrainerConfig
+from src.felafax.trainer_engine.setup import setup_environment
+from src.felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
 from .dataset import AlpacaDataset, AlpacaDatasetConfig
-from felafax.trainer_engine import utils
+from src.felafax.trainer_engine import utils
 
 ########################################################
 # The custom_trainer_example demonstrates the advantages of Felafax's component like design. You can easily extend any of the components.

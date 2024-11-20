@@ -2,11 +2,11 @@ import os
 import jax
 from dotenv import load_dotenv
 from transformers import AutoTokenizer
-from felafax.trainer_engine.trainer import Trainer, TrainerConfig
-from felafax.trainer_engine.setup import setup_environment
-from felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
+from src.felafax.trainer_engine.trainer import Trainer, TrainerConfig
+from src.felafax.trainer_engine.setup import setup_environment
+from src.felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
 from .dataset import AlpacaDataset, AlpacaDatasetConfig
-from felafax.trainer_engine import utils
+from src.felafax.trainer_engine import utils
 
 
 load_dotenv()
@@ -52,7 +52,7 @@ trainer_config = TrainerConfig(
     num_tpus=jax.device_count(),
     use_lora=True,
     lora_rank=8,
-    learning_rate=1e-5,
+    learning_rate=1e-3,
     base_dir="/mnt/persistent-disk/",
 )
 

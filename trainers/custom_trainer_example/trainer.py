@@ -1,4 +1,4 @@
-from felafax.trainer_engine.trainer import Trainer
+from src.felafax.trainer_engine.trainer import Trainer
 
 class CustomTrainer(Trainer):
     def configure_optimizers(self, optimizer_params):
