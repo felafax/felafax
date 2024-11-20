@@ -137,7 +137,7 @@ class SFTDataset(Dataset):
         # Encode the prompt with special tokens
         encoded_prompt = self.tokenizer.encode(
             prompt,
-            add_special_tokens=False,
+            add_special_tokens=True,
             max_length=self.max_seq_length,
             truncation=True,
         )
