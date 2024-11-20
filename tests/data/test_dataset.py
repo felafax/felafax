@@ -21,7 +21,6 @@ from src.felafax.trainer_engine.data.base import (
 from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 
-
 @dataclass
 class AlpacaDatasetConfig(DatasetConfig):
     """Configuration for Alpaca dataset."""
@@ -259,14 +258,13 @@ def test_special_tokens_added(tokenizer):
         tokenizer.bos_token_id in sample_ids
     ), "BOS token not found in sequence"
 
+    eos_token_id = tokenizer.eos_token_id or tokenizer.pad_token_id
+    assert eos_token_id in sample_ids, "EOS token not found in sequence"
+
     # Verify BOS token is at the start
     assert (
         sample_ids[0] == tokenizer.bos_token_id
     ), "BOS token should be at the start"
-    
-    # Verify EOS token is present in sequence
-    eos_token_id = tokenizer.eos_token_id or tokenizer.pad_token_id
-    assert eos_token_id in sample_ids, "EOS token not found in sequence"
 
 
 def test_sequences_padded_to_max_length(tokenizer):
