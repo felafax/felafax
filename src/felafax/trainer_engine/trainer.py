@@ -286,11 +286,14 @@ class Trainer:
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.directory)
 
-    def export(self):
+    def export(self, export_dir: Optional[str] = None):
         # After training, convert and save the model in Hugging Face format
         if self.trainer_config.use_lora:
             self.model = merge_lora_params(self.model)
-        export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
+        if export_dir is None:
+            export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
+        os.makedirs(export_dir, exist_ok=True)
+
         save_model_to_hf(
             model=self.model,
             model_config=self.model_config,
