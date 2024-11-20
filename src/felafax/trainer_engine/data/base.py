@@ -14,7 +14,7 @@ from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
 
 @dataclass
 class DatasetConfig:
-    """Base configuration for datasets."""
+    """Configuration for datasets."""
 
     # Data loading parameters
     data_source: str = ""
@@ -28,7 +28,6 @@ class DatasetConfig:
     max_seq_length: int = 64
     num_workers: int = 4
     ignore_index: int = -100
-    prompt_style: str = "alpaca"  # Kept for compatibility
     mask_prompt: bool = False
     pad_id: int = 0
 
@@ -36,101 +35,57 @@ class DatasetConfig:
     transform: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
 
 
-class DefaultDatasetLoader:
-    """Base class for datasets in Felafax."""
+def load_data(
+    config: DatasetConfig,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Loads the dataset and returns train and validation splits."""
 
-    def __init__(
-        self, config: DatasetConfig, tokenizer: PreTrainedTokenizerBase
-    ):
-        self.config = config
-        self.tokenizer = tokenizer
-
-        if isinstance(self.config.prompt_style, str):
-            self.prompt_template = BasePromptTemplate.from_name(
-                self.config.prompt_style
-            )
-        else:
-            self.prompt_template = self.config.prompt_style
-
-        self.train_dataset = None
-        self.val_dataset = None
-        self.setup()
-
-    def setup(self) -> None:
-        """Sets up the dataset by loading data and creating train/validation splits."""
-
-        # Load dataset from Hugging Face Hub or local file
-        if Path(self.config.data_source).is_file():
-            dataset = load_dataset(
-                "json",
-                data_files=self.config.data_source,
-                split=self.config.split,
-            )
-        else:
-            dataset = load_dataset(
-                self.config.data_source, split=self.config.split
-            )
-
-        # If max_examples is set, limit the number of examples
-        if self.config.max_examples is not None:
-            dataset = dataset.select(
-                range(min(self.config.max_examples, len(dataset)))
-            )
-
-        # Split into train and validation sets
-        dataset = dataset.train_test_split(
-            test_size=self.config.train_test_split, seed=self.config.seed
+    # Load dataset from Hugging Face Hub or local file
+    if Path(config.data_source).is_file():
+        dataset = load_dataset(
+            "json",
+            data_files=config.data_source,
+            split=config.split,
+        )
+    else:
+        dataset = load_dataset(
+            config.data_source,
+            split=config.split,
         )
 
-        self.train_data = [sample for sample in dataset["train"]]
-        self.val_data = [sample for sample in dataset["test"]]
+    # If max_examples is set, limit the number of examples
+    if config.max_examples is not None:
+        dataset = dataset.select(range(min(config.max_examples, len(dataset))))
 
-    def train_dataloader(self) -> DataLoader:
-        self.train_dataset = SFTDataset(
-            data=self.train_data,
-            tokenizer=self.tokenizer,
-            prompt_template=self.prompt_template,
-            max_seq_length=self.config.max_seq_length,
-            mask_prompt=self.config.mask_prompt,
-            ignore_index=self.config.ignore_index,
-            transform=self.config.transform,
-        )
+    # Split into train and validation sets
+    dataset = dataset.train_test_split(
+        test_size=config.train_test_split,
+        seed=config.seed,
+    )
 
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=True,
-            generator=torch.Generator().manual_seed(self.config.seed),
-            num_workers=self.config.num_workers,
-            collate_fn=get_sft_collate_fn(
-                max_seq_length=self.config.max_seq_length,
-                pad_id=self.config.pad_id,
-                ignore_index=self.config.ignore_index,
-            ),
-        )
+    train_data = [sample for sample in dataset["train"]]
+    val_data = [sample for sample in dataset["test"]]
 
-    def val_dataloader(self) -> DataLoader:
-        self.val_dataset = SFTDataset(
-            data=self.val_data,
-            tokenizer=self.tokenizer,
-            prompt_template=self.prompt_template,
-            max_seq_length=self.config.max_seq_length,
-            mask_prompt=self.config.mask_prompt,
-            ignore_index=self.config.ignore_index,
-            transform=self.config.transform,
-        )
+    return train_data, val_data
 
-        return DataLoader(
-            self.val_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=False,
-            num_workers=self.config.num_workers,
-            collate_fn=get_sft_collate_fn(
-                max_seq_length=self.config.max_seq_length,
-                pad_id=self.config.pad_id,
-                ignore_index=self.config.ignore_index,
-            ),
-        )
+
+def create_dataloader(
+    config: DatasetConfig,
+    dataset: "SFTDataset",
+    shuffle: bool = False,
+) -> DataLoader:
+    """Creates a DataLoader for the given dataset."""
+    return DataLoader(
+        dataset,
+        batch_size=config.batch_size,
+        shuffle=shuffle,
+        num_workers=config.num_workers,
+        collate_fn=get_sft_collate_fn(
+            max_seq_length=config.max_seq_length,
+            pad_id=config.pad_id,
+            ignore_index=config.ignore_index,
+        ),
+    )
 
 
 class SFTDataset(Dataset):
@@ -138,17 +93,18 @@ class SFTDataset(Dataset):
 
     def __init__(
         self,
+        config: DatasetConfig,
         data: List[Dict[str, Any]],
         tokenizer: PreTrainedTokenizerBase,
-        max_seq_length: int = 512,
-        mask_prompt: bool = False,
-        ignore_index: int = -100,
     ):
         self.data = data
         self.tokenizer = tokenizer
-        self.max_seq_length = max_seq_length
-        self.mask_prompt = mask_prompt
-        self.ignore_index = ignore_index
+        self.config = config
+
+        self.max_seq_length = config.max_seq_length
+        self.mask_prompt = config.mask_prompt
+        self.ignore_index = config.ignore_index
+        self.transform = config.transform
         self.eos_token_id = (
             self.tokenizer.eos_token_id
             if self.tokenizer.eos_token_id is not None
@@ -166,11 +122,14 @@ class SFTDataset(Dataset):
         response = example["output"]
         return prompt, response
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         example = self.data[idx]
+
+        if self.transform:
+            example = self.transform(example)
 
         # Apply the prompt formatting
         prompt, response = self.apply_format(example)
@@ -178,15 +137,15 @@ class SFTDataset(Dataset):
         # Encode the prompt with special tokens
         encoded_prompt = self.tokenizer.encode(
             prompt,
-            add_special_tokens=True,
+            add_special_tokens=False,
             max_length=self.max_seq_length,
             truncation=True,
         )
 
-        # Encode the response with special tokens
+        # Encode the response without adding special tokens
         encoded_response = self.tokenizer.encode(
             response,
-            add_special_tokens=True,
+            add_special_tokens=False,
             max_length=self.max_seq_length,
             truncation=True,
         )
@@ -203,17 +162,15 @@ class SFTDataset(Dataset):
             ]
 
         # Convert to torch tensor
-        encoded_prompt_and_response = torch.tensor(
-            encoded_prompt_and_response, dtype=torch.int64
-        )
+        input_ids = torch.tensor(encoded_prompt_and_response, dtype=torch.long)
 
         # Create labels, masking the prompt if required
-        labels = encoded_prompt_and_response.clone()
+        labels = input_ids.clone()
         if self.mask_prompt:
             labels[: len(encoded_prompt)] = self.ignore_index
 
         return {
-            "input_ids": encoded_prompt_and_response,
+            "input_ids": input_ids,
             "labels": labels,
             "prompt_length": len(encoded_prompt),
             "response_length": len(encoded_response),
@@ -221,8 +178,10 @@ class SFTDataset(Dataset):
 
 
 def get_sft_collate_fn(
-    max_seq_length: int = -1, pad_id: int = 0, ignore_index: int = -100
-):
+    max_seq_length: int = -1,
+    pad_id: int = 0,
+    ignore_index: int = -100,
+) -> Callable:
     """Returns the collate function for supervised fine-tuning."""
     return partial(
         _sft_collate_fn,
@@ -233,7 +192,7 @@ def get_sft_collate_fn(
 
 
 def _sft_collate_fn(
-    samples: List[Dict[str, Union[torch.Tensor, int]]],
+    samples: List[Dict[str, Any]],
     max_seq_length: int,
     pad_id: int = 0,
     ignore_index: int = -100,
