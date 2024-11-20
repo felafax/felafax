@@ -53,7 +53,7 @@ trainer_config = TrainerConfig(
     use_lora=True,
     lora_rank=8,
     learning_rate=1e-3,
-    base_dir="/mnt/persistent-disk/",
+    base_dir="~/",
 )
 
 # Set up the training environment using trainer_config
