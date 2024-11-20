@@ -33,6 +33,8 @@ def get_mesh(num_tpus: int):
     mesh_shape = None
     if num_tpus == 1:
         mesh_shape = (1, 1, 1)
+    elif num_tpus == 2:
+        mesh_shape = (1, 2, 1)
     elif num_tpus == 4:
         mesh_shape = (1, 2, 2)
     elif num_tpus == 8:
