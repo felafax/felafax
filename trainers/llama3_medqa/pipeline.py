@@ -44,8 +44,8 @@ medqa_config = DatasetConfig(
     data_source="ngram/medchat-qa",
     max_examples=None,
     # Batching parameters
-    batch_size=512,
-    max_seq_length=1024,
+    batch_size=8,
+    max_seq_length=2048,
     num_workers=8,
     ignore_index=-100,
     mask_prompt=True,
@@ -69,6 +69,7 @@ trainer_config = TrainerConfig(
     num_epochs=1,
     num_steps=250,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
+    mesh_shape=(2, 2, 1), # (batch, fsdp, mp)
     # lora configuration
     lora_rank=8,
     use_lora=True,
@@ -77,7 +78,7 @@ trainer_config = TrainerConfig(
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
     # Logging configuration
-    log_interval=50,
+    log_interval=10,
 )
 
 # Set up the training environment using trainer_config
@@ -110,6 +111,6 @@ trainer.export(export_dir=export_dir)
 # Upload exported model to HF
 utils.upload_dir_to_hf(
     dir_path=export_dir, 
-    repo_name="felarof01/test-llama3-medqa-finetuned",
+    repo_name="felarof01/test-llama3-medqa-finetuned-2048",
     token=HF_TOKEN,
 )

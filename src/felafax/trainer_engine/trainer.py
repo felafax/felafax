@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Optional, Any, Tuple
 import functools
 import pyrallis
 import jax
@@ -29,18 +29,18 @@ from src.felafax.trainer_engine.models.llama3.jax.model import (
 )
 
 
-def get_mesh(num_tpus: int):
-    mesh_shape = None
-    if num_tpus == 1:
-        mesh_shape = (1, 1, 1)
-    elif num_tpus == 2:
-        mesh_shape = (1, 2, 1)
-    elif num_tpus == 4:
-        mesh_shape = (1, 2, 2)
-    elif num_tpus == 8:
-        mesh_shape = (2, 2, 2)
-    else:
-        raise ValueError(f"Invalid number of TPUs: {num_tpus}")
+def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
+    if mesh_shape is None:
+        if num_tpus == 1:
+            mesh_shape = (1, 1, 1)
+        elif num_tpus == 2:
+            mesh_shape = (1, 2, 1)
+        elif num_tpus == 4:
+            mesh_shape = (1, 2, 2)
+        elif num_tpus == 8:
+            mesh_shape = (2, 2, 2)
+        else:
+            raise ValueError(f"Invalid number of TPUs: {num_tpus}")
 
     print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
@@ -83,6 +83,7 @@ class TrainerConfig:
     num_epochs: int = 1
     num_steps: Optional[int] = None
     num_tpus: int = jax.device_count()
+    mesh_shape: Optional[Tuple[int, int, int]] = None
 
     learning_rate: float = 1e-3
 
@@ -107,7 +108,6 @@ class Trainer:
         val_dataloader: Any,
         model: Optional[eqx.Module] = None,
         model_config: Optional[LlamaConfig] = None,
-        mesh: Optional[jax.sharding.Mesh] = None,
         checkpointer: Optional[Checkpointer] = None,
     ):
         assert (
@@ -117,7 +117,7 @@ class Trainer:
         self.trainer_config = trainer_config
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
-        self.mesh = mesh if mesh else get_mesh(trainer_config.num_tpus)
+        self.mesh = get_mesh(trainer_config.num_tpus, trainer_config.mesh_shape)
         self.checkpointer = checkpointer
 
         if model is not None and model_config is not None:
@@ -251,7 +251,7 @@ class Trainer:
                 if step >= max_steps:
                     break
 
-                if step and step % self.trainer_config.log_interval == 0:
+                if step == 1 or step % self.trainer_config.log_interval == 0:
                     # Printing metrics of previous step to avoid disrupting XLA pipelining
                     print(
                         f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
