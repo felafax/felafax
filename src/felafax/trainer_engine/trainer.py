@@ -20,6 +20,7 @@ from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
     load_llama_from_hf,
     save_model_to_hf,
+    load_checkpoint_or_model,
 )
 from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaForCausalLM,
@@ -98,6 +99,9 @@ class TrainerConfig:
     log_interval: int = 10
     eval_interval: int = 10
     eval_steps: int = 10
+    
+    # Restore checkpoint
+    restore_checkpoint: bool = False
 
 
 # Core trainer class -- add non-essential things in private functions.
@@ -125,6 +129,14 @@ class Trainer:
             # Use the provided model and model_config
             self.model = model
             self.model_config = model_config
+        elif checkpointer is not None and trainer_config.restore_checkpoint:
+            # Load from checkpoint if checkpointer is provided
+            self.model, self.model_config = load_checkpoint_or_model(
+                model_name=trainer_config.model_name,
+                checkpointer=checkpointer,
+                param_dtype=jnp.dtype(trainer_config.param_dtype),
+                compute_dtype=jnp.dtype(trainer_config.output_dtype),
+            )
         else:
             # Load the model and model_config from HuggingFace
             self.model, self.model_config = load_llama_from_hf(

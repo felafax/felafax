@@ -144,6 +144,9 @@ def load_checkpoint_or_model(
     if has_checkpoints:
         # Restores the model in whatever dtypes are stored in the checkpoint.
         model, model_config = checkpointer.restore_checkpoint()
+        print(
+            f"Restored checkpoint from step {checkpointer.checkpoint_mgr.latest_step()}"
+        )
         return model, model_config
 
     model, model_config = load_llama_from_hf(

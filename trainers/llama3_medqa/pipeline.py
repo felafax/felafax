@@ -81,6 +81,8 @@ trainer_config = TrainerConfig(
     log_interval=5,
     eval_interval=25,
     eval_steps=10,
+    # Restore checkpoint
+    restore_checkpoint=True,
 )
 
 # Set up the training environment using trainer_config
@@ -103,7 +105,7 @@ trainer = Trainer(
 )
 
 # Run training
-trainer.train()
+# trainer.train()
 
 export_dir = f"{trainer_config.base_dir}/hf_export/"
 
