@@ -97,6 +97,7 @@ class TrainerConfig:
 
     # Logging configuration
     log_interval: int = 10
+    eval_interval: int = 10
 
 
 # Core trainer class -- add non-essential things in private functions.
@@ -228,10 +229,38 @@ class Trainer:
 
         return loss, (accuracy, model_params, optimizer_state)
 
-    def validation_step(
-        self, *, model_params, model_static, optimizer, optimizer_state, batch
-    ):
-        pass
+    @functools.partial(
+        jax.jit,
+        static_argnames=("self", "model_static"),
+        donate_argnames=(
+            "model_params",
+            "batch",
+        ),
+    )
+    def validation_step(self, model_params, model_static, batch):
+        model = eqx.combine(model_params, model_static)
+        model = eqx.nn.inference_mode(model)
+
+        input_ids = batch["input_ids"]
+        labels = batch["labels"]
+        attention_mask = batch.get("attention_mask", None)
+        position_ids = batch.get("position_ids", None)
+
+        logits = model(input_ids, attention_mask, position_ids)
+
+        # Shift for next-token prediction
+        shifted_logits = logits[..., :-1, :]
+        shifted_labels = labels[..., 1:]
+
+        # If using attention mask, shift it too.
+        shifted_mask = None
+        if attention_mask is not None:
+            shifted_mask = attention_mask[..., 1:]
+
+        loss, accuracy = _cross_entropy_loss_and_accuracy(
+            shifted_logits, shifted_labels, shifted_mask
+        )
+        return loss, accuracy
 
     def train(self):
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
@@ -241,6 +270,8 @@ class Trainer:
         prev_step = 0
         prev_loss = 0.0
         prev_accuracy = 0.0
+        prev_val_loss = 0.0
+        prev_val_accuracy = 0.0
 
         for epoch in range(self.trainer_config.num_epochs):
             print(
@@ -251,11 +282,18 @@ class Trainer:
                 if step >= max_steps:
                     break
 
-                if step == 1 or step % self.trainer_config.log_interval == 0:
+                if (
+                    step == 1
+                    or (step + 1) % self.trainer_config.log_interval == 0
+                ):
                     # Printing metrics of previous step to avoid disrupting XLA pipelining
                     print(
-                        f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
+                        f"Step {prev_step} | "
+                        f"Train Loss: {prev_loss:.4f} | "
+                        f"Val Loss: {prev_val_loss:.4f} | "
+                        f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
                     )
+
                 pass
 
                 batch = _preprocess_batch(batch)
@@ -280,6 +318,23 @@ class Trainer:
                 prev_step = step + 1
                 prev_loss = loss
                 prev_accuracy = accuracy
+
+                if (
+                    step == 0
+                    or (step + 1) % self.trainer_config.eval_interval == 0
+                ):
+                    val_batch = next(self.val_dataloader)
+                    val_batch = _preprocess_batch(val_batch)
+                    val_batch = jax.device_put(
+                        val_batch, NamedSharding(self.mesh, PS("batch"))
+                    )
+                    val_loss, val_accuracy = self.validation_step(
+                        model_params=model_params,
+                        model_static=model_static,
+                        batch=val_batch,
+                    )
+                    prev_val_loss = val_loss
+                    prev_val_accuracy = val_accuracy
 
                 if self.checkpointer:
                     self.checkpointer.save_checkpoint(

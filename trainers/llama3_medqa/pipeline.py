@@ -45,7 +45,7 @@ medqa_config = DatasetConfig(
     max_examples=None,
     # Batching parameters
     batch_size=8,
-    max_seq_length=2048,
+    max_seq_length=512,
     num_workers=8,
     ignore_index=-100,
     mask_prompt=True,
@@ -63,17 +63,17 @@ train_dataloader, val_dataloader = create_med_qa_loaders(
 trainer_config = TrainerConfig(
     # Model configuration
     model_name="meta-llama/Llama-3.2-1B-Instruct",
-    param_dtype="float32",
-    output_dtype="float32",
+    param_dtype="bfloat16",
+    output_dtype="bfloat16",
     # Training configuration
     num_epochs=1,
-    num_steps=250,  # set to None to run through the entire dataset
+    num_steps=20,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
-    mesh_shape=(2, 2, 1), # (batch, fsdp, mp)
+    mesh_shape=(1, 2, 2),  # (batch, fsdp, mp)
     # lora configuration
     lora_rank=8,
     use_lora=True,
-    learning_rate=1e-3,
+    learning_rate=1e-4,
     # Environment configuration
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
