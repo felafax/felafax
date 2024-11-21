@@ -9,8 +9,6 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader, Dataset
 from transformers import PreTrainedTokenizerBase
 
-from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
-
 
 @dataclass
 class DatasetConfig:

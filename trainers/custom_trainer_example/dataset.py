@@ -12,8 +12,6 @@ from src.felafax.trainer_engine.data.base import (
     get_sft_collate_fn,
     DatasetConfig,
 )
-from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
-
 
 @dataclass
 class AlpacaDatasetConfig(DatasetConfig):
