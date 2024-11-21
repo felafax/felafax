@@ -93,6 +93,9 @@ class TrainerConfig:
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"
     hf_token: Optional[str] = None
+    
+    # Logging configuration
+    log_interval: int = 10
 
 
 # Core trainer class -- add non-essential things in private functions.
@@ -242,7 +245,7 @@ class Trainer:
                 if step >= max_steps:
                     break
 
-                if step:
+                if step and step % self.trainer_config.log_interval == 0:
                     # Printing metrics of previous step to avoid disrupting XLA pipelining
                     print(
                         f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"

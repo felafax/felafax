@@ -40,10 +40,16 @@ tokenizer = AutoTokenizer.from_pretrained(
 
 # Create dataset configuration for MedQA
 medqa_config = DatasetConfig(
+    # Data loading parameters
     data_source="ngram/medchat-qa",
+    max_examples=None,
+    # Batching parameters
     batch_size=32,
     max_seq_length=128,
-    split="train",
+    num_workers=8,
+    ignore_index=-100,
+    mask_prompt=True,
+    pad_id=0,
 )
 
 # Create dataloaders for SFT
@@ -55,15 +61,23 @@ train_dataloader, val_dataloader = create_med_qa_loaders(
 # Configure the trainer pipeline
 ########################################################
 trainer_config = TrainerConfig(
+    # Model configuration
     model_name="meta-llama/Llama-3.2-1B-Instruct",
-    hf_token=HF_TOKEN,
+    param_dtype="float32",
+    output_dtype="float32",
+    # Training configuration
     num_epochs=1,
     num_steps=None,
     num_tpus=jax.device_count(),
-    use_lora=True,
+    # lora configuration
     lora_rank=8,
+    use_lora=True,
     learning_rate=1e-3,
+    # Environment configuration
     base_dir=BASE_DIR,
+    hf_token=HF_TOKEN,
+    # Logging configuration
+    log_interval=50,
 )
 
 # Set up the training environment using trainer_config
@@ -72,6 +86,8 @@ setup_environment(trainer_config)
 # Configure the checkpointer
 checkpointer_config = CheckpointerConfig(
     checkpoint_dir=f"{trainer_config.base_dir}/checkpoints/",
+    max_to_keep=2,
+    save_interval_steps=50,
 )
 checkpointer = Checkpointer(config=checkpointer_config)
 
