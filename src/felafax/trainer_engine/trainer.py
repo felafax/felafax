@@ -93,7 +93,7 @@ class TrainerConfig:
     # Environment configuration
     base_dir: str = "/mnt/persistent-disk"
     hf_token: Optional[str] = None
-    
+
     # Logging configuration
     log_interval: int = 10
 
@@ -110,9 +110,9 @@ class Trainer:
         mesh: Optional[jax.sharding.Mesh] = None,
         checkpointer: Optional[Checkpointer] = None,
     ):
-        assert trainer_config.model_name or model is not None, (
-            "Either model_name must be provided in trainer_config or an existing model must be passed."
-        )
+        assert (
+            trainer_config.model_name or model is not None
+        ), "Either model_name must be provided in trainer_config or an existing model must be passed."
 
         self.trainer_config = trainer_config
         self.train_dataloader = train_dataloader
@@ -129,7 +129,9 @@ class Trainer:
             self.model, self.model_config = load_llama_from_hf(
                 model_name=trainer_config.model_name,
                 token=trainer_config.hf_token,
-                lora_rank=self.trainer_config.lora_rank if self.trainer_config.use_lora else 0,
+                lora_rank=self.trainer_config.lora_rank
+                if self.trainer_config.use_lora
+                else 0,
                 param_dtype=jnp.dtype(trainer_config.param_dtype),
                 compute_dtype=jnp.dtype(trainer_config.output_dtype),
             )
@@ -241,6 +243,10 @@ class Trainer:
         prev_accuracy = 0.0
 
         for epoch in range(self.trainer_config.num_epochs):
+            print(
+                f"Started epoch {epoch + 1} of {self.trainer_config.num_epochs}..."
+            )
+
             for step, batch in enumerate(self.train_dataloader):
                 if step >= max_steps:
                     break
@@ -253,12 +259,17 @@ class Trainer:
                 pass
 
                 batch = _preprocess_batch(batch)
-                batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
+                batch = jax.device_put(
+                    batch, NamedSharding(self.mesh, PS("batch"))
+                )
                 optimizer_state = jax.device_put(
                     optimizer_state, NamedSharding(self.mesh, PS())
                 )
 
-                loss, (accuracy, model_params, optimizer_state) = self.training_step(
+                (
+                    loss,
+                    (accuracy, model_params, optimizer_state),
+                ) = self.training_step(
                     model_params=model_params,
                     model_static=model_static,
                     optimizer=self.optimizer,

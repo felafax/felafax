@@ -44,8 +44,8 @@ medqa_config = DatasetConfig(
     data_source="ngram/medchat-qa",
     max_examples=None,
     # Batching parameters
-    batch_size=32,
-    max_seq_length=128,
+    batch_size=512,
+    max_seq_length=1024,
     num_workers=8,
     ignore_index=-100,
     mask_prompt=True,
@@ -67,7 +67,7 @@ trainer_config = TrainerConfig(
     output_dtype="float32",
     # Training configuration
     num_epochs=1,
-    num_steps=None,
+    num_steps=250,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
     # lora configuration
     lora_rank=8,
