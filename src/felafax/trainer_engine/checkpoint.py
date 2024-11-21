@@ -111,7 +111,9 @@ class Checkpointer:
         return self.checkpoint_mgr.directory
 
 
-def load_model(model_name: str, mesh: jax.sharding.Mesh, token: Optional[str] = None):
+def load_model(
+    model_name: str, mesh: jax.sharding.Mesh, token: Optional[str] = None
+):
     """Loads a model from a checkpoint or Hugging Face.
 
     Args:
@@ -168,6 +170,7 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
 
 def _make_torch_to_jax(dtype, mesh):
     """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
+
     def _torch_to_jax(tensor, sharding_spec):
         jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
         sharding = NamedSharding(mesh, sharding_spec)
@@ -337,7 +340,10 @@ def save_model_to_hf(
 
     # Remove sharding and convert JAX arrays to NumPy arrays
     model_params, _ = eqx.partition(model, eqx.is_array)
-    model_params = jax.tree_util.tree_map(lambda x: np.array(x), model_params)
+    model_params = jax.tree_util.tree_map(
+        lambda x: np.array(x).astype(np.float32),
+        model_params,
+    )
 
     # Copy weights from Equinox model to Hugging Face model
     # Embedding weights
