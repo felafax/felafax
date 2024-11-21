@@ -290,7 +290,7 @@ class Trainer:
                         f"Step {prev_step} | "
                         f"Train Loss: {prev_loss:.4f} | "
                         f"Val Loss: {prev_val_loss:.4f} | "
-                        # f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
+                        f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
                     )
 
                 pass

@@ -67,7 +67,7 @@ trainer_config = TrainerConfig(
     output_dtype="bfloat16",
     # Training configuration
     num_epochs=1,
-    num_steps=20,  # set to None to run through the entire dataset
+    num_steps=800,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
     mesh_shape=(2, 2, 1),  # (batch, fsdp, mp)
     # lora configuration
@@ -78,9 +78,9 @@ trainer_config = TrainerConfig(
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
     # Logging configuration
-    log_interval=1,
-    eval_interval=5,
-    eval_steps=5,
+    log_interval=5,
+    eval_interval=25,
+    eval_steps=10,
 )
 
 # Set up the training environment using trainer_config
@@ -107,12 +107,12 @@ trainer.train()
 
 export_dir = f"{trainer_config.base_dir}/hf_export/"
 
-# # Export the model in HF format
-# trainer.export(export_dir=export_dir)
+# Export the model in HF format
+trainer.export(export_dir=export_dir)
 
-# # Upload exported model to HF
-# utils.upload_dir_to_hf(
-#     dir_path=export_dir, 
-#     repo_name="felarof01/test-llama3-medqa-finetuned-2048",
-#     token=HF_TOKEN,
-# )
+# Upload exported model to HF
+utils.upload_dir_to_hf(
+    dir_path=export_dir, 
+    repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048",
+    token=HF_TOKEN,
+)
