@@ -71,14 +71,16 @@ trainer_config = TrainerConfig(
     num_tpus=jax.device_count(),
     mesh_shape=(1, 2, 2),  # (batch, fsdp, mp)
     # lora configuration
-    lora_rank=8,
+    lora_rank=16,
     use_lora=True,
     learning_rate=1e-4,
     # Environment configuration
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
     # Logging configuration
-    log_interval=10,
+    log_interval=2,
+    eval_interval=50,
+    eval_steps=10,
 )
 
 # Set up the training environment using trainer_config

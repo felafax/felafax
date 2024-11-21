@@ -98,6 +98,7 @@ class TrainerConfig:
     # Logging configuration
     log_interval: int = 10
     eval_interval: int = 10
+    eval_steps: int = 10
 
 
 # Core trainer class -- add non-essential things in private functions.
@@ -232,10 +233,7 @@ class Trainer:
     @functools.partial(
         jax.jit,
         static_argnames=("self", "model_static"),
-        donate_argnames=(
-            "model_params",
-            "batch",
-        ),
+        donate_argnames=("batch",),
     )
     def validation_step(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
@@ -291,7 +289,7 @@ class Trainer:
                         f"Step {prev_step} | "
                         f"Train Loss: {prev_loss:.4f} | "
                         f"Val Loss: {prev_val_loss:.4f} | "
-                        f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
+                        # f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
                     )
 
                 pass
@@ -323,18 +321,12 @@ class Trainer:
                     step == 0
                     or (step + 1) % self.trainer_config.eval_interval == 0
                 ):
-                    val_batch = next(self.val_dataloader)
-                    val_batch = _preprocess_batch(val_batch)
-                    val_batch = jax.device_put(
-                        val_batch, NamedSharding(self.mesh, PS("batch"))
-                    )
-                    val_loss, val_accuracy = self.validation_step(
+                    prev_val_loss, prev_val_accuracy = self.evaluate(
                         model_params=model_params,
                         model_static=model_static,
-                        batch=val_batch,
+                        max_eval_steps=self.trainer_config.eval_steps,
                     )
-                    prev_val_loss = val_loss
-                    prev_val_accuracy = val_accuracy
+                pass
 
                 if self.checkpointer:
                     self.checkpointer.save_checkpoint(
@@ -343,7 +335,6 @@ class Trainer:
                         step=step + 1,
                     )
                 pass
-            pass
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
@@ -358,6 +349,46 @@ class Trainer:
             )
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.directory)
+
+    def evaluate(self, model_params, model_static, max_eval_steps=None):
+        """Run evaluation on the validation dataset.
+
+        Args:
+            model_params: The model parameters to evaluate
+            model_static: The static model components
+            max_eval_steps: Maximum number of evaluation steps (None for full dataset)
+
+        Returns:
+            tuple: (average_loss, average_accuracy)
+        """
+        max_eval_steps = max_eval_steps or float("inf")
+        print(
+            f"Running eval for {max_eval_steps if max_eval_steps != float('inf') else 'all'} steps..."
+        )
+
+        val_losses = []
+        val_accuracies = []
+
+        for eval_step, val_batch in enumerate(self.val_dataloader):
+            if eval_step >= max_eval_steps:
+                break
+
+            val_batch = _preprocess_batch(val_batch)
+            val_batch = jax.device_put(
+                val_batch, NamedSharding(self.mesh, PS("batch"))
+            )
+            val_loss, val_accuracy = self.validation_step(
+                model_params=model_params,
+                model_static=model_static,
+                batch=val_batch,
+            )
+            val_losses.append(val_loss)
+            val_accuracies.append(val_accuracy)
+
+        return (
+            jnp.mean(jnp.array(val_losses)),
+            jnp.mean(jnp.array(val_accuracies)),
+        )
 
     def export(self, export_dir: Optional[str] = None):
         # After training, convert and save the model in Hugging Face format
