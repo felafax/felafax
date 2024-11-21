@@ -35,7 +35,7 @@ BASE_DIR = os.getenv("BASE_DIR") or input(
 ########################################################
 # Initialize tokenizer
 tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.1-8B-Instruct", token=HF_TOKEN
+    "meta-llama/Llama-3.2-1B-Instruct", token=HF_TOKEN
 )
 
 # Create dataset configuration for MedQA
@@ -45,7 +45,7 @@ medqa_config = DatasetConfig(
     max_examples=None,
     # Batching parameters
     batch_size=8,
-    max_seq_length=2048,
+    max_seq_length=4096,
     num_workers=8,
     ignore_index=-100,
     mask_prompt=False,
@@ -62,7 +62,7 @@ train_dataloader, val_dataloader = create_med_qa_loaders(
 ########################################################
 trainer_config = TrainerConfig(
     # Model configuration
-    model_name="meta-llama/Llama-3.1-8B-Instruct",
+    model_name="meta-llama/Llama-3.2-1B-Instruct",
     param_dtype="bfloat16",
     output_dtype="bfloat16",
     # Training configuration
