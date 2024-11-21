@@ -45,7 +45,7 @@ medqa_config = DatasetConfig(
     max_examples=None,
     # Batching parameters
     batch_size=8,
-    max_seq_length=512,
+    max_seq_length=1024,
     num_workers=8,
     ignore_index=-100,
     mask_prompt=True,
@@ -73,7 +73,7 @@ trainer_config = TrainerConfig(
     # lora configuration
     lora_rank=16,
     use_lora=True,
-    learning_rate=1e-4,
+    learning_rate=1e-3,
     # Environment configuration
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
@@ -107,12 +107,12 @@ trainer.train()
 
 export_dir = f"{trainer_config.base_dir}/hf_export/"
 
-# Export the model in HF format
-trainer.export(export_dir=export_dir)
+# # Export the model in HF format
+# trainer.export(export_dir=export_dir)
 
-# Upload exported model to HF
-utils.upload_dir_to_hf(
-    dir_path=export_dir, 
-    repo_name="felarof01/test-llama3-medqa-finetuned-2048",
-    token=HF_TOKEN,
-)
+# # Upload exported model to HF
+# utils.upload_dir_to_hf(
+#     dir_path=export_dir, 
+#     repo_name="felarof01/test-llama3-medqa-finetuned-2048",
+#     token=HF_TOKEN,
+# )

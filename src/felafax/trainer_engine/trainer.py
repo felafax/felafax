@@ -160,8 +160,9 @@ class Trainer:
         self.configure_optimizers(optimizer_params)
 
     def configure_optimizers(self, optimizer_params):
-        self.optimizer = optax.adam(
-            learning_rate=self.trainer_config.learning_rate
+        self.optimizer = optax.chain(
+        optax.clip_by_global_norm(1.0),  # Add gradient clipping
+        optax.adam(learning_rate=self.trainer_config.learning_rate)
         )
         self.opt_state = self.optimizer.init(optimizer_params)
 
