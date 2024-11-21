@@ -130,14 +130,17 @@ class Trainer:
             self.model = model
             self.model_config = model_config
         elif checkpointer is not None and trainer_config.restore_checkpoint:
+            print("Trying to restore checkpoint...")
             # Load from checkpoint if checkpointer is provided
             self.model, self.model_config = load_checkpoint_or_model(
                 model_name=trainer_config.model_name,
+                mesh=self.mesh,
                 checkpointer=checkpointer,
                 param_dtype=jnp.dtype(trainer_config.param_dtype),
                 compute_dtype=jnp.dtype(trainer_config.output_dtype),
             )
         else:
+            print("Loading model from HuggingFace...")
             # Load the model and model_config from HuggingFace
             self.model, self.model_config = load_llama_from_hf(
                 model_name=trainer_config.model_name,

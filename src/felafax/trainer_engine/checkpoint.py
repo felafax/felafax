@@ -125,7 +125,8 @@ def load_model(
 
 def load_checkpoint_or_model(
     model_name: str,
-    checkpointer,
+    mesh: jax.sharding.Mesh,
+    checkpointer: Checkpointer,
     param_dtype=jnp.float32,
     compute_dtype=jnp.float32,
 ) -> LlamaForCausalLM:
@@ -150,7 +151,7 @@ def load_checkpoint_or_model(
         return model, model_config
 
     model, model_config = load_llama_from_hf(
-        model_name, param_dtype=param_dtype, compute_dtype=compute_dtype
+        model_name, mesh=mesh, param_dtype=param_dtype, compute_dtype=compute_dtype
     )
     return model, model_config
 

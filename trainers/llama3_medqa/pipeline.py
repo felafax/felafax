@@ -48,7 +48,7 @@ medqa_config = DatasetConfig(
     max_seq_length=2048,
     num_workers=8,
     ignore_index=-100,
-    mask_prompt=True,
+    mask_prompt=False,
     pad_id=0,
 )
 
@@ -67,7 +67,7 @@ trainer_config = TrainerConfig(
     output_dtype="bfloat16",
     # Training configuration
     num_epochs=1,
-    num_steps=800,  # set to None to run through the entire dataset
+    num_steps=500,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
     mesh_shape=(2, 2, 1),  # (batch, fsdp, mp)
     # lora configuration
@@ -82,7 +82,7 @@ trainer_config = TrainerConfig(
     eval_interval=25,
     eval_steps=10,
     # Restore checkpoint
-    restore_checkpoint=True,
+    restore_checkpoint=False,
 )
 
 # Set up the training environment using trainer_config
@@ -115,6 +115,6 @@ trainer.export(export_dir=export_dir)
 # Upload exported model to HF
 utils.upload_dir_to_hf(
     dir_path=export_dir, 
-    repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048",
+    repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048-no-mask",
     token=HF_TOKEN,
 )
