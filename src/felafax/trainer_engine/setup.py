@@ -2,6 +2,7 @@
 
 import os
 import jax
+import warnings
 
 
 def setup_environment(trainer_config):
@@ -27,3 +28,6 @@ def setup_environment(trainer_config):
     jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)
     jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
     jax.config.update("jax_threefry_partitionable", True)
+
+    # To suppress warning: RuntimeWarning: os.fork() was called. os.fork() is incompatible with multithreaded code, and JAX is multithreaded, so this will likely lead to a deadlock.
+    warnings.filterwarnings("ignore", message="os.fork()")

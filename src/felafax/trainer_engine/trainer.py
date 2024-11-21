@@ -282,7 +282,7 @@ class Trainer:
                     break
 
                 if (
-                    step == 1
+                    step == 2
                     or (step + 1) % self.trainer_config.log_interval == 0
                 ):
                     # Printing metrics of previous step to avoid disrupting XLA pipelining
