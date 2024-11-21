@@ -906,7 +906,11 @@ def test_llama_for_causal_lm(hf_model, eqx_config):
 def test_load_checkpoint(hf_model):
     """Tests loading weights from checkpoint."""
     from src.felafax.trainer_engine.checkpoint import load_llama_from_hf
-    eqx_model, _ = load_llama_from_hf("meta-llama/Meta-Llama-3.1-8B")
+    from src.felafax.trainer_engine.trainer import get_mesh
+
+    eqx_model, _ = load_llama_from_hf(
+        "meta-llama/Meta-Llama-3.1-8B", mesh=get_mesh(jax.device_count())
+    )
 
     # Create input for testing
     tokenizer, hf_model = hf_model

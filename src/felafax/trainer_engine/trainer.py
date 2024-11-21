@@ -18,7 +18,6 @@ import os
 
 from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
-    load_model,
     load_llama_from_hf,
     save_model_to_hf,
 )
@@ -130,6 +129,7 @@ class Trainer:
             # Load the model and model_config from HuggingFace
             self.model, self.model_config = load_llama_from_hf(
                 model_name=trainer_config.model_name,
+                mesh=self.mesh,
                 token=trainer_config.hf_token,
                 lora_rank=self.trainer_config.lora_rank
                 if self.trainer_config.use_lora

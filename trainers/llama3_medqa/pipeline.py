@@ -45,7 +45,7 @@ medqa_config = DatasetConfig(
     max_examples=None,
     # Batching parameters
     batch_size=8,
-    max_seq_length=1024,
+    max_seq_length=2048,
     num_workers=8,
     ignore_index=-100,
     mask_prompt=True,
