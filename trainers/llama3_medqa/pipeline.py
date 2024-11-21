@@ -35,7 +35,7 @@ BASE_DIR = os.getenv("BASE_DIR") or input(
 ########################################################
 # Initialize tokenizer
 tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.2-1B-Instruct", token=HF_TOKEN
+    "meta-llama/Llama-3.1-8B-Instruct", token=HF_TOKEN
 )
 
 # Create dataset configuration for MedQA
@@ -62,14 +62,14 @@ train_dataloader, val_dataloader = create_med_qa_loaders(
 ########################################################
 trainer_config = TrainerConfig(
     # Model configuration
-    model_name="meta-llama/Llama-3.2-1B-Instruct",
+    model_name="meta-llama/Llama-3.1-8B-Instruct",
     param_dtype="bfloat16",
     output_dtype="bfloat16",
     # Training configuration
     num_epochs=1,
     num_steps=20,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
-    mesh_shape=(1, 2, 2),  # (batch, fsdp, mp)
+    mesh_shape=(2, 2, 1),  # (batch, fsdp, mp)
     # lora configuration
     lora_rank=16,
     use_lora=True,
@@ -78,9 +78,9 @@ trainer_config = TrainerConfig(
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
     # Logging configuration
-    log_interval=2,
-    eval_interval=50,
-    eval_steps=10,
+    log_interval=1,
+    eval_interval=5,
+    eval_steps=5,
 )
 
 # Set up the training environment using trainer_config
