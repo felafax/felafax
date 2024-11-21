@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Optional, Any, Tuple
 import functools
 import pyrallis
 import jax
@@ -18,7 +18,6 @@ import os
 
 from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
-    load_model,
     load_llama_from_hf,
     save_model_to_hf,
 )
@@ -29,18 +28,18 @@ from src.felafax.trainer_engine.models.llama3.jax.model import (
 )
 
 
-def get_mesh(num_tpus: int):
-    mesh_shape = None
-    if num_tpus == 1:
-        mesh_shape = (1, 1, 1)
-    elif num_tpus == 2:
-        mesh_shape = (1, 2, 1)
-    elif num_tpus == 4:
-        mesh_shape = (1, 2, 2)
-    elif num_tpus == 8:
-        mesh_shape = (2, 2, 2)
-    else:
-        raise ValueError(f"Invalid number of TPUs: {num_tpus}")
+def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
+    if mesh_shape is None:
+        if num_tpus == 1:
+            mesh_shape = (1, 1, 1)
+        elif num_tpus == 2:
+            mesh_shape = (1, 2, 1)
+        elif num_tpus == 4:
+            mesh_shape = (1, 2, 2)
+        elif num_tpus == 8:
+            mesh_shape = (2, 2, 2)
+        else:
+            raise ValueError(f"Invalid number of TPUs: {num_tpus}")
 
     print(f"Creating TPU device mesh with shape {mesh_shape}...")
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
@@ -81,8 +80,9 @@ class TrainerConfig:
 
     # Training configuration
     num_epochs: int = 1
-    num_steps: int = 5
+    num_steps: Optional[int] = None
     num_tpus: int = jax.device_count()
+    mesh_shape: Optional[Tuple[int, int, int]] = None
 
     learning_rate: float = 1e-3
 
@@ -94,6 +94,11 @@ class TrainerConfig:
     base_dir: str = "/mnt/persistent-disk"
     hf_token: Optional[str] = None
 
+    # Logging configuration
+    log_interval: int = 10
+    eval_interval: int = 10
+    eval_steps: int = 10
+
 
 # Core trainer class -- add non-essential things in private functions.
 class Trainer:
@@ -104,17 +109,16 @@ class Trainer:
         val_dataloader: Any,
         model: Optional[eqx.Module] = None,
         model_config: Optional[LlamaConfig] = None,
-        mesh: Optional[jax.sharding.Mesh] = None,
         checkpointer: Optional[Checkpointer] = None,
     ):
-        assert trainer_config.model_name or model is not None, (
-            "Either model_name must be provided in trainer_config or an existing model must be passed."
-        )
+        assert (
+            trainer_config.model_name or model is not None
+        ), "Either model_name must be provided in trainer_config or an existing model must be passed."
 
         self.trainer_config = trainer_config
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
-        self.mesh = mesh if mesh else get_mesh(trainer_config.num_tpus)
+        self.mesh = get_mesh(trainer_config.num_tpus, trainer_config.mesh_shape)
         self.checkpointer = checkpointer
 
         if model is not None and model_config is not None:
@@ -125,8 +129,11 @@ class Trainer:
             # Load the model and model_config from HuggingFace
             self.model, self.model_config = load_llama_from_hf(
                 model_name=trainer_config.model_name,
+                mesh=self.mesh,
                 token=trainer_config.hf_token,
-                lora_rank=self.trainer_config.lora_rank if self.trainer_config.use_lora else 0,
+                lora_rank=self.trainer_config.lora_rank
+                if self.trainer_config.use_lora
+                else 0,
                 param_dtype=jnp.dtype(trainer_config.param_dtype),
                 compute_dtype=jnp.dtype(trainer_config.output_dtype),
             )
@@ -153,8 +160,9 @@ class Trainer:
         self.configure_optimizers(optimizer_params)
 
     def configure_optimizers(self, optimizer_params):
-        self.optimizer = optax.adam(
-            learning_rate=self.trainer_config.learning_rate
+        self.optimizer = optax.chain(
+        optax.clip_by_global_norm(1.0),  # Add gradient clipping
+        optax.adam(learning_rate=self.trainer_config.learning_rate)
         )
         self.opt_state = self.optimizer.init(optimizer_params)
 
@@ -223,10 +231,35 @@ class Trainer:
 
         return loss, (accuracy, model_params, optimizer_state)
 
-    def validation_step(
-        self, *, model_params, model_static, optimizer, optimizer_state, batch
-    ):
-        pass
+    @functools.partial(
+        jax.jit,
+        static_argnames=("self", "model_static"),
+        donate_argnames=("batch",),
+    )
+    def validation_step(self, model_params, model_static, batch):
+        model = eqx.combine(model_params, model_static)
+        model = eqx.nn.inference_mode(model)
+
+        input_ids = batch["input_ids"]
+        labels = batch["labels"]
+        attention_mask = batch.get("attention_mask", None)
+        position_ids = batch.get("position_ids", None)
+
+        logits = model(input_ids, attention_mask, position_ids)
+
+        # Shift for next-token prediction
+        shifted_logits = logits[..., :-1, :]
+        shifted_labels = labels[..., 1:]
+
+        # If using attention mask, shift it too.
+        shifted_mask = None
+        if attention_mask is not None:
+            shifted_mask = attention_mask[..., 1:]
+
+        loss, accuracy = _cross_entropy_loss_and_accuracy(
+            shifted_logits, shifted_labels, shifted_mask
+        )
+        return loss, accuracy
 
     def train(self):
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
@@ -236,41 +269,73 @@ class Trainer:
         prev_step = 0
         prev_loss = 0.0
         prev_accuracy = 0.0
+        prev_val_loss = 0.0
+        prev_val_accuracy = 0.0
 
-        for step, batch in enumerate(self.train_dataloader):
-            if step >= max_steps:
-                break
-
-            if step:
-                # Printing metrics of previous step to avoid disrupting XLA pipelining
-                print(
-                    f"Step {prev_step}: Loss: {prev_loss:.4f}, Accuracy: {prev_accuracy:.4f}"
-                )
-
-            batch = _preprocess_batch(batch)
-            batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
-            optimizer_state = jax.device_put(
-                optimizer_state, NamedSharding(self.mesh, PS())
+        for epoch in range(self.trainer_config.num_epochs):
+            print(
+                f"Started epoch {epoch + 1} of {self.trainer_config.num_epochs}..."
             )
 
-            loss, (accuracy, model_params, optimizer_state) = self.training_step(
-                model_params=model_params,
-                model_static=model_static,
-                optimizer=self.optimizer,
-                optimizer_state=optimizer_state,
-                batch=batch,
-            )
+            for step, batch in enumerate(self.train_dataloader):
+                if step >= max_steps:
+                    break
 
-            prev_step = step + 1
-            prev_loss = loss
-            prev_accuracy = accuracy
+                if (
+                    step == 1
+                    or (step + 1) % self.trainer_config.log_interval == 0
+                ):
+                    # Printing metrics of previous step to avoid disrupting XLA pipelining
+                    print(
+                        f"Step {prev_step} | "
+                        f"Train Loss: {prev_loss:.4f} | "
+                        f"Val Loss: {prev_val_loss:.4f} | "
+                        f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
+                    )
 
-            if self.checkpointer:
-                self.checkpointer.save_checkpoint(
-                    model=eqx.combine(model_params, model_static),
-                    model_config=self.model_config,
-                    step=step + 1,
+                pass
+
+                batch = _preprocess_batch(batch)
+                batch = jax.device_put(
+                    batch, NamedSharding(self.mesh, PS("batch"))
                 )
+                optimizer_state = jax.device_put(
+                    optimizer_state, NamedSharding(self.mesh, PS())
+                )
+
+                (
+                    loss,
+                    (accuracy, model_params, optimizer_state),
+                ) = self.training_step(
+                    model_params=model_params,
+                    model_static=model_static,
+                    optimizer=self.optimizer,
+                    optimizer_state=optimizer_state,
+                    batch=batch,
+                )
+
+                prev_step = step + 1
+                prev_loss = loss
+                prev_accuracy = accuracy
+
+                if (
+                    step == 0
+                    or (step + 1) % self.trainer_config.eval_interval == 0
+                ):
+                    prev_val_loss, prev_val_accuracy = self.evaluate(
+                        model_params=model_params,
+                        model_static=model_static,
+                        max_eval_steps=self.trainer_config.eval_steps,
+                    )
+                pass
+
+                if self.checkpointer:
+                    self.checkpointer.save_checkpoint(
+                        model=eqx.combine(model_params, model_static),
+                        model_config=self.model_config,
+                        step=step + 1,
+                    )
+                pass
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
@@ -286,11 +351,54 @@ class Trainer:
             self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.directory)
 
-    def export(self):
+    def evaluate(self, model_params, model_static, max_eval_steps=None):
+        """Run evaluation on the validation dataset.
+
+        Args:
+            model_params: The model parameters to evaluate
+            model_static: The static model components
+            max_eval_steps: Maximum number of evaluation steps (None for full dataset)
+
+        Returns:
+            tuple: (average_loss, average_accuracy)
+        """
+        max_eval_steps = max_eval_steps or float("inf")
+        print(
+            f"Running eval for {max_eval_steps if max_eval_steps != float('inf') else 'all'} steps..."
+        )
+
+        val_losses = []
+        val_accuracies = []
+
+        for eval_step, val_batch in enumerate(self.val_dataloader):
+            if eval_step >= max_eval_steps:
+                break
+
+            val_batch = _preprocess_batch(val_batch)
+            val_batch = jax.device_put(
+                val_batch, NamedSharding(self.mesh, PS("batch"))
+            )
+            val_loss, val_accuracy = self.validation_step(
+                model_params=model_params,
+                model_static=model_static,
+                batch=val_batch,
+            )
+            val_losses.append(val_loss)
+            val_accuracies.append(val_accuracy)
+
+        return (
+            jnp.mean(jnp.array(val_losses)),
+            jnp.mean(jnp.array(val_accuracies)),
+        )
+
+    def export(self, export_dir: Optional[str] = None):
         # After training, convert and save the model in Hugging Face format
         if self.trainer_config.use_lora:
             self.model = merge_lora_params(self.model)
-        export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
+        if export_dir is None:
+            export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
+        os.makedirs(export_dir, exist_ok=True)
+
         save_model_to_hf(
             model=self.model,
             model_config=self.model_config,

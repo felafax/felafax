@@ -1,18 +1,18 @@
 # base.py
-from abc import abstractmethod, ABC
-from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Union
 from dataclasses import dataclass
+from functools import partial
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 import torch
-from torch.utils.data import Dataset
-from torch import Tensor
-from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
+from datasets import load_dataset
+from torch.utils.data import DataLoader, Dataset
+from transformers import PreTrainedTokenizerBase
 
 
 @dataclass
 class DatasetConfig:
-    """Base configuration for datasets."""
+    """Configuration for datasets."""
 
     # Data loading parameters
     data_source: str = ""
@@ -26,91 +26,111 @@ class DatasetConfig:
     max_seq_length: int = 64
     num_workers: int = 4
     ignore_index: int = -100
-    prompt_style: Union[str, BasePromptTemplate] = "alpaca"
     mask_prompt: bool = False
     pad_id: int = 0
 
+    # Optional transform function for custom preprocessing
+    transform: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
 
-class BaseDataset(ABC):
-    """Base class for all data modules in Felafax."""
 
-    def __init__(self, config: DatasetConfig):
-        self.config = config
-        if isinstance(self.config.prompt_style, str):
-            self.config.prompt_style = BasePromptTemplate.from_name(
-                self.config.prompt_style
-            )
+def load_data(
+    config: DatasetConfig,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Loads the dataset and returns train and validation splits."""
 
-        self.tokenizer = None
-        self.train_dataset = None
-        self.val_dataset = None
+    # Load dataset from Hugging Face Hub or local file
+    if Path(config.data_source).is_file():
+        dataset = load_dataset(
+            "json",
+            data_files=config.data_source,
+            split=config.split,
+        )
+    else:
+        dataset = load_dataset(
+            config.data_source,
+            split=config.split,
+        )
 
-    @abstractmethod
-    def setup(self, tokenizer: Optional[Any] = None) -> None:
-        pass
+    # If max_examples is set, limit the number of examples
+    if config.max_examples is not None:
+        dataset = dataset.select(range(min(config.max_examples, len(dataset))))
+
+    # Split into train and validation sets
+    dataset = dataset.train_test_split(
+        test_size=config.train_test_split,
+        seed=config.seed,
+    )
+
+    train_data = [sample for sample in dataset["train"]]
+    val_data = [sample for sample in dataset["test"]]
+
+    return train_data, val_data
+
+
+def create_dataloader(
+    config: DatasetConfig,
+    dataset: "SFTDataset",
+    shuffle: bool = False,
+) -> DataLoader:
+    """Creates a DataLoader for the given dataset."""
+    return DataLoader(
+        dataset,
+        batch_size=config.batch_size,
+        shuffle=shuffle,
+        num_workers=config.num_workers,
+        collate_fn=get_sft_collate_fn(
+            max_seq_length=config.max_seq_length,
+            pad_id=config.pad_id,
+            ignore_index=config.ignore_index,
+        ),
+    )
 
 
 class SFTDataset(Dataset):
-    """Creates a dataset for supervised fine-tuning.
-
-    Args:
-        data: A list of samples (dicts). The target/label should be under the key 'output'.
-            Other necessary data should be under keys compatible with the prompt template.
-        tokenizer: The tokenizer to use, matching the one used to pretrain the model.
-        prompt_template: The prompt style to apply. Refer to `src.felafax.trainer_engine.prompts`
-            for available styles.
-        max_seq_length: Maximum sequence length. Sequences longer than this will be truncated.
-        mask_prompt: If `True`, masks the prompt section in `labels` using `ignore_index`.
-        ignore_index: The index used to mask elements in `labels` that should be ignored.
-        transform: An optional function to transform each sample before tokenization.
-            Use this to adjust keys to the expected 'instruction' and 'output' keys.
-
-    Returns:
-        dict: A dictionary with:
-            - `input_ids`: Encoded prompt and response.
-            - `labels`: Same as `input_ids`, but with the prompt part masked with
-              `ignore_index` if `mask_prompt=True`.
-    """
+    """Dataset for Supervised Fine-Tuning (SFT)."""
 
     def __init__(
         self,
-        data: List[Dict[str, str]],
-        tokenizer: Any,
-        prompt_template: Union[str, BasePromptTemplate],
-        max_seq_length: int = -1,
-        mask_prompt: bool = True,
-        ignore_index: int = -100,
-        transform: Optional[Callable[[Any], Any]] = None,
-    ) -> None:
+        config: DatasetConfig,
+        data: List[Dict[str, Any]],
+        tokenizer: PreTrainedTokenizerBase,
+    ):
         self.data = data
         self.tokenizer = tokenizer
-        if isinstance(prompt_template, BasePromptTemplate):
-            self.prompt_template = prompt_template
-        else:
-            self.prompt_template = BasePromptTemplate.from_name(prompt_template)
-        self.max_seq_length = max_seq_length
-        self.mask_prompt = mask_prompt
-        self.ignore_index = ignore_index
-        self.transform = transform
+        self.config = config
+
+        self.max_seq_length = config.max_seq_length
+        self.mask_prompt = config.mask_prompt
+        self.ignore_index = config.ignore_index
+        self.transform = config.transform
         self.eos_token_id = (
             self.tokenizer.eos_token_id
             if self.tokenizer.eos_token_id is not None
             else self.tokenizer.pad_token_id
         )
 
+    def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
+        """Default method to apply prompt formatting. Returns prompt and response.
+        Override this method in subclasses for custom behavior."""
+        prompt = (
+            "Below is an instruction that describes a task. "
+            "Write a response that appropriately completes the request.\n\n"
+            f"### Instruction:\n{example['instruction']}\n\n### Response:\n"
+        )
+        response = example["output"]
+        return prompt, response
+
     def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(self, idx: int) -> Dict[str, Union[Tensor, int]]:
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
         example = self.data[idx]
 
-        # Apply any transform function to the example if provided.
-        if self.transform is not None:
+        if self.transform:
             example = self.transform(example)
 
-        prompt = self.prompt_template.apply(
-            prompt=example["instruction"], **example
-        )
+        # Apply the prompt formatting
+        prompt, response = self.apply_format(example)
 
         # Encode the prompt with special tokens
         encoded_prompt = self.tokenizer.encode(
@@ -120,10 +140,10 @@ class SFTDataset(Dataset):
             truncation=True,
         )
 
-        # Encode the response with special tokens
+        # Encode the response without adding special tokens
         encoded_response = self.tokenizer.encode(
-            example["output"],
-            add_special_tokens=True,
+            response,
+            add_special_tokens=False,
             max_length=self.max_seq_length,
             truncation=True,
         )
@@ -140,17 +160,15 @@ class SFTDataset(Dataset):
             ]
 
         # Convert to torch tensor
-        encoded_prompt_and_response = torch.tensor(
-            encoded_prompt_and_response, dtype=torch.int64
-        )
+        input_ids = torch.tensor(encoded_prompt_and_response, dtype=torch.long)
 
         # Create labels, masking the prompt if required
-        labels = encoded_prompt_and_response.clone()
+        labels = input_ids.clone()
         if self.mask_prompt:
             labels[: len(encoded_prompt)] = self.ignore_index
 
         return {
-            "input_ids": encoded_prompt_and_response,
+            "input_ids": input_ids,
             "labels": labels,
             "prompt_length": len(encoded_prompt),
             "response_length": len(encoded_response),
@@ -158,9 +176,11 @@ class SFTDataset(Dataset):
 
 
 def get_sft_collate_fn(
-    max_seq_length: int = -1, pad_id: int = 0, ignore_index: int = -100
-):
-    """Returns the collate function for supervised fine-tuning (needed in the DataLoader)."""
+    max_seq_length: int = -1,
+    pad_id: int = 0,
+    ignore_index: int = -100,
+) -> Callable:
+    """Returns the collate function for supervised fine-tuning."""
     return partial(
         _sft_collate_fn,
         max_seq_length=max_seq_length,
@@ -170,12 +190,12 @@ def get_sft_collate_fn(
 
 
 def _sft_collate_fn(
-    samples: List[Dict[str, Union[Tensor, int]]],
+    samples: List[Dict[str, Any]],
     max_seq_length: int,
     pad_id: int = 0,
     ignore_index: int = -100,
-) -> Dict[str, Tensor]:
-    """Simplified collate function that pads sequences to max_seq_length."""
+) -> Dict[str, torch.Tensor]:
+    """Collate function that pads sequences to max_seq_length."""
     batched = {}
     for key in ("input_ids", "labels"):
         pad_value = pad_id if key == "input_ids" else ignore_index

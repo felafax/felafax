@@ -111,14 +111,14 @@ class Checkpointer:
         return self.checkpoint_mgr.directory
 
 
-def load_model(model_name: str, token: Optional[str] = None):
+def load_model(model_name: str, mesh: jax.sharding.Mesh, token: Optional[str] = None):
     """Loads a model from a checkpoint or Hugging Face.
 
     Args:
         model_name: Name or path of the model to load
         token: HuggingFace token for accessing gated models
     """
-    return load_llama_from_hf(model_name, token=token)
+    return load_llama_from_hf(model_name, mesh=mesh, token=token)
 
 
 def load_checkpoint_or_model(
@@ -166,13 +166,8 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
     )
 
 
-def _make_torch_to_jax(dtype):
+def _make_torch_to_jax(dtype, mesh):
     """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
-    # Import here to avoid circular dependency
-    from src.felafax.trainer_engine.trainer import get_mesh
-
-    mesh = get_mesh(jax.device_count())
-
     def _torch_to_jax(tensor, sharding_spec):
         jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
         sharding = NamedSharding(mesh, sharding_spec)
@@ -184,6 +179,7 @@ def _make_torch_to_jax(dtype):
 # TODO(refactor): Move load model into models/llama.
 def load_llama_from_hf(
     model_name: str,
+    mesh: jax.sharding.Mesh,
     token: Optional[str] = None,
     lora_rank: int = 0,
     param_dtype: Any = jnp.float32,
@@ -218,8 +214,8 @@ def load_llama_from_hf(
         compute_dtype=compute_dtype,
         key=key,
     )
-    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32)
-    torch_to_jax = _make_torch_to_jax(dtype=param_dtype)
+    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
+    torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
     # Copy weights from HF model to Equinox model
     eqx_model = eqx.tree_at(

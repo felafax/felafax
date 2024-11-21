@@ -7,13 +7,11 @@ from torch.utils.data import DataLoader
 from datasets import load_dataset
 
 from src.felafax.trainer_engine.data.base import (
-    BaseDataset,
+    DefaultDatasetLoader,
     SFTDataset,
     get_sft_collate_fn,
     DatasetConfig,
 )
-from src.felafax.trainer_engine.data.prompts import BasePromptTemplate
-
 
 @dataclass
 class AlpacaDatasetConfig(DatasetConfig):
@@ -24,7 +22,7 @@ class AlpacaDatasetConfig(DatasetConfig):
     prompt_style: Union[str, BasePromptTemplate] = "alpaca"
 
 
-class AlpacaDataset(BaseDataset):
+class AlpacaDataset(DefaultDatasetLoader):
     """Alpaca dataset for supervised fine-tuning."""
 
     def __init__(self, config: AlpacaDatasetConfig):
