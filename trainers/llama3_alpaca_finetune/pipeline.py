@@ -46,6 +46,8 @@ dataset_config = DatasetConfig(
     # Setting max_examples limits the number of examples in the dataset.
     # This is useful for testing the pipeline without running the entire dataset.
     max_examples=100 if TEST_MODE else None,
+    ignore_index=-100,
+    pad_id=0,
     seed=42,
 )
 
@@ -82,13 +84,20 @@ val_dataloader = create_dataloader(
 ########################################################
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
-    hf_token=HF_TOKEN,
+    param_dtype="bfloat16",
+    output_dtype="bfloat16",
+    num_epochs=1,
     num_steps=20,
     num_tpus=jax.device_count(),
-    use_lora=True,
+    mesh_shape=(2, 2, 1),
     lora_rank=8,
+    use_lora=True,
     learning_rate=1e-3,
     base_dir=BASE_DIR,
+    hf_token=HF_TOKEN,
+    log_interval=1,
+    eval_interval=5,
+    eval_steps=5,
 )
 
 # Set up the training environment using trainer_config
@@ -97,6 +106,8 @@ setup_environment(trainer_config)
 # Configure the checkpointer
 checkpointer_config = CheckpointerConfig(
     checkpoint_dir=f"{trainer_config.base_dir}/checkpoints/",
+    max_to_keep=2,
+    save_interval_steps=50,
 )
 checkpointer = Checkpointer(config=checkpointer_config)
 
