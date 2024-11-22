@@ -11,28 +11,32 @@ TPU_NAME="$1"
 ZONE="$2"
 PROJECT="felafax-training"
 CONTAINER_NAME="felafax-tunerx-container"
-TARGET_DIR="/home/llama3_jax/"
+TARGET_DIR="/home/felafax/"
 
-# Delete existing directory if it exists
+# Delete existing directory if it exists on the TPU VM
 echo "Deleting existing directory if it exists..."
 gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
   --zone="${ZONE}" \
   --worker=all \
-  --command="rm -rf /home/${USER}/llama3_jax"
+  --command="rm -rf /home/${USER}/felafax"
 
-echo "Copying files from: ./llama3_jax/"
-# Copy files to all TPU VM workers and then move them into the container
-gcloud compute tpus tpu-vm scp --recurse ./llama3_jax/* "${TPU_NAME}:/home/${USER}/llama3_jax/" \
+# Copy src/ and trainers/ directories to all TPU VM workers
+echo "Copying files from src/ and trainers/ to the TPU VM..."
+gcloud compute tpus tpu-vm scp --recurse ./src ./trainers requirements.txt "${TPU_NAME}:/home/${USER}/felafax/" \
+  --project="${PROJECT}" \
+  --zone="${ZONE}" \
+  --worker=all
+
+# Copy the files into the Docker container
+echo "Copying files into the Docker container..."
+gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
   --zone="${ZONE}" \
   --worker=all \
-&& gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
-  --project="${PROJECT}" \
-  --zone="${ZONE}" \
-  --worker=all \
-  --command="sudo docker cp /home/\${USER}/llama3_jax ${CONTAINER_NAME}:${TARGET_DIR}/"
+  --command="sudo docker cp /home/\${USER}/felafax ${CONTAINER_NAME}:${TARGET_DIR}"
 
+# Install dependencies inside the Docker container
 echo "Installing dependencies..."
 PIP_INSTALL_CMD="cd ${TARGET_DIR} && pip install -r requirements.txt"
 gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
@@ -41,8 +45,9 @@ gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --worker=all \
   --command="sudo docker exec ${CONTAINER_NAME} bash -c \"${PIP_INSTALL_CMD}\""
 
+# Run the training script inside the Docker container
 echo "Running training..."
-TRAIN_CMD="cd ${TARGET_DIR} && python multihost_trainer.py --model_name 'colab-llama-3.1-8B-Instruct-JAX' --data_source 'yahma/alpaca-cleaned' --train_and_export"
+TRAIN_CMD="cd ${TARGET_DIR} && python -m trainers.llama3_alpaca_finetune.pipeline"
 
 gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
