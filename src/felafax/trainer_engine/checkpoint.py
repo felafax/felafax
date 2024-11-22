@@ -40,7 +40,7 @@ class Checkpointer:
     def __init__(self, config: CheckpointerConfig):
         if not config.checkpoint_dir:
             raise ValueError("Checkpoint directory cannot be empty")
-
+        self.config = config
         self.checkpoint_dir = config.checkpoint_dir
         self.options = ocp.CheckpointManagerOptions(
             max_to_keep=config.max_to_keep,

@@ -350,15 +350,16 @@ class Trainer:
                         model_static=model_static,
                         max_eval_steps=self.trainer_config.eval_steps,
                     )
-                pass
 
-                if self.checkpointer:
+                if self.checkpointer and (
+                    (step + 1) % self.checkpointer.config.save_interval_steps
+                    == 0
+                ):
                     self.checkpointer.save_checkpoint(
                         model=eqx.combine(model_params, model_static),
                         model_config=self.model_config,
                         step=step + 1,
                     )
-                pass
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
