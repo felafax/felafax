@@ -566,6 +566,7 @@ class LlamaModel(eqx.Module):
         )
 
         layer_keys = jax.random.split(key, config.num_hidden_layers)
+        # TODO(mfu): use lax.scan.
         self.layers = [
             LlamaDecoderLayer(
                 config,
@@ -613,6 +614,7 @@ class LlamaForCausalLM(eqx.Module):
             compute_dtype=compute_dtype,
             key=key1,
         )
+
         self.lm_head = LlamaLinear(
             config.hidden_size,
             config.vocab_size,

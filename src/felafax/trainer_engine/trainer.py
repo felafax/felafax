@@ -149,6 +149,7 @@ class Trainer:
         else:
             print("Loading model from HuggingFace...")
             # Load the model and model_config from HuggingFace
+
             self.model, self.model_config = load_llama_from_hf(
                 model_name=trainer_config.model_name,
                 mesh=self.mesh,

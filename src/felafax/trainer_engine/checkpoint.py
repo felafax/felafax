@@ -22,6 +22,7 @@ from jax.sharding import NamedSharding, PartitionSpec as PS
 from jax.experimental import mesh_utils
 
 from dataclasses import dataclass
+from .utils import named_tree_map
 
 
 @dataclass
@@ -151,7 +152,10 @@ def load_checkpoint_or_model(
         return model, model_config
 
     model, model_config = load_llama_from_hf(
-        model_name, mesh=mesh, param_dtype=param_dtype, compute_dtype=compute_dtype
+        model_name,
+        mesh=mesh,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype,
     )
     return model, model_config
 

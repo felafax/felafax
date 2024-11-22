@@ -11,7 +11,7 @@ from transformers import PreTrainedTokenizerBase
 
 class MedQADataset(SFTDataset):
     """Custom dataset for MedQA data."""
-    
+
     def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
         """Override apply_format to handle MedQA format."""
         prompt = (
@@ -24,22 +24,21 @@ class MedQADataset(SFTDataset):
 
 
 def create_med_qa_loaders(
-    config: DatasetConfig, 
-    tokenizer: PreTrainedTokenizerBase
+    config: DatasetConfig, tokenizer: PreTrainedTokenizerBase
 ):
     """Creates and returns train and validation dataloaders for MedQA dataset.
-    
+
     Args:
         config: DatasetConfig object with dataset parameters
         tokenizer: Pre-initialized tokenizer
-    
+
     Returns:
         Tuple containing train_dataloader and val_dataloader
     """
-    
+
     # Load the data
     train_data, val_data = load_data(config=config)
-    
+
     # Create datasets
     train_dataset = MedQADataset(
         config=config,
@@ -51,7 +50,7 @@ def create_med_qa_loaders(
         data=val_data,
         tokenizer=tokenizer,
     )
-    
+
     # Create and return dataloaders
     train_dataloader = create_dataloader(
         config=config,
@@ -63,5 +62,5 @@ def create_med_qa_loaders(
         dataset=val_dataset,
         shuffle=False,
     )
-    
+
     return train_dataloader, val_dataloader

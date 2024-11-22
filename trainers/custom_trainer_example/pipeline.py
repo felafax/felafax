@@ -4,7 +4,10 @@ from dotenv import load_dotenv
 from transformers import AutoTokenizer
 from src.felafax.trainer_engine.trainer import TrainerConfig
 from src.felafax.trainer_engine.setup import setup_environment
-from src.felafax.trainer_engine.checkpoint import Checkpointer, CheckpointerConfig
+from src.felafax.trainer_engine.checkpoint import (
+    Checkpointer,
+    CheckpointerConfig,
+)
 from .dataset import AlpacaDataset, AlpacaDatasetConfig
 from src.felafax.trainer_engine import utils
 
@@ -89,4 +92,3 @@ trainer.train()
 #     dir_path=f"{trainer_config.base_dir}/hf_export/",
 #     repo_name="felarof01/test-llama3-alpaca",
 # )
-

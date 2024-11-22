@@ -76,8 +76,11 @@ def named_tree_map(f, tree, is_leaf=None, sep="/"):
         return str(key)
 
     def process_node(path, value):
-        """Processes a single node by converting its path and applying f."""
+        """Processes a single node by converting its path and conditionally applying f."""
         path_str = sep.join(convert_path_key(k) for k in path)
-        return f(path_str, value)
+        if is_leaf(value):
+            return f(path_str, value)
+        else:
+            return value
 
     return jax.tree_util.tree_map_with_path(process_node, tree, is_leaf=is_leaf)

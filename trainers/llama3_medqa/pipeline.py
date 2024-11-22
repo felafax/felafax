@@ -114,7 +114,7 @@ trainer.export(export_dir=export_dir)
 
 # Upload exported model to HF
 utils.upload_dir_to_hf(
-    dir_path=export_dir, 
+    dir_path=export_dir,
     repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048-no-mask",
     token=HF_TOKEN,
 )
