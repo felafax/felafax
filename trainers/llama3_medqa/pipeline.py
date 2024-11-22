@@ -35,7 +35,7 @@ BASE_DIR = os.getenv("BASE_DIR") or input(
 ########################################################
 # Initialize tokenizer
 tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.1-8B-Instruct", token=HF_TOKEN
+    "meta-llama/Llama-3.2-1B-Instruct", token=HF_TOKEN
 )
 
 # Create dataset configuration for MedQA
@@ -45,10 +45,10 @@ medqa_config = DatasetConfig(
     max_examples=None,
     # Batching parameters
     batch_size=8,
-    max_seq_length=2048,
+    max_seq_length=4096,
     num_workers=8,
     ignore_index=-100,
-    mask_prompt=True,
+    mask_prompt=False,
     pad_id=0,
 )
 
@@ -62,14 +62,14 @@ train_dataloader, val_dataloader = create_med_qa_loaders(
 ########################################################
 trainer_config = TrainerConfig(
     # Model configuration
-    model_name="meta-llama/Llama-3.1-8B-Instruct",
+    model_name="meta-llama/Llama-3.2-1B-Instruct",
     param_dtype="bfloat16",
     output_dtype="bfloat16",
     # Training configuration
     num_epochs=1,
-    num_steps=800,  # set to None to run through the entire dataset
+    num_steps=100,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
-    mesh_shape=(2, 2, 1),  # (batch, fsdp, mp)
+    mesh_shape=(1, 1, 4),  # (batch, fsdp, mp)
     # lora configuration
     lora_rank=16,
     use_lora=True,
@@ -79,8 +79,10 @@ trainer_config = TrainerConfig(
     hf_token=HF_TOKEN,
     # Logging configuration
     log_interval=5,
-    eval_interval=25,
+    eval_interval=5,
     eval_steps=10,
+    # Restore checkpoint
+    restore_checkpoint=False,
 )
 
 # Set up the training environment using trainer_config
@@ -113,6 +115,6 @@ trainer.export(export_dir=export_dir)
 # Upload exported model to HF
 utils.upload_dir_to_hf(
     dir_path=export_dir, 
-    repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048",
+    repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048-no-mask",
     token=HF_TOKEN,
 )

@@ -25,6 +25,7 @@ HF_TOKEN = os.getenv("HF_TOKEN") or input(
 BASE_DIR = os.getenv("BASE_DIR") or input(
     "Please enter the base directory for the training run: "
 )
+
 # Tip: To avoid entering these values manually, create a .env file in the `llama3_alpaca_finetune` folder with:
 #   HF_TOKEN=your_huggingface_token
 #   BASE_DIR=path_to_base_directory
@@ -89,7 +90,6 @@ trainer_config = TrainerConfig(
     num_epochs=1,
     num_steps=10,
     num_tpus=jax.device_count(),
-    mesh_shape=(2, 2, 1),
     lora_rank=8,
     use_lora=True,
     learning_rate=1e-3,
@@ -104,8 +104,11 @@ trainer_config = TrainerConfig(
 setup_environment(trainer_config)
 
 # Configure the checkpointer
+checkpoint_dir = f"{trainer_config.base_dir}/checkpoints/"
+os.makedirs(checkpoint_dir, exist_ok=True)
+
 checkpointer_config = CheckpointerConfig(
-    checkpoint_dir=f"{trainer_config.base_dir}/checkpoints/",
+    checkpoint_dir=checkpoint_dir,
     max_to_keep=2,
     save_interval_steps=50,
 )
