@@ -89,7 +89,6 @@ trainer_config = TrainerConfig(
     num_epochs=1,
     num_steps=10,
     num_tpus=jax.device_count(),
-    mesh_shape=(2, 2, 1),
     lora_rank=8,
     use_lora=True,
     learning_rate=1e-3,

@@ -3,12 +3,17 @@ from typing import Optional, Any, Tuple
 import functools
 import pyrallis
 import jax
-# jax.distributed.initialize()
+
+jax.distributed.initialize()
 
 import equinox as eqx
 import quax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
+from jax.experimental.multihost_utils import (
+    global_array_to_host_local_array,
+    host_local_array_to_global_array,
+)
 import jax.tree_util as jtu
 from jax.sharding import NamedSharding, PartitionSpec as PS
 from src.felafax.trainer_engine.utils import named_tree_map
@@ -39,6 +44,8 @@ def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
             mesh_shape = (1, 2, 2)
         elif num_tpus == 8:
             mesh_shape = (2, 2, 2)
+        elif num_tpus == 16:
+            mesh_shape = (1, 4, 4)
         else:
             raise ValueError(f"Invalid number of TPUs: {num_tpus}")
 
@@ -99,7 +106,7 @@ class TrainerConfig:
     log_interval: int = 10
     eval_interval: int = 10
     eval_steps: int = 10
-    
+
     # Restore checkpoint
     restore_checkpoint: bool = False
 
@@ -176,8 +183,8 @@ class Trainer:
 
     def configure_optimizers(self, optimizer_params):
         self.optimizer = optax.chain(
-        optax.clip_by_global_norm(1.0),  # Add gradient clipping
-        optax.adam(learning_rate=self.trainer_config.learning_rate)
+            optax.clip_by_global_norm(1.0),  # Add gradient clipping
+            optax.adam(learning_rate=self.trainer_config.learning_rate),
         )
         self.opt_state = self.optimizer.init(optimizer_params)
 
@@ -311,8 +318,8 @@ class Trainer:
                 pass
 
                 batch = _preprocess_batch(batch)
-                batch = jax.device_put(
-                    batch, NamedSharding(self.mesh, PS("batch"))
+                batch = host_local_array_to_global_array(
+                    batch, self.mesh, PS("batch")
                 )
                 optimizer_state = jax.device_put(
                     optimizer_state, NamedSharding(self.mesh, PS())
