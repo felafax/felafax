@@ -25,6 +25,7 @@ HF_TOKEN = os.getenv("HF_TOKEN") or input(
 BASE_DIR = os.getenv("BASE_DIR") or input(
     "Please enter the base directory for the training run: "
 )
+
 # Tip: To avoid entering these values manually, create a .env file in the `llama3_alpaca_finetune` folder with:
 #   HF_TOKEN=your_huggingface_token
 #   BASE_DIR=path_to_base_directory

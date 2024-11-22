@@ -13,15 +13,25 @@ PROJECT="felafax-training"
 CONTAINER_NAME="felafax-tunerx-container"
 TARGET_DIR="/home/felafax/"
 
-# Delete existing directory if it exists on the TPU VM
-echo "Deleting existing directory if it exists..."
+# Delete existing directory if it exists on the TPU VM and verify deletion
+echo "Deleting existing directory on TPU VM if it exists..."
 gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
   --zone="${ZONE}" \
   --worker=all \
-  --command="rm -rf /home/${USER}/felafax"
+  --command="sudo rm -rf /home/${USER}/felafax && ls /home/${USER}"
 
-# Copy src/ and trainers/ directories to all TPU VM workers
+# Delete the folder in the Docker container if it exists
+echo "Deleting existing directory inside Docker container if it exists..."
+DELETE_CMD="rm -rf ${TARGET_DIR} && ls ${TARGET_DIR}"
+gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
+  --project="${PROJECT}" \
+  --zone="${ZONE}" \
+  --worker=all \
+  --command="sudo docker exec ${CONTAINER_NAME} bash -c \"${DELETE_CMD}\""
+
+
+# Force copy src/ and trainers/ directories to all TPU VM workers
 echo "Copying files from src/ and trainers/ to the TPU VM..."
 gcloud compute tpus tpu-vm scp --recurse ./src ./trainers requirements.txt "${TPU_NAME}:/home/${USER}/felafax/" \
   --project="${PROJECT}" \
@@ -34,21 +44,20 @@ gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
   --zone="${ZONE}" \
   --worker=all \
-  --command="sudo docker cp /home/\${USER}/felafax ${CONTAINER_NAME}:${TARGET_DIR}"
+  --command="sudo docker cp /home/${USER}/felafax ${CONTAINER_NAME}:${TARGET_DIR}"
 
-# Install dependencies inside the Docker container
-echo "Installing dependencies..."
-PIP_INSTALL_CMD="cd ${TARGET_DIR} && pip install -r requirements.txt"
-gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
-  --project="${PROJECT}" \
-  --zone="${ZONE}" \
-  --worker=all \
-  --command="sudo docker exec ${CONTAINER_NAME} bash -c \"${PIP_INSTALL_CMD}\""
+# # Install dependencies inside the Docker container
+# echo "Installing dependencies..."
+# PIP_INSTALL_CMD="cd ${TARGET_DIR} && pip install -r requirements.txt"
+# gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
+#   --project="${PROJECT}" \
+#   --zone="${ZONE}" \
+#   --worker=all \
+#   --command="sudo docker exec ${CONTAINER_NAME} bash -c \"${PIP_INSTALL_CMD}\""
 
 # Run the training script inside the Docker container
 echo "Running training..."
 TRAIN_CMD="cd ${TARGET_DIR} && python -m trainers.llama3_alpaca_finetune.pipeline"
-
 gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
   --zone="${ZONE}" \
