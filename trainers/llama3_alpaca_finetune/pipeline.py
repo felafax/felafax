@@ -104,8 +104,11 @@ trainer_config = TrainerConfig(
 setup_environment(trainer_config)
 
 # Configure the checkpointer
+checkpoint_dir = f"{trainer_config.base_dir}/checkpoints/"
+os.makedirs(checkpoint_dir, exist_ok=True)
+
 checkpointer_config = CheckpointerConfig(
-    checkpoint_dir=f"{trainer_config.base_dir}/checkpoints/",
+    checkpoint_dir=checkpoint_dir,
     max_to_keep=2,
     save_interval_steps=50,
 )

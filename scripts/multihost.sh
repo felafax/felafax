@@ -46,14 +46,14 @@ gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --worker=all \
   --command="sudo docker cp /home/${USER}/felafax ${CONTAINER_NAME}:${TARGET_DIR}"
 
-# # Install dependencies inside the Docker container
-# echo "Installing dependencies..."
-# PIP_INSTALL_CMD="cd ${TARGET_DIR} && pip install -r requirements.txt"
-# gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
-#   --project="${PROJECT}" \
-#   --zone="${ZONE}" \
-#   --worker=all \
-#   --command="sudo docker exec ${CONTAINER_NAME} bash -c \"${PIP_INSTALL_CMD}\""
+# Install dependencies inside the Docker container
+echo "Installing dependencies..."
+PIP_INSTALL_CMD="cd ${TARGET_DIR} && pip install -r requirements.txt"
+gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
+  --project="${PROJECT}" \
+  --zone="${ZONE}" \
+  --worker=all \
+  --command="sudo docker exec ${CONTAINER_NAME} bash -c \"${PIP_INSTALL_CMD}\""
 
 # Run the training script inside the Docker container
 echo "Running training..."
