@@ -22,6 +22,7 @@ from jax.sharding import NamedSharding, PartitionSpec as PS
 from jax.experimental import mesh_utils
 
 from dataclasses import dataclass
+from .utils import named_tree_map
 
 
 @dataclass
@@ -32,14 +33,14 @@ class CheckpointerConfig:
     max_to_keep: int = 2
     save_interval_steps: int = 10
     create: bool = True  # Create the checkpoint directory if it doesn't exist
-    enable_async_checkpointing: bool = True
+    enable_async_checkpointing: bool = True 
 
 
 class Checkpointer:
     def __init__(self, config: CheckpointerConfig):
         if not config.checkpoint_dir:
             raise ValueError("Checkpoint directory cannot be empty")
-
+        self.config = config
         self.checkpoint_dir = config.checkpoint_dir
         self.options = ocp.CheckpointManagerOptions(
             max_to_keep=config.max_to_keep,
@@ -69,6 +70,7 @@ class Checkpointer:
                 model_pytree=ocp.args.StandardSave(model_pytree),
                 model_config=ocp.args.JsonSave(model_config.to_dict()),
             ),
+            force=True,
         )
 
     def restore_checkpoint(self) -> Tuple[eqx.Module, LlamaConfig]:
@@ -151,7 +153,10 @@ def load_checkpoint_or_model(
         return model, model_config
 
     model, model_config = load_llama_from_hf(
-        model_name, mesh=mesh, param_dtype=param_dtype, compute_dtype=compute_dtype
+        model_name,
+        mesh=mesh,
+        param_dtype=param_dtype,
+        compute_dtype=compute_dtype,
     )
     return model, model_config
 

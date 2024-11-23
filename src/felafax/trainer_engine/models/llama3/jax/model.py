@@ -7,12 +7,21 @@ from typing import Optional, Any, List
 import ml_dtypes
 import jax.nn.initializers as init
 
+
 DTYPE_MAP = {
     "float32": jnp.float32,
     "float16": jnp.float16,
     "bfloat16": jnp.bfloat16,
     "int32": jnp.int32,
     "int64": jnp.int64,
+}
+
+# Define rematerialization policies
+remat_policy = {
+    "nothing": jax.checkpoint_policies.nothing_saveable,
+    "dots": jax.checkpoint_policies.checkpoint_dots,
+    "dots_with_no_batch_dims": jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
+    "everything": jax.checkpoint_policies.everything_saveable,
 }
 
 
@@ -566,6 +575,7 @@ class LlamaModel(eqx.Module):
         )
 
         layer_keys = jax.random.split(key, config.num_hidden_layers)
+        # TODO(mfu): use lax.scan.
         self.layers = [
             LlamaDecoderLayer(
                 config,
@@ -585,8 +595,11 @@ class LlamaModel(eqx.Module):
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.embed_tokens(input_ids)
 
+        policy = remat_policy["nothing"]
         for layer in self.layers:
-            hidden_states = layer(hidden_states, attention_mask, position_ids)
+            hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                hidden_states, attention_mask, position_ids
+            )
 
         hidden_states = self.norm(hidden_states)
 
@@ -613,6 +626,7 @@ class LlamaForCausalLM(eqx.Module):
             compute_dtype=compute_dtype,
             key=key1,
         )
+
         self.lm_head = LlamaLinear(
             config.hidden_size,
             config.vocab_size,

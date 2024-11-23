@@ -19,7 +19,7 @@ gcloud compute tpus tpu-vm ssh "${TPU_NAME}" \
   --project="${PROJECT}" \
   --zone="${ZONE}" \
   --worker=all \
-  --command="sudo rm -rf /home/${USER}/felafax && ls /home/${USER}"
+  --command="sudo rm -rf /home/${USER}/felafax && ls /home/${USER}/felafax"
 
 # Delete the folder in the Docker container if it exists
 echo "Deleting existing directory inside Docker container if it exists..."

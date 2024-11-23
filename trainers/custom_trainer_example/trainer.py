@@ -1,5 +1,6 @@
 from src.felafax.trainer_engine.trainer import Trainer
 
+
 class CustomTrainer(Trainer):
     def configure_optimizers(self, optimizer_params):
         # Your custom optimizer configuration
@@ -17,7 +18,6 @@ class CustomTrainer(Trainer):
             warmup_steps=warmup_steps,
             decay_steps=total_steps,
         )
-            
 
         optimizer = optax.chain(
             optax.clip_by_global_norm(1.0),

@@ -4,7 +4,7 @@ set -Eeuo pipefail
 base_dir=$(dirname $(dirname $0))
 
 if [ "${1:-format}" = "check" ]; then
-    ruff check ./felafax/ ./projects/ --config "${base_dir}/pyproject.toml"
+    ruff check ./src/felafax/ ./trainers/ --config "${base_dir}/pyproject.toml"
 else
-    ruff format ./felafax/ ./projects/ --config "${base_dir}/pyproject.toml"
+    ruff format ./src/felafax/ ./trainers/ --config "${base_dir}/pyproject.toml"
 fi

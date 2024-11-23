@@ -13,6 +13,7 @@ from src.felafax.trainer_engine.data.base import (
     DatasetConfig,
 )
 
+
 @dataclass
 class AlpacaDatasetConfig(DatasetConfig):
     """Configuration for Alpaca dataset."""
