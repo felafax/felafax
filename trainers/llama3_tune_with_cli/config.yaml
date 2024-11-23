@@ -1,0 +1,14 @@
+hf_token: "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"
+base_dir: "/mnt/persistent-disk/test/"
+test_mode: true
+
+data:
+  batch_size: 16
+  max_seq_length: 2048
+
+trainer:
+  num_steps: 1000
+  learning_rate: 2e-4
+
+checkpoint:
+  save_interval_steps: 100
