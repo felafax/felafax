@@ -1,5 +1,6 @@
 import jax
 import pyrallis
+from pathlib import Path
 from transformers import AutoTokenizer
 from src.felafax.trainer_engine.trainer import Trainer
 from src.felafax.trainer_engine.setup import setup_environment
@@ -11,6 +12,9 @@ from .config import PipelineConfig
 
 @pyrallis.wrap()
 def main(cfg: PipelineConfig):
+    # Set up training environment first
+    setup_environment(cfg.trainer)
+    
     # Initialize tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         cfg.trainer.model_name, 
@@ -26,22 +30,19 @@ def main(cfg: PipelineConfig):
     # Initialize checkpointer
     checkpointer = Checkpointer(cfg.checkpoint)
 
-    # Set up training environment
-    setup_environment(cfg.trainer)
-
     # Initialize trainer
     trainer = Trainer(
         trainer_config=cfg.trainer,
         train_dataloader=train_dataloader,
         val_dataloader=val_dataloader,
-        checkpointer=checkpointer,
+        # checkpointer=checkpointer,
     )
 
     # Train the model
     trainer.train()
 
     # Export and upload model
-    export_dir = cfg.base_dir / "hf_export"
+    export_dir = Path(cfg.base_dir) / "hf_export"
     trainer.export(export_dir=str(export_dir))
     
     utils.upload_dir_to_hf(
