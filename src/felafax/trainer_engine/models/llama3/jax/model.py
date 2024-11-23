@@ -6,7 +6,7 @@ import equinox as eqx
 from typing import Optional, Any, List
 import ml_dtypes
 import jax.nn.initializers as init
-import jax.checkpoint_policies as jcp
+
 
 DTYPE_MAP = {
     "float32": jnp.float32,
@@ -18,10 +18,10 @@ DTYPE_MAP = {
 
 # Define rematerialization policies
 remat_policy = {
-    'nothing': jcp.nothing_saveable,
-    'dots': jcp.checkpoint_dots,
-    'dots_with_no_batch_dims': jcp.checkpoint_dots_with_no_batch_dims,
-    'everything': jcp.everything_saveable,
+    "nothing": jax.checkpoint_policies.nothing_saveable,
+    "dots": jax.checkpoint_policies.checkpoint_dots,
+    "dots_with_no_batch_dims": jax.checkpoint_policies.checkpoint_dots_with_no_batch_dims,
+    "everything": jax.checkpoint_policies.everything_saveable,
 }
 
 
@@ -595,12 +595,11 @@ class LlamaModel(eqx.Module):
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.embed_tokens(input_ids)
 
-        policy = remat_policy['nothing']
+        policy = remat_policy["nothing"]
         for layer in self.layers:
-            hidden_states = eqx.filter_checkpoint(
-                layer,
-                policy=policy
-            )(hidden_states, attention_mask, position_ids)
+            hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                hidden_states, attention_mask, position_ids
+            )
 
         hidden_states = self.norm(hidden_states)
 
