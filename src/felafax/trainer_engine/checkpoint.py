@@ -33,7 +33,7 @@ class CheckpointerConfig:
     max_to_keep: int = 2
     save_interval_steps: int = 10
     create: bool = True  # Create the checkpoint directory if it doesn't exist
-    enable_async_checkpointing: bool = True
+    enable_async_checkpointing: bool = True 
 
 
 class Checkpointer:
@@ -70,6 +70,7 @@ class Checkpointer:
                 model_pytree=ocp.args.StandardSave(model_pytree),
                 model_config=ocp.args.JsonSave(model_config.to_dict()),
             ),
+            force=True,
         )
 
     def restore_checkpoint(self) -> Tuple[eqx.Module, LlamaConfig]:

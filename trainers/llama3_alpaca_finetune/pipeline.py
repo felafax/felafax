@@ -88,7 +88,7 @@ trainer_config = TrainerConfig(
     param_dtype="bfloat16",
     output_dtype="bfloat16",
     num_epochs=1,
-    num_steps=10,
+    num_steps=5,
     num_tpus=jax.device_count(),
     lora_rank=8,
     use_lora=False,
@@ -96,7 +96,7 @@ trainer_config = TrainerConfig(
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
     log_interval=1,
-    eval_interval=5,
+    eval_interval=50,
     eval_steps=5,
 )
 
