@@ -84,7 +84,7 @@ class TrainerConfig:
     # Model configuration
     model_name: str = "meta-llama/Llama-3.2-1B"
     param_dtype: str = "float32"
-    output_dtype: str = "float32"
+    compute_dtype: str = "float32"
 
     # Training configuration
     num_epochs: int = 1
@@ -144,7 +144,7 @@ class Trainer:
                 mesh=self.mesh,
                 checkpointer=checkpointer,
                 param_dtype=jnp.dtype(trainer_config.param_dtype),
-                compute_dtype=jnp.dtype(trainer_config.output_dtype),
+                compute_dtype=jnp.dtype(trainer_config.compute_dtype),
             )
         else:
             print("Loading model from HuggingFace...")
@@ -158,7 +158,7 @@ class Trainer:
                 if self.trainer_config.use_lora
                 else 0,
                 param_dtype=jnp.dtype(trainer_config.param_dtype),
-                compute_dtype=jnp.dtype(trainer_config.output_dtype),
+                compute_dtype=jnp.dtype(trainer_config.compute_dtype),
             )
 
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
