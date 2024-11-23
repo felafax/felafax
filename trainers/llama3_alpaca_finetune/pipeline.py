@@ -85,8 +85,8 @@ val_dataloader = create_dataloader(
 ########################################################
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
-    param_dtype="bfloat16",
-    output_dtype="bfloat16",
+    param_dtype="float32",
+    output_dtype="float32",
     num_epochs=1,
     num_steps=5,
     num_tpus=jax.device_count(),

@@ -189,7 +189,7 @@ class Trainer:
         )
         self.opt_state = self.optimizer.init(optimizer_params)
 
-    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
+    # @functools.partial(jax.jit, static_argnames=("self", "model_static"))
     def forward(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]
@@ -213,9 +213,9 @@ class Trainer:
         )
         return loss, accuracy
 
-    @functools.partial(
-        jax.jit, static_argnames=("self", "model_static", "optimizer")
-    )
+    # @functools.partial(
+    #     jax.jit, static_argnames=("self", "model_static", "optimizer")
+    # )
     def training_step(
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
@@ -254,11 +254,11 @@ class Trainer:
 
         return loss, (accuracy, model_params, optimizer_state)
 
-    @functools.partial(
-        jax.jit,
-        static_argnames=("self", "model_static"),
-        donate_argnames=("batch",),
-    )
+    # @functools.partial(
+    #     jax.jit,
+    #     static_argnames=("self", "model_static"),
+    #     donate_argnames=("batch",),
+    # )
     def validation_step(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         model = eqx.nn.inference_mode(model)
@@ -448,6 +448,7 @@ def _preprocess_batch(batch):
         batch["input_ids"].shape[0],
         axis=0,
     )
+    print("Position IDs shape:", batch["position_ids"].shape)
     return batch
 
 

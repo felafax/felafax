@@ -250,59 +250,73 @@ def load_llama_from_hf(
     )
 
     # Copy layer weights with appropriate sharding
-    for i in range(len(eqx_model.model.layers)):
-        hf_layer = hf_model.model.layers[i]
+    # Instead of iterating through layers, we'll use tree_at with vmap
+    num_layers = hf_model.config.num_hidden_layers
+    
+    # Helper function to create indices for each layer
+    layer_indices = jnp.arange(num_layers)
+    
+    # breakpoint()
+    # Self-attention weights
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.self_attn.q_proj.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].self_attn.q_proj.weight, PS(("fsdp", "mp"))) 
+                   for i in range(num_layers)])
+    )
+    # breakpoint()
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.self_attn.k_proj.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].self_attn.k_proj.weight, PS(("fsdp", "mp"))) 
+                   for i in range(num_layers)])
+    )
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.self_attn.v_proj.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].self_attn.v_proj.weight, PS(("fsdp", "mp"))) 
+                   for i in range(num_layers)])
+    )
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.self_attn.o_proj.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].self_attn.o_proj.weight, PS(("mp", "fsdp"))) 
+                   for i in range(num_layers)])
+    )
 
-        # Self-attention weights
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.q_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.k_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.v_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.o_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(("mp", "fsdp"))),
-        )
+    # MLP weights 
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.mlp.gate_proj.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].mlp.gate_proj.weight, PS(("fsdp", "mp"))) 
+                   for i in range(num_layers)])
+    )
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.mlp.up_proj.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].mlp.up_proj.weight, PS(("fsdp", "mp"))) 
+                   for i in range(num_layers)])
+    )
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.mlp.down_proj.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].mlp.down_proj.weight, PS(("mp", "fsdp"))) 
+                   for i in range(num_layers)])
+    )
 
-        # MLP weights
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.gate_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.up_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.down_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(("mp", "fsdp"))),
-        )
-
-        # Layer norms
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].input_layernorm.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.input_layernorm.weight, PS()),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].post_attention_layernorm.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.post_attention_layernorm.weight, PS()),
-        )
+    # Layer norms
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.input_layernorm.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].input_layernorm.weight, PS()) 
+                   for i in range(num_layers)])
+    )
+    eqx_model = eqx.tree_at(
+        lambda t: t.model.layers.post_attention_layernorm.weight,
+        eqx_model,
+        jnp.stack([torch_to_jax(hf_model.model.layers[i].post_attention_layernorm.weight, PS()) 
+                   for i in range(num_layers)])
+    )
 
     return eqx_model, model_config
 

@@ -574,17 +574,20 @@ class LlamaModel(eqx.Module):
             key=key,
         )
 
+        # Generate keys for each layer
         layer_keys = jax.random.split(key, config.num_hidden_layers)
-        # TODO(mfu): use lax.scan.
-        self.layers = [
-            LlamaDecoderLayer(
-                config,
-                param_dtype=self.param_dtype,
-                compute_dtype=self.compute_dtype,
-                key=layer_keys[i],
-            )
-            for i in range(config.num_hidden_layers)
-        ]
+        
+        # Create a function to make a single layer
+        make_layer = lambda k: LlamaDecoderLayer(
+            config=config,
+            param_dtype=param_dtype,
+            compute_dtype=compute_dtype,
+            key=k
+        )
+        
+        # Use filter_vmap to create layers with a leading axis
+        self.layers = eqx.filter_vmap(make_layer)(layer_keys)
+        # breakpoint()
         self.norm = LlamaRMSNorm(
             config.hidden_size,
             config.rms_norm_eps,
@@ -594,15 +597,26 @@ class LlamaModel(eqx.Module):
 
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.embed_tokens(input_ids)
-
-        policy = remat_policy["nothing"]
-        for layer in self.layers:
-            hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
-                hidden_states, attention_mask, position_ids
-            )
-
+        
+        # Partition layers into dynamic and static parts
+        dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
+        
+        def scan_fn(carry, dynamic_layer):
+            hidden_states = carry
+            # Recombine the layer
+            layer = eqx.combine(dynamic_layer, static_layers)
+            hidden_states = layer(hidden_states, attention_mask, position_ids)
+            return hidden_states, None
+       
+        from src.felafax.trainer_engine.utils import named_tree_map
+        # breakpoint()
+        hidden_states, _ = jax.lax.scan(
+            scan_fn,
+            hidden_states,
+            dynamic_layers
+        )
+        
         hidden_states = self.norm(hidden_states)
-
         return hidden_states.astype(self.compute_dtype)
 
 
