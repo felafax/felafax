@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from src.felafax.trainer_engine.data.base import (
+from src.felafax.trainer_engine.data.data import (
     SFTDataset,
     DatasetConfig,
     load_data,

@@ -8,7 +8,7 @@ from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
     CheckpointerConfig,
 )
-from src.felafax.trainer_engine.data.base import (
+from src.felafax.trainer_engine.data.data import (
     DatasetConfig,
     load_data,
     create_dataloader,

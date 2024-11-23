@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from transformers import AutoTokenizer
 
-from src.felafax.trainer_engine.data.base import (
+from src.felafax.trainer_engine.data.data import (
     SFTDataset,
     DatasetConfig,
     load_data,
