@@ -64,7 +64,7 @@ def test_llama_trainer():
         learning_rate=1e-3,
         base_dir="/tmp/test_trainer/",
         param_dtype="float32",
-        output_dtype="float32",
+        compute_dtype="float32",
     )
 
     batch_size = 8

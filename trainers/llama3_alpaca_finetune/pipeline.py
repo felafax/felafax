@@ -8,7 +8,7 @@ from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
     CheckpointerConfig,
 )
-from src.felafax.trainer_engine.data.base import (
+from src.felafax.trainer_engine.data.data import (
     DatasetConfig,
     load_data,
     create_dataloader,
@@ -86,12 +86,12 @@ val_dataloader = create_dataloader(
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
     param_dtype="bfloat16",
-    output_dtype="bfloat16",
+    compute_dtype="bfloat16",
     num_epochs=1,
     num_steps=5,
     num_tpus=jax.device_count(),
     lora_rank=8,
-    use_lora=False,
+    use_lora=True,
     learning_rate=1e-5,
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,

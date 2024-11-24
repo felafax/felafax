@@ -8,7 +8,7 @@ from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
     CheckpointerConfig,
 )
-from src.felafax.trainer_engine.data.base import (
+from src.felafax.trainer_engine.data.data import (
     DatasetConfig,
     load_data,
     create_dataloader,
@@ -64,7 +64,7 @@ trainer_config = TrainerConfig(
     # Model configuration
     model_name="meta-llama/Llama-3.2-1B-Instruct",
     param_dtype="bfloat16",
-    output_dtype="bfloat16",
+    compute_dtype="bfloat16",
     # Training configuration
     num_epochs=1,
     num_steps=100,  # set to None to run through the entire dataset

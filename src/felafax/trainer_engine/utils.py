@@ -28,13 +28,14 @@ def upload_dir_to_hf(
         )
 
     # Create repo if it doesn't exist
-    api.create_repo(repo_id=repo_name, exist_ok=True)
+    api.create_repo(repo_id=repo_name, exist_ok=True, token=token)
 
     # Upload the folder
     upload_folder(
         repo_id=repo_name,
         folder_path=dir_path,
         commit_message=commit_message,
+        token=token,
         ignore_patterns=["*.py"],
     )
 
@@ -81,6 +82,8 @@ def named_tree_map(f, tree, is_leaf=None, sep="/"):
         if is_leaf(value):
             return f(path_str, value)
         else:
-            return value
+            # TODO(lora): fix this
+            return f(path_str, value)
+            # return value
 
     return jax.tree_util.tree_map_with_path(process_node, tree, is_leaf=is_leaf)

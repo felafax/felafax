@@ -9,7 +9,7 @@ from typing import Dict, Any, Tuple
 from transformers import PreTrainedTokenizerBase
 
 
-class MedQADataset(SFTDataset):
+class CustomDataset(SFTDataset):
     """Custom dataset for MedQA data."""
 
     def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
@@ -23,7 +23,7 @@ class MedQADataset(SFTDataset):
         return prompt, response
 
 
-def create_med_qa_loaders(
+def create_dataloaders(
     config: DatasetConfig, tokenizer: PreTrainedTokenizerBase
 ):
     """Creates and returns train and validation dataloaders for MedQA dataset.
@@ -40,12 +40,12 @@ def create_med_qa_loaders(
     train_data, val_data = load_data(config=config)
 
     # Create datasets
-    train_dataset = MedQADataset(
+    train_dataset = CustomDataset(
         config=config,
         data=train_data,
         tokenizer=tokenizer,
     )
-    val_dataset = MedQADataset(
+    val_dataset = CustomDataset(
         config=config,
         data=val_data,
         tokenizer=tokenizer,
