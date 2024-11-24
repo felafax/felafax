@@ -81,6 +81,8 @@ def named_tree_map(f, tree, is_leaf=None, sep="/"):
         if is_leaf(value):
             return f(path_str, value)
         else:
-            return value
+            # TODO(lora): fix this
+            return f(path_str, value)
+            # return value
 
     return jax.tree_util.tree_map_with_path(process_node, tree, is_leaf=is_leaf)
