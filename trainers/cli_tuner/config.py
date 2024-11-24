@@ -61,7 +61,8 @@ class PipelineConfig:
 
     trainer_dir: str = ""
     export_dir: str = ""
-    hf_repo: str = "felarof01/test-llama3.1-8b-medqa-finetuned-2048-no-mask"
+    hf_token: str = ""
+    hf_repo: str = ""
     test_mode: bool = False
 
     data_config: CLITunerDataConfig = field(default_factory=CLITunerDataConfig)
@@ -74,7 +75,11 @@ class PipelineConfig:
 
     def __post_init__(self):
         trainer_dir = Path(self.trainer_dir)
+
+        # TODO(cleanup): clean up trainer config params.
         self.trainer_config.base_dir = str(trainer_dir)
+        self.trainer_config.hf_token = self.hf_token
+
         self.checkpointer_config.checkpoint_dir = str(
             trainer_dir / "checkpoints"
         )
