@@ -1,10 +1,10 @@
 {
     "trainer_dir": "/mnt/persistent-disk/test/",
     "export_dir": "/mnt/persistent-disk/test/hf_export",
-    "hf_token": "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",
+    "hf_token": "",
     "hf_repo": "felarof01/test-model",
     "test_mode": true,
-    "dataset_config": {
+    "data_config": {
         "data_source": "ngram/medchat-qa",
         "max_examples": null,
         "split": "train",
@@ -25,7 +25,7 @@
 
         "num_epochs": 1,
         "num_steps": 5,
-        "num_tpus": null,
+        "num_tpus": 4,
         "mesh_shape": [1, 2, 4],
         "learning_rate": 1e-3,
 

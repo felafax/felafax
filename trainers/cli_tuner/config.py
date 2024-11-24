@@ -76,7 +76,7 @@ class PipelineConfig:
     def __post_init__(self):
         trainer_dir = Path(self.trainer_dir)
 
-        # TODO(cleanup): clean up trainer config params.
+        # TODO(cleanup): propagate some duplicate params into trainer config params. Need to clean this up.
         self.trainer_config.base_dir = str(trainer_dir)
         self.trainer_config.hf_token = self.hf_token
 
