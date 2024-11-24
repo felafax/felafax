@@ -1,7 +1,7 @@
 trainer_dir: "/mnt/persistent-disk/test/"
 export_dir: "/mnt/persistent-disk/test/hf_export"
 hf_token: "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"
-hf_repo: "felarof01/test-llama3.1-8b-medqa-finetuned-2048-no-mask"
+hf_repo: "felarof01/test-model"
 test_mode: true
 
 data_config:

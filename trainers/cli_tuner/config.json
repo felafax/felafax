@@ -1,13 +1,18 @@
 {
+    "trainer_dir": "/mnt/persistent-disk/test/",
+    "export_dir": "/mnt/persistent-disk/test/hf_export",
+    "hf_token": "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",
+    "hf_repo": "felarof01/test-model",
+    "test_mode": true,
     "dataset_config": {
         "data_source": "ngram/medchat-qa",
-        "max_examples": null, 
+        "max_examples": null,
         "split": "train",
         "train_test_split": 0.15,
         "seed": 42,
 
-        "batch_size": 8,
-        "max_seq_length": 4096,
+        "batch_size": 16,
+        "max_seq_length": 2048,
         "num_workers": 8,
         "ignore_index": -100,
         "mask_prompt": false,
@@ -19,17 +24,15 @@
         "compute_dtype": "bfloat16",
 
         "num_epochs": 1,
-        "num_steps": 100,
+        "num_steps": 5,
         "num_tpus": null,
-        "mesh_shape": [1, 1, 4],
+        "mesh_shape": [1, 2, 4],
         "learning_rate": 1e-3,
 
         "lora_rank": 16,
         "use_lora": true,
 
         "base_dir": "/mnt/persistent-disk",
-        "hf_token": null,
-
         "log_interval": 5,
         "eval_interval": 5,
         "eval_steps": 10,
@@ -39,7 +42,7 @@
     "checkpointer_config": {
         "checkpoint_dir": "/mnt/persistent-disk/checkpoints/",
         "max_to_keep": 2,
-        "save_interval_steps": 50,
+        "save_interval_steps": 100,
         "enable_async_checkpointing": true
     }
 }
