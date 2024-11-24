@@ -28,13 +28,14 @@ def upload_dir_to_hf(
         )
 
     # Create repo if it doesn't exist
-    api.create_repo(repo_id=repo_name, exist_ok=True)
+    api.create_repo(repo_id=repo_name, exist_ok=True, token=token)
 
     # Upload the folder
     upload_folder(
         repo_id=repo_name,
         folder_path=dir_path,
         commit_message=commit_message,
+        token=token,
         ignore_patterns=["*.py"],
     )
 
