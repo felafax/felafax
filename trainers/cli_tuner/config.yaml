@@ -14,7 +14,6 @@ trainer_config:
   compute_dtype: "bfloat16"
   num_epochs: 1
   num_steps: 5
-  mesh_shape: [1, 2, 4]  # Use list format for tuple
   learning_rate: 1e-3
   lora_rank: 16
   use_lora: true
