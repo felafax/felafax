@@ -44,7 +44,7 @@ def main(cfg: PipelineConfig):
     utils.upload_dir_to_hf(
         dir_path=cfg.export_dir,
         repo_name=cfg.hf_repo,
-        token=cfg.trainer_config.hf_token,
+        token=cfg.hf_token,
     )
 
 
