@@ -12,46 +12,41 @@ from .config import PipelineConfig
 
 @pyrallis.wrap()
 def main(cfg: PipelineConfig):
-    # Set up training environment first
-    setup_environment(cfg.trainer)
-    
-    # Initialize tokenizer
+    # Set up training environment.
+    setup_environment(cfg.trainer_config)
+
     tokenizer = AutoTokenizer.from_pretrained(
-        cfg.trainer.model_name, 
-        token=cfg.hf_token
+        cfg.trainer_config.model_name, token=cfg.trainer_config.hf_token
     )
 
     # Create dataloaders
     train_dataloader, val_dataloader = create_dataloaders(
-        config=cfg.data, 
-        tokenizer=tokenizer
+        config=cfg.data_config, tokenizer=tokenizer
     )
 
     # Initialize checkpointer
-    checkpointer = Checkpointer(cfg.checkpoint)
+    checkpointer = Checkpointer(cfg.checkpointer_config)
 
     # Initialize trainer
     trainer = Trainer(
-        trainer_config=cfg.trainer,
+        trainer_config=cfg.trainer_config,
         train_dataloader=train_dataloader,
         val_dataloader=val_dataloader,
-        # checkpointer=checkpointer,
+        checkpointer=checkpointer,
     )
 
     # Train the model
     trainer.train()
 
     # Export and upload model
-    export_dir = Path(cfg.base_dir) / "hf_export"
-    trainer.export(export_dir=str(export_dir))
-    
+    trainer.export(export_dir=cfg.export_dir)
+
     utils.upload_dir_to_hf(
-        dir_path=str(export_dir),
-        repo_name=cfg.model_repo,
-        token=cfg.hf_token,
+        dir_path=cfg.export_dir,
+        repo_name=cfg.hf_repo,
+        token=cfg.trainer_config.hf_token,
     )
 
 
 if __name__ == "__main__":
     main()
-    
