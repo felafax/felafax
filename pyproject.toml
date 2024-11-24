@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "felafax"
-version = "1.0.10"
+version = "1.0.11"
 description = "felafax"
 authors = ["Nithin <nithin@felafax.ai>"]
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ readme = "README.md"
 homepage = "https://github.com/felafax/felafax"
 repository = "https://github.com/felafax/felafax"
 documentation = "https://github.com/felafax/felafax"
-packages = [{include = "felafax"}]
+packages = [{include = "felafax", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
