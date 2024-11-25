@@ -16,18 +16,18 @@ from jax.experimental.multihost_utils import (
 )
 import jax.tree_util as jtu
 from jax.sharding import NamedSharding, PartitionSpec as PS
-from src.felafax.trainer_engine.utils import named_tree_map
+from .utils import named_tree_map
 
 import optax
 import os
 
-from src.felafax.trainer_engine.checkpoint import (
+from .checkpoint import (
     Checkpointer,
     load_llama_from_hf,
     save_model_to_hf,
     load_checkpoint_or_model,
 )
-from src.felafax.trainer_engine.models.llama3.jax.model import (
+from .models.llama3.jax.model import (
     LlamaForCausalLM,
     LlamaConfig,
     LlamaLinear,
