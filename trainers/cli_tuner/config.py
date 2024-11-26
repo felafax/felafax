@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple
 
 from src.felafax.trainer_engine.trainer import TrainerConfig
 from src.felafax.trainer_engine.data.data import DatasetConfig
@@ -72,8 +71,6 @@ class PipelineConfig:
         default_factory=CLITunerCheckpointConfig
     )
 
-    class Config:
-        extra = "allow"
 
     def __post_init__(self):
         trainer_dir = Path(self.trainer_dir)
