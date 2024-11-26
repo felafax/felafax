@@ -258,125 +258,121 @@ def load_llama_from_hf(
         torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
     )
 
-    def create_jax_weights(
-        layer_shape: tuple,
-        hf_layer_name: str,
-        partition_spec: PS,
-        dtype: Any = param_dtype,
-    ) -> jnp.ndarray:
-        weights = jnp.empty(layer_shape, dtype=dtype)
-        converter = _make_torch_to_jax(dtype=dtype, mesh=mesh)
+    def _copy_weights(to_eqx_layer, from_hf_layer_name, partition_spec, dtype):
+        weight_arr = jnp.empty(to_eqx_layer.shape, dtype=dtype)
+        torch_to_jax_converter = _make_torch_to_jax(dtype=dtype, mesh=mesh)
 
         for i in range(hf_model.config.num_hidden_layers):
-            layer_path = hf_layer_name.split(".")
+            layer_path = from_hf_layer_name.split(".")
             current = hf_model.model.layers[i]
             for attr in layer_path:
                 current = getattr(current, attr)
-            weights = weights.at[i].set(
-                converter(current.weight, partition_spec)
+
+            weight_arr = weight_arr.at[i].set(
+                torch_to_jax_converter(current.weight, partition_spec)
             )
-        return weights
+        return weight_arr
 
     # Self-attention weights
-    q_proj_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.self_attn.q_proj.weight.shape,
-        hf_layer_name="self_attn.q_proj",
-        partition_spec=PS(("fsdp", "mp")),
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.self_attn.q_proj.weight,
         eqx_model,
-        q_proj_weights,
+        _copy_weights(
+            eqx_model.model.layers.self_attn.q_proj.weight,
+            "self_attn.q_proj",
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
     )
 
-    k_proj_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.self_attn.k_proj.weight.shape,
-        hf_layer_name="self_attn.k_proj",
-        partition_spec=PS(("fsdp", "mp")),
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.self_attn.k_proj.weight,
         eqx_model,
-        k_proj_weights,
+        _copy_weights(
+            eqx_model.model.layers.self_attn.k_proj.weight,
+            "self_attn.k_proj",
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
     )
 
-    v_proj_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.self_attn.v_proj.weight.shape,
-        hf_layer_name="self_attn.v_proj",
-        partition_spec=PS(("fsdp", "mp")),
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.self_attn.v_proj.weight,
         eqx_model,
-        v_proj_weights,
+        _copy_weights(
+            eqx_model.model.layers.self_attn.v_proj.weight,
+            "self_attn.v_proj",
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
     )
 
-    o_proj_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.self_attn.o_proj.weight.shape,
-        hf_layer_name="self_attn.o_proj",
-        partition_spec=PS(("mp", "fsdp")),
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.self_attn.o_proj.weight,
         eqx_model,
-        o_proj_weights,
+        _copy_weights(
+            eqx_model.model.layers.self_attn.o_proj.weight,
+            "self_attn.o_proj",
+            PS(("mp", "fsdp")),
+            param_dtype,
+        ),
     )
 
     # MLP weights
-    gate_proj_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.mlp.gate_proj.weight.shape,
-        hf_layer_name="mlp.gate_proj",
-        partition_spec=PS(("fsdp", "mp")),
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.mlp.gate_proj.weight,
         eqx_model,
-        gate_proj_weights,
+        _copy_weights(
+            eqx_model.model.layers.mlp.gate_proj.weight,
+            "mlp.gate_proj",
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
     )
 
-    up_proj_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.mlp.up_proj.weight.shape,
-        hf_layer_name="mlp.up_proj",
-        partition_spec=PS(("fsdp", "mp")),
-    )
     eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.mlp.up_proj.weight, eqx_model, up_proj_weights
+        lambda m: m.model.layers.mlp.up_proj.weight,
+        eqx_model,
+        _copy_weights(
+            eqx_model.model.layers.mlp.up_proj.weight,
+            "mlp.up_proj",
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
     )
 
-    down_proj_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.mlp.down_proj.weight.shape,
-        hf_layer_name="mlp.down_proj",
-        partition_spec=PS(("mp", "fsdp")),
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.mlp.down_proj.weight,
         eqx_model,
-        down_proj_weights,
+        _copy_weights(
+            eqx_model.model.layers.mlp.down_proj.weight,
+            "mlp.down_proj",
+            PS(("mp", "fsdp")),
+            param_dtype,
+        ),
     )
 
     # Layer norms (using float32)
-    input_ln_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.input_layernorm.weight.shape,
-        hf_layer_name="input_layernorm",
-        partition_spec=PS(),
-        dtype=jnp.float32,
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.input_layernorm.weight,
         eqx_model,
-        input_ln_weights,
+        _copy_weights(
+            eqx_model.model.layers.input_layernorm.weight,
+            "input_layernorm",
+            PS(),
+            jnp.float32,
+        ),
     )
 
-    post_attn_ln_weights = create_jax_weights(
-        layer_shape=eqx_model.model.layers.post_attention_layernorm.weight.shape,
-        hf_layer_name="post_attention_layernorm",
-        partition_spec=PS(),
-        dtype=jnp.float32,
-    )
     eqx_model = eqx.tree_at(
         lambda m: m.model.layers.post_attention_layernorm.weight,
         eqx_model,
-        post_attn_ln_weights,
+        _copy_weights(
+            eqx_model.model.layers.post_attention_layernorm.weight,
+            "post_attention_layernorm",
+            PS(),
+            jnp.float32,
+        ),
     )
 
     return eqx_model, model_config
