@@ -10,7 +10,7 @@ from .dataset import create_dataloaders
 from .config import PipelineConfig
 
 
-@pyrallis.wrap()
+@pyrallis.wrap(allow_unknown=True)
 def main(cfg: PipelineConfig):
     # Set up training environment.
     setup_environment(cfg.trainer_config)
