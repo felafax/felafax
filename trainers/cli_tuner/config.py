@@ -72,6 +72,9 @@ class PipelineConfig:
         default_factory=CLITunerCheckpointConfig
     )
 
+    class Config:
+        extra = "allow"
+
     def __post_init__(self):
         trainer_dir = Path(self.trainer_dir)
 
