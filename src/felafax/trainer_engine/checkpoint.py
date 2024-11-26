@@ -387,19 +387,21 @@ def save_model_to_hf(
     output_dir: str,
     tokenizer_name: str = "meta-llama/Llama-2-7b-hf",
 ):
-    """Converts Equinox model back to Hugging Face format and saves it.
+    """Converts and saves an Equinox model to Hugging Face format.
 
     Args:
-        model: Equinox LlamaForCausalLM model
-        model_config: LlamaConfig used for the model
-        output_dir: Directory where to save the Hugging Face model
-        tokenizer_name: Name of the tokenizer to download and save
+        model: Equinox LlamaForCausalLM model instance.
+        model_config: Corresponding model configuration.
+        output_dir: Directory to save the Hugging Face model.
+        tokenizer_name: Name of the tokenizer to save alongside the model.
     """
+    import os
     import torch
-    import numpy as np
-    from transformers import LlamaForCausalLM as HFLlamaForCausalLM
-    from transformers import LlamaConfig as HFLlamaConfig
-    from transformers import AutoTokenizer
+    from transformers import (
+        LlamaForCausalLM as HFLlamaForCausalLM,
+        LlamaConfig as HFLlamaConfig,
+        AutoTokenizer,
+    )
 
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -428,57 +430,73 @@ def save_model_to_hf(
         model_params,
     )
 
-    # Copy weights from Equinox model to Hugging Face model
-    # Embedding weights
-    hf_model.model.embed_tokens.weight.data = torch.tensor(
-        model_params.model.embed_tokens.weight, dtype=torch.float32
+    def _to_torch(x):
+        """Convert JAX array to PyTorch tensor."""
+        return torch.tensor(jax.device_get(x), dtype=torch.float32)
+
+    # Copy embedding and output layer weights
+    hf_model.model.embed_tokens.weight.data = _to_torch(
+        model_params.model.embed_tokens.weight
     )
-    hf_model.lm_head.weight.data = torch.tensor(
-        model_params.lm_head.weight, dtype=torch.float32
+    hf_model.lm_head.weight.data = _to_torch(model_params.lm_head.weight)
+    hf_model.model.norm.weight.data = _to_torch(model_params.model.norm.weight)
+
+    # Get HF layers for easier access
+    hf_layers = hf_model.model.layers
+
+    def _copy_vmapped_weights(from_eqx_layer, to_hf_layer_name):
+        """Copies weights from vmapped Equinox layers to Hugging Face layers."""
+        for i in range(len(hf_layers)):
+            hf_submodule = hf_layers[i]
+            for attr in to_hf_layer_name.split("."):
+                hf_submodule = getattr(hf_submodule, attr)
+            hf_submodule.weight.data = _to_torch(
+                from_eqx_layer.weight[i]
+            )
+
+    # Copy transformer layer weights
+    _copy_vmapped_weights(
+        model_params.model.layers.self_attn.q_proj,
+        "self_attn.q_proj",
     )
-    hf_model.model.norm.weight.data = torch.tensor(
-        model_params.model.norm.weight, dtype=torch.float32
+    _copy_vmapped_weights(
+        model_params.model.layers.self_attn.k_proj,
+        "self_attn.k_proj",
+    )
+    _copy_vmapped_weights(
+        model_params.model.layers.self_attn.v_proj,
+        "self_attn.v_proj",
+    )
+    _copy_vmapped_weights(
+        model_params.model.layers.self_attn.o_proj,
+        "self_attn.o_proj",
     )
 
-    # Layer-wise weights
-    for i in range(len(hf_model.model.layers)):
-        eqx_layer = model_params.model.layers[i]
-        hf_layer = hf_model.model.layers[i]
+    # Copy MLP weights
+    _copy_vmapped_weights(
+        model_params.model.layers.mlp.gate_proj,
+        "mlp.gate_proj",
+    )
+    _copy_vmapped_weights(
+        model_params.model.layers.mlp.up_proj,
+        "mlp.up_proj",
+    )
+    _copy_vmapped_weights(
+        model_params.model.layers.mlp.down_proj,
+        "mlp.down_proj",
+    )
 
-        # Self-attention weights
-        hf_layer.self_attn.q_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.q_proj.weight, dtype=torch.float32
-        )
-        hf_layer.self_attn.k_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.k_proj.weight, dtype=torch.float32
-        )
-        hf_layer.self_attn.v_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.v_proj.weight, dtype=torch.float32
-        )
-        hf_layer.self_attn.o_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.o_proj.weight, dtype=torch.float32
-        )
+    # Copy layer norm weights
+    _copy_vmapped_weights(
+        model_params.model.layers.input_layernorm,
+        "input_layernorm",
+    )
+    _copy_vmapped_weights(
+        model_params.model.layers.post_attention_layernorm,
+        "post_attention_layernorm",
+    )
 
-        # MLP weights
-        hf_layer.mlp.gate_proj.weight.data = torch.tensor(
-            eqx_layer.mlp.gate_proj.weight, dtype=torch.float32
-        )
-        hf_layer.mlp.up_proj.weight.data = torch.tensor(
-            eqx_layer.mlp.up_proj.weight, dtype=torch.float32
-        )
-        hf_layer.mlp.down_proj.weight.data = torch.tensor(
-            eqx_layer.mlp.down_proj.weight, dtype=torch.float32
-        )
-
-        # Layer norms
-        hf_layer.input_layernorm.weight.data = torch.tensor(
-            eqx_layer.input_layernorm.weight, dtype=torch.float32
-        )
-        hf_layer.post_attention_layernorm.weight.data = torch.tensor(
-            eqx_layer.post_attention_layernorm.weight, dtype=torch.float32
-        )
-
-    # Save the Hugging Face model
+    # Save model and tokenizer
     hf_model.save_pretrained(output_dir)
 
     # Save the tokenizer
