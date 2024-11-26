@@ -258,7 +258,7 @@ def load_llama_from_hf(
         torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
     )
 
-    def _copy_weights(to_eqx_layer, from_hf_layer_name, partition_spec, dtype):
+    def _copy_weights(from_hf_layer_name, to_eqx_layer, partition_spec, dtype):
         weight_arr = jnp.empty(to_eqx_layer.shape, dtype=dtype)
         torch_to_jax_converter = _make_torch_to_jax(dtype=dtype, mesh=mesh)
 
@@ -278,8 +278,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.self_attn.q_proj.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.self_attn.q_proj.weight,
             "self_attn.q_proj",
+            eqx_model.model.layers.self_attn.q_proj.weight,
             PS(("fsdp", "mp")),
             param_dtype,
         ),
@@ -289,8 +289,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.self_attn.k_proj.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.self_attn.k_proj.weight,
             "self_attn.k_proj",
+            eqx_model.model.layers.self_attn.k_proj.weight,
             PS(("fsdp", "mp")),
             param_dtype,
         ),
@@ -300,8 +300,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.self_attn.v_proj.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.self_attn.v_proj.weight,
             "self_attn.v_proj",
+            eqx_model.model.layers.self_attn.v_proj.weight,
             PS(("fsdp", "mp")),
             param_dtype,
         ),
@@ -311,8 +311,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.self_attn.o_proj.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.self_attn.o_proj.weight,
             "self_attn.o_proj",
+            eqx_model.model.layers.self_attn.o_proj.weight,
             PS(("mp", "fsdp")),
             param_dtype,
         ),
@@ -323,8 +323,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.mlp.gate_proj.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.mlp.gate_proj.weight,
             "mlp.gate_proj",
+            eqx_model.model.layers.mlp.gate_proj.weight,
             PS(("fsdp", "mp")),
             param_dtype,
         ),
@@ -334,8 +334,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.mlp.up_proj.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.mlp.up_proj.weight,
             "mlp.up_proj",
+            eqx_model.model.layers.mlp.up_proj.weight,
             PS(("fsdp", "mp")),
             param_dtype,
         ),
@@ -345,8 +345,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.mlp.down_proj.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.mlp.down_proj.weight,
             "mlp.down_proj",
+            eqx_model.model.layers.mlp.down_proj.weight,
             PS(("mp", "fsdp")),
             param_dtype,
         ),
@@ -357,8 +357,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.input_layernorm.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.input_layernorm.weight,
             "input_layernorm",
+            eqx_model.model.layers.input_layernorm.weight,
             PS(),
             jnp.float32,
         ),
@@ -368,8 +368,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.post_attention_layernorm.weight,
         eqx_model,
         _copy_weights(
-            eqx_model.model.layers.post_attention_layernorm.weight,
             "post_attention_layernorm",
+            eqx_model.model.layers.post_attention_layernorm.weight,
             PS(),
             jnp.float32,
         ),
