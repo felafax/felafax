@@ -259,6 +259,9 @@ def load_llama_from_hf(
     )
 
     def _copy_weights(from_hf_layer_name, to_eqx_layer, partition_spec, dtype):
+        """Copies weights from HF layer to JAX array.
+
+        Since transformer layers are stacked using vmap in LlamaModel (creating a leading layer dimension), we create an empty JAX array and copy weights layer-by-layer to match this stacked structure."""
         weight_arr = jnp.empty(to_eqx_layer.shape, dtype=dtype)
         torch_to_jax_converter = _make_torch_to_jax(dtype=dtype, mesh=mesh)
 
@@ -278,8 +281,8 @@ def load_llama_from_hf(
         lambda m: m.model.layers.self_attn.q_proj.weight,
         eqx_model,
         _copy_weights(
-            "self_attn.q_proj",
-            eqx_model.model.layers.self_attn.q_proj.weight,
+            "self_attn.q_proj",  # copy from this HF layer name
+            eqx_model.model.layers.self_attn.q_proj.weight,  # to eqx layer
             PS(("fsdp", "mp")),
             param_dtype,
         ),
