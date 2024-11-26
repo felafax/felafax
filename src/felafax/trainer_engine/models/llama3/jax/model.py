@@ -574,20 +574,16 @@ class LlamaModel(eqx.Module):
             key=key,
         )
 
-        # Generate keys for each layer
+        # LlamaDecoderLayers
         layer_keys = jax.random.split(key, config.num_hidden_layers)
-        
-        # Create a function to make a single layer
         make_layer = lambda k: LlamaDecoderLayer(
             config=config,
             param_dtype=param_dtype,
             compute_dtype=compute_dtype,
             key=k
         )
-        
-        # Use filter_vmap to create layers with a leading axis
         self.layers = eqx.filter_vmap(make_layer)(layer_keys)
-        # breakpoint()
+
         self.norm = LlamaRMSNorm(
             config.hidden_size,
             config.rms_norm_eps,
@@ -598,20 +594,15 @@ class LlamaModel(eqx.Module):
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.embed_tokens(input_ids)
         
-        # Partition layers into dynamic and static parts
         dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
-        
-        def scan_fn(carry, dynamic_layer):
+        def f(carry, dynamic_layer):
             hidden_states = carry
-            # Recombine the layer
             layer = eqx.combine(dynamic_layer, static_layers)
             hidden_states = layer(hidden_states, attention_mask, position_ids)
             return hidden_states, None
-       
-        from src.felafax.trainer_engine.utils import named_tree_map
-        # breakpoint()
+
         hidden_states, _ = jax.lax.scan(
-            scan_fn,
+            f,
             hidden_states,
             dynamic_layers
         )
