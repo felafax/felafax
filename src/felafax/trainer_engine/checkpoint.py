@@ -11,7 +11,18 @@ import numpy as np
 import torch
 import equinox as eqx
 import orbax.checkpoint as ocp
-from transformers import LlamaForCausalLM as HFLlamaForCausalLM, AutoTokenizer
+from transformers import (
+    LlamaForCausalLM as HFLlamaForCausalLM,
+    LlamaConfig as HFLlamaConfig,
+    AutoTokenizer,
+)
+from src.felafax.trainer_engine.models.llama3.jax.model import (
+    LlamaConfig,
+    LlamaForCausalLM,
+    LlamaLinear,
+)
+
+from typing import Optional, Tuple, Any
 from jaxtyping import PyTree
 from jax.sharding import NamedSharding, PartitionSpec as PS
 from jax.experimental import mesh_utils
@@ -31,7 +42,8 @@ class CheckpointerConfig:
     max_to_keep: int = 2
     save_interval_steps: int = 10
     create: bool = True  # Create the checkpoint directory if it doesn't exist
-    enable_async_checkpointing: bool = True 
+    enable_async_checkpointing: bool = True
+    erase_existing_checkpoints: bool = False
 
 
 class Checkpointer:
@@ -40,6 +52,9 @@ class Checkpointer:
             raise ValueError("Checkpoint directory cannot be empty")
         self.config = config
         self.checkpoint_dir = config.checkpoint_dir
+        if config.erase_existing_checkpoints:
+            ocp.test_utils.erase_and_create_empty(self.checkpoint_dir)
+
         self.options = ocp.CheckpointManagerOptions(
             max_to_keep=config.max_to_keep,
             save_interval_steps=config.save_interval_steps,
@@ -199,108 +214,178 @@ def load_llama_from_hf(
 
     Args:
         model_name: Name of the Hugging Face model to load
+        mesh: JAX sharding mesh
         token: HuggingFace token for accessing gated models
         lora_rank: Rank for LoRA parameters (set to 0 for no LoRA)
         param_dtype: The dtype in which parameters are stored
-        output_dtype: The dtype in which computations are performed
+        compute_dtype: The dtype in which computations are performed
 
     Returns:
         eqx_model: LlamaForCausalLM model with specified dtypes
         model_config: Configuration of the model
     """
-    # Load HF model
+    # Load HF model on CPU to save GPU memory
     hf_model = HFLlamaForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch.float32, token=token
+        model_name,
+        torch_dtype=torch.float32,
+        token=token,
+        device_map={"": "cpu"},
     )
 
     # Create config and initialize Equinox model
     model_config = create_llama_config_from_hf_model(hf_model)
     model_config.lora_rank = lora_rank
 
-    key = jax.random.PRNGKey(99)
+    key = jax.random.PRNGKey(42)
     eqx_model = LlamaForCausalLM(
         model_config,
         param_dtype=param_dtype,
         compute_dtype=compute_dtype,
         key=key,
     )
+
+    # Conversion functions
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
 
-    # Copy weights from HF model to Equinox model
+    # Copy embedding and output layers
     eqx_model = eqx.tree_at(
-        lambda t: t.model.embed_tokens.weight,
+        lambda m: m.model.embed_tokens.weight,
         eqx_model,
-        # Copy embedding weights at float32 precision.
         torch_to_jax_float32(
             hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))
         ),
     )
     eqx_model = eqx.tree_at(
-        lambda t: t.model.norm.weight,
+        lambda m: m.model.norm.weight,
         eqx_model,
-        torch_to_jax(hf_model.model.norm.weight, PS()),
+        torch_to_jax_float32(hf_model.model.norm.weight, PS()),
     )
     eqx_model = eqx.tree_at(
-        lambda t: t.lm_head.weight,
+        lambda m: m.lm_head.weight,
         eqx_model,
         torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
     )
 
-    # Copy layer weights with appropriate sharding
-    for i in range(len(eqx_model.model.layers)):
-        hf_layer = hf_model.model.layers[i]
+    def _copy_weights(from_hf_layer_name, to_eqx_layer, partition_spec, dtype):
+        """Copies weights from HF layer to JAX array.
 
-        # Self-attention weights
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.q_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.q_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.k_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.k_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.v_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.v_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].self_attn.o_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.self_attn.o_proj.weight, PS(("mp", "fsdp"))),
-        )
+        Since transformer layers are stacked using vmap in LlamaModel (creating a leading layer dimension), we create an empty JAX array and copy weights layer-by-layer to match this stacked structure."""
+        weight_arr = jnp.empty(to_eqx_layer.shape, dtype=dtype)
+        torch_to_jax_converter = _make_torch_to_jax(dtype=dtype, mesh=mesh)
 
-        # MLP weights
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.gate_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.gate_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.up_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.up_proj.weight, PS(("fsdp", "mp"))),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].mlp.down_proj.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.mlp.down_proj.weight, PS(("mp", "fsdp"))),
-        )
+        for i in range(hf_model.config.num_hidden_layers):
+            layer_path = from_hf_layer_name.split(".")
+            current = hf_model.model.layers[i]
+            for attr in layer_path:
+                current = getattr(current, attr)
 
-        # Layer norms
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].input_layernorm.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.input_layernorm.weight, PS()),
-        )
-        eqx_model = eqx.tree_at(
-            lambda t: t.model.layers[i].post_attention_layernorm.weight,
-            eqx_model,
-            torch_to_jax(hf_layer.post_attention_layernorm.weight, PS()),
-        )
+            weight_arr = weight_arr.at[i].set(
+                torch_to_jax_converter(current.weight, partition_spec)
+            )
+        return weight_arr
+
+    # Self-attention weights
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.self_attn.q_proj.weight,
+        eqx_model,
+        _copy_weights(
+            "self_attn.q_proj",  # copy from this HF layer name
+            eqx_model.model.layers.self_attn.q_proj.weight,  # to eqx layer
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
+    )
+
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.self_attn.k_proj.weight,
+        eqx_model,
+        _copy_weights(
+            "self_attn.k_proj",
+            eqx_model.model.layers.self_attn.k_proj.weight,
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
+    )
+
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.self_attn.v_proj.weight,
+        eqx_model,
+        _copy_weights(
+            "self_attn.v_proj",
+            eqx_model.model.layers.self_attn.v_proj.weight,
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
+    )
+
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.self_attn.o_proj.weight,
+        eqx_model,
+        _copy_weights(
+            "self_attn.o_proj",
+            eqx_model.model.layers.self_attn.o_proj.weight,
+            PS(("mp", "fsdp")),
+            param_dtype,
+        ),
+    )
+
+    # MLP weights
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.mlp.gate_proj.weight,
+        eqx_model,
+        _copy_weights(
+            "mlp.gate_proj",
+            eqx_model.model.layers.mlp.gate_proj.weight,
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
+    )
+
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.mlp.up_proj.weight,
+        eqx_model,
+        _copy_weights(
+            "mlp.up_proj",
+            eqx_model.model.layers.mlp.up_proj.weight,
+            PS(("fsdp", "mp")),
+            param_dtype,
+        ),
+    )
+
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.mlp.down_proj.weight,
+        eqx_model,
+        _copy_weights(
+            "mlp.down_proj",
+            eqx_model.model.layers.mlp.down_proj.weight,
+            PS(("mp", "fsdp")),
+            param_dtype,
+        ),
+    )
+
+    # Layer norms (using float32)
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.input_layernorm.weight,
+        eqx_model,
+        _copy_weights(
+            "input_layernorm",
+            eqx_model.model.layers.input_layernorm.weight,
+            PS(),
+            jnp.float32,
+        ),
+    )
+
+    eqx_model = eqx.tree_at(
+        lambda m: m.model.layers.post_attention_layernorm.weight,
+        eqx_model,
+        _copy_weights(
+            "post_attention_layernorm",
+            eqx_model.model.layers.post_attention_layernorm.weight,
+            PS(),
+            jnp.float32,
+        ),
+    )
 
     return eqx_model, model_config
 
@@ -311,20 +396,14 @@ def save_model_to_hf(
     output_dir: str,
     tokenizer_name: str = "meta-llama/Llama-2-7b-hf",
 ):
-    """Converts Equinox model back to Hugging Face format and saves it.
+    """Converts and saves an Equinox model to Hugging Face format.
 
     Args:
-        model: Equinox LlamaForCausalLM model
-        model_config: LlamaConfig used for the model
-        output_dir: Directory where to save the Hugging Face model
-        tokenizer_name: Name of the tokenizer to download and save
+        model: Equinox LlamaForCausalLM model instance.
+        model_config: Corresponding model configuration.
+        output_dir: Directory to save the Hugging Face model.
+        tokenizer_name: Name of the tokenizer to save alongside the model.
     """
-    import torch
-    import numpy as np
-    from transformers import LlamaForCausalLM as HFLlamaForCausalLM
-    from transformers import LlamaConfig as HFLlamaConfig
-    from transformers import AutoTokenizer
-
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
@@ -352,57 +431,74 @@ def save_model_to_hf(
         model_params,
     )
 
-    # Copy weights from Equinox model to Hugging Face model
-    # Embedding weights
-    hf_model.model.embed_tokens.weight.data = torch.tensor(
-        model_params.model.embed_tokens.weight, dtype=torch.float32
+    def jax_to_torch(x):
+        """Convert JAX array to PyTorch tensor."""
+        return torch.tensor(jax.device_get(x), dtype=torch.float32)
+
+    # Copy embedding and output layer weights
+    hf_model.model.embed_tokens.weight.data = jax_to_torch(
+        model_params.model.embed_tokens.weight
     )
-    hf_model.lm_head.weight.data = torch.tensor(
-        model_params.lm_head.weight, dtype=torch.float32
-    )
-    hf_model.model.norm.weight.data = torch.tensor(
-        model_params.model.norm.weight, dtype=torch.float32
+    hf_model.lm_head.weight.data = jax_to_torch(model_params.lm_head.weight)
+    hf_model.model.norm.weight.data = jax_to_torch(
+        model_params.model.norm.weight
     )
 
-    # Layer-wise weights
-    for i in range(len(hf_model.model.layers)):
-        eqx_layer = model_params.model.layers[i]
-        hf_layer = hf_model.model.layers[i]
+    hf_layers = hf_model.model.layers
+    def _copy_weights(from_eqx_layer, to_hf_layer_name):
+        """Copies weights from vmapped Equinox layers to Hugging Face layers."""
+        for i in range(len(hf_layers)):
+            # Navigate through nested attributes to get the target layer (e.g. "self_attn.q_proj" -> layer.self_attn.q_proj)
+            hf_submodule = hf_layers[i]
+            for attr in to_hf_layer_name.split("."):
+                hf_submodule = getattr(hf_submodule, attr)
 
-        # Self-attention weights
-        hf_layer.self_attn.q_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.q_proj.weight, dtype=torch.float32
-        )
-        hf_layer.self_attn.k_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.k_proj.weight, dtype=torch.float32
-        )
-        hf_layer.self_attn.v_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.v_proj.weight, dtype=torch.float32
-        )
-        hf_layer.self_attn.o_proj.weight.data = torch.tensor(
-            eqx_layer.self_attn.o_proj.weight, dtype=torch.float32
-        )
+            # Copy the weights from the eqx layer to hf submodule
+            hf_submodule.weight.data = jax_to_torch(from_eqx_layer.weight[i])
 
-        # MLP weights
-        hf_layer.mlp.gate_proj.weight.data = torch.tensor(
-            eqx_layer.mlp.gate_proj.weight, dtype=torch.float32
-        )
-        hf_layer.mlp.up_proj.weight.data = torch.tensor(
-            eqx_layer.mlp.up_proj.weight, dtype=torch.float32
-        )
-        hf_layer.mlp.down_proj.weight.data = torch.tensor(
-            eqx_layer.mlp.down_proj.weight, dtype=torch.float32
-        )
+    # Copy transformer layer weights
+    _copy_weights(
+        model_params.model.layers.self_attn.q_proj,
+        "self_attn.q_proj",
+    )
+    _copy_weights(
+        model_params.model.layers.self_attn.k_proj,
+        "self_attn.k_proj",
+    )
+    _copy_weights(
+        model_params.model.layers.self_attn.v_proj,
+        "self_attn.v_proj",
+    )
+    _copy_weights(
+        model_params.model.layers.self_attn.o_proj,
+        "self_attn.o_proj",
+    )
 
-        # Layer norms
-        hf_layer.input_layernorm.weight.data = torch.tensor(
-            eqx_layer.input_layernorm.weight, dtype=torch.float32
-        )
-        hf_layer.post_attention_layernorm.weight.data = torch.tensor(
-            eqx_layer.post_attention_layernorm.weight, dtype=torch.float32
-        )
+    # Copy MLP weights
+    _copy_weights(
+        model_params.model.layers.mlp.gate_proj,
+        "mlp.gate_proj",
+    )
+    _copy_weights(
+        model_params.model.layers.mlp.up_proj,
+        "mlp.up_proj",
+    )
+    _copy_weights(
+        model_params.model.layers.mlp.down_proj,
+        "mlp.down_proj",
+    )
 
-    # Save the Hugging Face model
+    # Copy layer norm weights
+    _copy_weights(
+        model_params.model.layers.input_layernorm,
+        "input_layernorm",
+    )
+    _copy_weights(
+        model_params.model.layers.post_attention_layernorm,
+        "post_attention_layernorm",
+    )
+
+    # Save model and tokenizer
     hf_model.save_pretrained(output_dir)
 
     # Save the tokenizer

@@ -85,8 +85,8 @@ val_dataloader = create_dataloader(
 ########################################################
 trainer_config = TrainerConfig(
     model_name="meta-llama/Llama-3.2-1B",
-    param_dtype="bfloat16",
-    compute_dtype="bfloat16",
+    param_dtype="float32",
+    output_dtype="float32",
     num_epochs=1,
     num_steps=5,
     num_tpus=jax.device_count(),
@@ -111,6 +111,7 @@ checkpointer_config = CheckpointerConfig(
     checkpoint_dir=checkpoint_dir,
     max_to_keep=2,
     save_interval_steps=50,
+    erase_existing_checkpoints=True,
 )
 checkpointer = Checkpointer(config=checkpointer_config)
 
@@ -128,11 +129,11 @@ trainer.train()
 export_dir = f"{trainer_config.base_dir}/hf_export/"
 
 # Run this to export the model in HF format
-# trainer.export(export_dir=export_dir)
+trainer.export(export_dir=export_dir)
 
 # Run this to upload the exported model to HF
-# utils.upload_dir_to_hf(
-#     dir_path=export_dir,
-#     repo_name="felarof01/test-llama3-alpaca",
-#     token=HF_TOKEN,
-# )
+utils.upload_dir_to_hf(
+    dir_path=export_dir,
+    repo_name="felarof01/test-llama3-alpaca",
+    token=HF_TOKEN,
+)
