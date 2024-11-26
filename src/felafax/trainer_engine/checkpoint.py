@@ -9,7 +9,11 @@ import torch
 
 import equinox as eqx
 import orbax.checkpoint as ocp
-from transformers import LlamaForCausalLM as HFLlamaForCausalLM, AutoTokenizer
+from transformers import (
+    LlamaForCausalLM as HFLlamaForCausalLM,
+    LlamaConfig as HFLlamaConfig,
+    AutoTokenizer,
+)
 from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
     LlamaForCausalLM,
@@ -395,14 +399,6 @@ def save_model_to_hf(
         output_dir: Directory to save the Hugging Face model.
         tokenizer_name: Name of the tokenizer to save alongside the model.
     """
-    import os
-    import torch
-    from transformers import (
-        LlamaForCausalLM as HFLlamaForCausalLM,
-        LlamaConfig as HFLlamaConfig,
-        AutoTokenizer,
-    )
-
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
@@ -430,68 +426,69 @@ def save_model_to_hf(
         model_params,
     )
 
-    def _to_torch(x):
+    def jax_to_torch(x):
         """Convert JAX array to PyTorch tensor."""
         return torch.tensor(jax.device_get(x), dtype=torch.float32)
 
     # Copy embedding and output layer weights
-    hf_model.model.embed_tokens.weight.data = _to_torch(
+    hf_model.model.embed_tokens.weight.data = jax_to_torch(
         model_params.model.embed_tokens.weight
     )
-    hf_model.lm_head.weight.data = _to_torch(model_params.lm_head.weight)
-    hf_model.model.norm.weight.data = _to_torch(model_params.model.norm.weight)
+    hf_model.lm_head.weight.data = jax_to_torch(model_params.lm_head.weight)
+    hf_model.model.norm.weight.data = jax_to_torch(
+        model_params.model.norm.weight
+    )
 
-    # Get HF layers for easier access
     hf_layers = hf_model.model.layers
-
-    def _copy_vmapped_weights(from_eqx_layer, to_hf_layer_name):
+    def _copy_weights(from_eqx_layer, to_hf_layer_name):
         """Copies weights from vmapped Equinox layers to Hugging Face layers."""
         for i in range(len(hf_layers)):
+            # Navigate through nested attributes to get the target layer (e.g. "self_attn.q_proj" -> layer.self_attn.q_proj)
             hf_submodule = hf_layers[i]
             for attr in to_hf_layer_name.split("."):
                 hf_submodule = getattr(hf_submodule, attr)
-            hf_submodule.weight.data = _to_torch(
-                from_eqx_layer.weight[i]
-            )
+
+            # Copy the weights from the eqx layer to hf submodule
+            hf_submodule.weight.data = jax_to_torch(from_eqx_layer.weight[i])
 
     # Copy transformer layer weights
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.self_attn.q_proj,
         "self_attn.q_proj",
     )
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.self_attn.k_proj,
         "self_attn.k_proj",
     )
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.self_attn.v_proj,
         "self_attn.v_proj",
     )
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.self_attn.o_proj,
         "self_attn.o_proj",
     )
 
     # Copy MLP weights
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.mlp.gate_proj,
         "mlp.gate_proj",
     )
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.mlp.up_proj,
         "mlp.up_proj",
     )
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.mlp.down_proj,
         "mlp.down_proj",
     )
 
     # Copy layer norm weights
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.input_layernorm,
         "input_layernorm",
     )
-    _copy_vmapped_weights(
+    _copy_weights(
         model_params.model.layers.post_attention_layernorm,
         "post_attention_layernorm",
     )
