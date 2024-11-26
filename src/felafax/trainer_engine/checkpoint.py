@@ -34,6 +34,7 @@ class CheckpointerConfig:
     save_interval_steps: int = 10
     create: bool = True  # Create the checkpoint directory if it doesn't exist
     enable_async_checkpointing: bool = True 
+    erase_existing_checkpoints: bool = False
 
 
 class Checkpointer:
@@ -42,6 +43,9 @@ class Checkpointer:
             raise ValueError("Checkpoint directory cannot be empty")
         self.config = config
         self.checkpoint_dir = config.checkpoint_dir
+        if config.erase_existing_checkpoints:
+            ocp.test_utils.erase_and_create_empty(self.checkpoint_dir)
+
         self.options = ocp.CheckpointManagerOptions(
             max_to_keep=config.max_to_keep,
             save_interval_steps=config.save_interval_steps,

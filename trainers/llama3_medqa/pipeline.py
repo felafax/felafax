@@ -72,7 +72,7 @@ trainer_config = TrainerConfig(
     mesh_shape=(1, 1, 4),  # (batch, fsdp, mp)
     # lora configuration
     lora_rank=16,
-    use_lora=True,
+    use_lora=False,
     learning_rate=1e-3,
     # Environment configuration
     base_dir=BASE_DIR,

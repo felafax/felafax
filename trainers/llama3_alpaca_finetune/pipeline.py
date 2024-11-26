@@ -111,6 +111,7 @@ checkpointer_config = CheckpointerConfig(
     checkpoint_dir=checkpoint_dir,
     max_to_keep=2,
     save_interval_steps=50,
+    erase_existing_checkpoints=True,
 )
 checkpointer = Checkpointer(config=checkpointer_config)
 
