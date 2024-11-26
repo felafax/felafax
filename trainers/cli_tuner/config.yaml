@@ -5,6 +5,7 @@ hf_repo: "felarof01/test-model"
 test_mode: true
 
 data_config:
+  data_source: "ngram/medchat-qa"
   batch_size: 16
   max_seq_length: 2048
 

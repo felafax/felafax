@@ -2,26 +2,24 @@
 
 import os
 import json
+from typing import Optional, Tuple, Any
+from dataclasses import dataclass
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 import torch
-
 import equinox as eqx
 import orbax.checkpoint as ocp
 from transformers import LlamaForCausalLM as HFLlamaForCausalLM, AutoTokenizer
-from src.felafax.trainer_engine.models.llama3.jax.model import (
-    LlamaConfig,
-    LlamaForCausalLM,
-    LlamaLinear,
-)
-
-from typing import Optional, Tuple, Any
 from jaxtyping import PyTree
 from jax.sharding import NamedSharding, PartitionSpec as PS
 from jax.experimental import mesh_utils
 
-from dataclasses import dataclass
+from .models.llama3.jax.model import (
+    LlamaConfig,
+    LlamaForCausalLM,
+)
 from .utils import named_tree_map
 
 

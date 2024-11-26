@@ -30,7 +30,6 @@ class CLITunerTrainerConfig(TrainerConfig):
     num_epochs: int = 1
     num_steps: int = 100
     num_tpus: int = jax.device_count()
-    mesh_shape: Tuple[int, int, int] = (1, 1, 4)
 
     learning_rate: float = 1e-3
     lora_rank: int = 16
