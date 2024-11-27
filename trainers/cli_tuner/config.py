@@ -54,6 +54,7 @@ class CLITunerCheckpointConfig(CheckpointerConfig):
     max_to_keep: int = 2
     save_interval_steps: int = 50
     enable_async_checkpointing: bool = True
+    erase_existing_checkpoints: bool = True 
 
 
 @dataclass
@@ -63,7 +64,7 @@ class PipelineConfig:
     trainer_dir: str = ""
     export_dir: str = ""
     hf_token: str = ""
-    hf_download_token: str = ""
+    hf_model_download_token: str = ""
     hf_repo: str = ""
     test_mode: bool = False
 
@@ -82,7 +83,7 @@ class PipelineConfig:
         self.trainer_config.base_dir = str(trainer_dir)
 
         # When using CLI, use prepopulated hf download token for download model and tokenizer.
-        self.trainer_config.hf_token = self.hf_download_token
+        self.trainer_config.hf_token = self.hf_model_download_token
 
         self.checkpointer_config.checkpoint_dir = str(
             trainer_dir / "checkpoints"
