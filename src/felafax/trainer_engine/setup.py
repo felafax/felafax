@@ -4,6 +4,8 @@ import os
 import jax
 import warnings
 
+def setup_distributed_jax():
+    jax.distributed.initialize()
 
 def setup_environment(trainer_config, should_initialize_distributed: bool = True):
     """
@@ -13,7 +15,7 @@ def setup_environment(trainer_config, should_initialize_distributed: bool = True
         trainer_config (TrainerConfig): Configuration object containing environment settings.
     """
     if should_initialize_distributed:
-        jax.distributed.initialize()
+        setup_distributed_jax()
 
     base_dir = trainer_config.base_dir
 
