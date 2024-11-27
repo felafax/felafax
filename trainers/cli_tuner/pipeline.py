@@ -10,7 +10,6 @@ from .dataset import create_dataloaders
 from .config import PipelineConfig
 
 
-@pyrallis.wrap()
 def main(cfg: PipelineConfig):
     # Set up training environment.
     setup_environment(cfg.trainer_config.base_dir)
@@ -49,4 +48,5 @@ def main(cfg: PipelineConfig):
 
 
 if __name__ == "__main__":
-    main()
+    cfg = pyrallis.parse(config_class=PipelineConfig)
+    main(cfg)
