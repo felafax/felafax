@@ -13,14 +13,16 @@ class CustomDataset(SFTDataset):
     """Custom dataset for MedQA data."""
 
     def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
-        """Override apply_format to handle MedQA format."""
+        """Override apply_format to provide custom prompt formatting."""
+        input_prompt = example[self.config.dataset_input_field]
+        response_prompt = example[self.config.dataset_output_field]
+
         prompt = (
-            "Below is a medical question. "
-            "Provide a clear and accurate answer.\n\n"
-            f"### Question:\n{example['question']}\n\n### Answer:\n"
+            "Below is an instruction that describes a task. "
+            "Write a response that appropriately completes the request.\n\n"
+            f"### Instruction:\n{input_prompt}\n\n### Response:\n"
         )
-        response = example["answer"]
-        return prompt, response
+        return prompt, response_prompt
 
 
 def create_dataloaders(
