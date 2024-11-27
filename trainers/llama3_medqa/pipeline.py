@@ -86,7 +86,7 @@ trainer_config = TrainerConfig(
 )
 
 # Set up the training environment using trainer_config
-setup_environment(trainer_config)
+setup_environment(trainer_config.base_dir)
 
 # Configure the checkpointer
 checkpointer_config = CheckpointerConfig(

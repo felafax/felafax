@@ -13,7 +13,7 @@ from .config import PipelineConfig
 @pyrallis.wrap()
 def main(cfg: PipelineConfig):
     # Set up training environment.
-    setup_environment(cfg.trainer_config)
+    setup_environment(cfg.trainer_config.base_dir)
 
     tokenizer = AutoTokenizer.from_pretrained(
         cfg.trainer_config.model_name, token=cfg.trainer_config.hf_token
