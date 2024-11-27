@@ -151,7 +151,7 @@ def load_checkpoint_or_model(
         model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
         checkpointer: An instance of Checkpointer to manage loading
         param_dtype: The dtype in which parameters are stored and loaded
-        output_dtype: The dtype in which computations are performed and outputs are returned
+        compute_dtype: The dtype in which computations are performed and outputs are returned
 
     Returns:
         tuple: (model, model_config)
