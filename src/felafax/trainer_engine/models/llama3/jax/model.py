@@ -594,11 +594,14 @@ class LlamaModel(eqx.Module):
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.embed_tokens(input_ids)
         
+        policy = remat_policy["nothing"]
         dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
         def f(carry, dynamic_layer):
             hidden_states = carry
             layer = eqx.combine(dynamic_layer, static_layers)
-            hidden_states = layer(hidden_states, attention_mask, position_ids)
+            hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                hidden_states, attention_mask, position_ids
+            )
             return hidden_states, None
 
         hidden_states, _ = jax.lax.scan(
