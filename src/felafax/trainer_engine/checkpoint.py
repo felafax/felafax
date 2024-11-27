@@ -16,11 +16,6 @@ from transformers import (
     LlamaConfig as HFLlamaConfig,
     AutoTokenizer,
 )
-from src.felafax.trainer_engine.models.llama3.jax.model import (
-    LlamaConfig,
-    LlamaForCausalLM,
-    LlamaLinear,
-)
 
 from typing import Optional, Tuple, Any
 from jaxtyping import PyTree
