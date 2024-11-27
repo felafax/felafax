@@ -48,25 +48,6 @@ def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
     return mesh
 
 
-def merge_lora_params(model):
-    def merge_fn(module):
-        if (
-            isinstance(module, LlamaLinear)
-            and module.lora_A is not None
-            and module.lora_B is not None
-        ):
-            delta_weight = module.lora_A @ module.lora_B.T
-            new_weight = module.weight + delta_weight
-            module = eqx.tree_at(lambda m: m.weight, module, new_weight)
-
-            # Optionally set lora_A and lora_B to None
-            module = eqx.tree_at(
-                lambda m: (m.lora_A, m.lora_B), module, (None, None)
-            )
-        return module
-
-    model = jtu.tree_map(merge_fn, model, is_leaf=eqx.is_array)
-    return model
 
 
 # Define configuration flags and default values
@@ -102,7 +83,6 @@ class TrainerConfig:
 
     # Restore checkpoint
     restore_checkpoint: bool = False
-
 
 # Core trainer class -- add non-essential things in private functions.
 class Trainer:
@@ -411,7 +391,7 @@ class Trainer:
     def export(self, export_dir: Optional[str] = None):
         # After training, convert and save the model in Hugging Face format
         if self.trainer_config.use_lora:
-            self.model = merge_lora_params(self.model)
+            self.model = _merge_lora_params(self.model)
         if export_dir is None:
             export_dir = os.path.join(self.trainer_config.base_dir, "hf_export")
         os.makedirs(export_dir, exist_ok=True)
@@ -424,6 +404,25 @@ class Trainer:
         )
         print("Hugging Face model saved at:", export_dir)
 
+def _merge_lora_params(model):
+    def merge_fn(module):
+        if (
+            isinstance(module, LlamaLinear)
+            and module.lora_A is not None
+            and module.lora_B is not None
+        ):
+            delta_weight = module.lora_A @ module.lora_B.T
+            new_weight = module.weight + delta_weight
+            module = eqx.tree_at(lambda m: m.weight, module, new_weight)
+
+            # Optionally set lora_A and lora_B to None
+            module = eqx.tree_at(
+                lambda m: (m.lora_A, m.lora_B), module, (None, None)
+            )
+        return module
+
+    model = jtu.tree_map(merge_fn, model, is_leaf=eqx.is_array)
+    return model
 
 def _preprocess_batch(batch):
     # Convert PyTorch tensors to JAX arrays
