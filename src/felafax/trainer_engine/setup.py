@@ -7,16 +7,13 @@ import warnings
 def setup_distributed_jax():
     jax.distributed.initialize()
 
-def setup_environment(base_dir: str, should_initialize_distributed: bool = True):
+def setup_environment(base_dir: str):
     """
     Sets up the environment variables and JAX configurations.
 
     Args:
         trainer_config (TrainerConfig): Configuration object containing environment settings.
     """
-    if should_initialize_distributed:
-        setup_distributed_jax()
-
     # Setting up Hugging Face directories
     hf_dir = os.path.join(base_dir, "hf")
     os.makedirs(hf_dir, exist_ok=True)
