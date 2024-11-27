@@ -52,10 +52,10 @@ python-dotenv = "*"
 [tool.poetry.group.test.dependencies]
 pytest = "*"
 
-[[tool.poetry.source]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cpu"
-priority = "explicit"
+# [[tool.poetry.source]]
+# name = "pytorch"
+# url = "https://download.pytorch.org/whl/cpu"
+# priority = "explicit"
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/felafax/felafax/issues"
