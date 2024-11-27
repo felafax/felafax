@@ -18,6 +18,9 @@ class CLITunerDataConfig(DatasetConfig):
     num_workers: int = 8
     mask_prompt: bool = False
 
+    dataset_input_field: str = "instruction"
+    dataset_output_field: str = "output"
+
 
 @dataclass
 class CLITunerTrainerConfig(TrainerConfig):
@@ -60,6 +63,7 @@ class PipelineConfig:
     trainer_dir: str = ""
     export_dir: str = ""
     hf_token: str = ""
+    hf_download_token: str = ""
     hf_repo: str = ""
     test_mode: bool = False
 
@@ -71,13 +75,14 @@ class PipelineConfig:
         default_factory=CLITunerCheckpointConfig
     )
 
-
     def __post_init__(self):
         trainer_dir = Path(self.trainer_dir)
 
-        # TODO(cleanup): propagate some duplicate params into trainer config params. Need to clean this up.
+        # TODO(cleanup): clean up base_dir.
         self.trainer_config.base_dir = str(trainer_dir)
-        self.trainer_config.hf_token = self.hf_token
+
+        # When using CLI, use prepopulated hf download token for download model and tokenizer.
+        self.trainer_config.hf_token = self.hf_download_token
 
         self.checkpointer_config.checkpoint_dir = str(
             trainer_dir / "checkpoints"

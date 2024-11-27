@@ -29,6 +29,9 @@ class DatasetConfig:
     mask_prompt: bool = False
     pad_id: int = 0
 
+    dataset_input_field: str = "instruction"
+    dataset_output_field: str = "output"
+
     # Optional transform function for custom preprocessing
     transform: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
 
@@ -111,14 +114,18 @@ class SFTDataset(Dataset):
 
     def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
         """Default method to apply prompt formatting. Returns prompt and response.
-        Override this method in subclasses for custom behavior."""
+
+        Override this method in subclasses for custom behavior.
+        """
+        input_prompt = example[self.config.dataset_input_field]
+        response_prompt = example[self.config.dataset_output_field]
+
         prompt = (
             "Below is an instruction that describes a task. "
             "Write a response that appropriately completes the request.\n\n"
-            f"### Instruction:\n{example['instruction']}\n\n### Response:\n"
+            f"### Instruction:\n{input_prompt}\n\n### Response:\n"
         )
-        response = example["output"]
-        return prompt, response
+        return prompt, response_prompt
 
     def __len__(self) -> int:
         return len(self.data)
