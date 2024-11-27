@@ -8,7 +8,9 @@ test_mode: true
 data_config:
   data_source: "ngram/medchat-qa"
   batch_size: 16
-  max_seq_length: 2048
+  max_seq_length: 1024
+  dataset_input_field: "question"
+  dataset_output_field: "answer"
 
 trainer_config:
   model_name: "meta-llama/Llama-3.2-1B-Instruct"
