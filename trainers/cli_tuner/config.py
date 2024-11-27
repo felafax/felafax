@@ -61,6 +61,8 @@ class PipelineConfig:
     export_dir: str = ""
     hf_token: str = ""
     hf_repo: str = ""
+    # token for downloading the model from Hugging Face
+    hf_model_download_token: str = ""
     test_mode: bool = False
 
     data_config: CLITunerDataConfig = field(default_factory=CLITunerDataConfig)
