@@ -5,13 +5,16 @@ import jax
 import warnings
 
 
-def setup_environment(trainer_config):
+def setup_environment(trainer_config, should_initialize_distributed: bool = True):
     """
     Sets up the environment variables and JAX configurations.
 
     Args:
         trainer_config (TrainerConfig): Configuration object containing environment settings.
     """
+    if should_initialize_distributed:
+        jax.distributed.initialize()
+
     base_dir = trainer_config.base_dir
 
     # Setting up Hugging Face directories

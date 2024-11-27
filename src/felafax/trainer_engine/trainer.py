@@ -1,17 +1,11 @@
 from dataclasses import dataclass
 from typing import Optional, Any, Tuple
 import functools
-import pyrallis
 import jax
-
-jax.distributed.initialize()
-
 import equinox as eqx
-import quax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
 from jax.experimental.multihost_utils import (
-    global_array_to_host_local_array,
     host_local_array_to_global_array,
 )
 import jax.tree_util as jtu
@@ -28,7 +22,6 @@ from .checkpoint import (
     load_checkpoint_or_model,
 )
 from .models.llama3.jax.model import (
-    LlamaForCausalLM,
     LlamaConfig,
     LlamaLinear,
 )
