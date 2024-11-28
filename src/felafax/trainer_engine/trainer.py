@@ -84,6 +84,8 @@ class TrainerConfig:
     # Restore checkpoint
     restore_checkpoint: bool = False
 
+    use_optimized_decoder: bool = True
+
 # Core trainer class -- add non-essential things in private functions.
 class Trainer:
     def __init__(
@@ -132,6 +134,7 @@ class Trainer:
                 else 0,
                 param_dtype=jnp.dtype(trainer_config.param_dtype),
                 compute_dtype=jnp.dtype(trainer_config.compute_dtype),
+                use_optimized_decoder=trainer_config.use_optimized_decoder,
             )
 
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
@@ -401,6 +404,7 @@ class Trainer:
             model_config=self.model_config,
             output_dir=export_dir,
             tokenizer_name=self.trainer_config.model_name,
+            use_optimized_decoder=self.trainer_config.use_optimized_decoder,
         )
         print("Hugging Face model saved at:", export_dir)
 

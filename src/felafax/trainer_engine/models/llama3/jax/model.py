@@ -74,6 +74,8 @@ class LlamaConfig:
         self._param_dtype = kwargs.get("param_dtype", "bfloat16")
         self._compute_dtype = kwargs.get("compute_dtype", "bfloat16")
 
+        self.use_optimized_decoder = kwargs.get("use_optimized_decoder", True)
+
     @property
     def param_dtype(self):
         """Gets the parameter dtype, converting from string to JAX dtype."""
@@ -549,20 +551,23 @@ class LlamaDecoderLayer(eqx.Module):
 
 class LlamaModel(eqx.Module):
     embed_tokens: LlamaEmbedding
-    layers: List[LlamaDecoderLayer]
+    layers: List[LlamaDecoderLayer] | Any
     norm: LlamaRMSNorm
     param_dtype: Any
     compute_dtype: Any
-
+    use_optimized_decoder: bool
+    
     def __init__(
         self,
         config,
         param_dtype=jnp.float32,
         compute_dtype=jnp.float32,
         key=None,
+        use_optimized_decoder=True,
     ):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
+
         if key is None:
             key = jax.random.PRNGKey(99)
 
@@ -574,15 +579,30 @@ class LlamaModel(eqx.Module):
             key=key,
         )
 
-        # LlamaDecoderLayers
         layer_keys = jax.random.split(key, config.num_hidden_layers)
-        make_layer = lambda k: LlamaDecoderLayer(
-            config=config,
-            param_dtype=param_dtype,
-            compute_dtype=compute_dtype,
-            key=k,
-        )
-        self.layers = eqx.filter_vmap(make_layer)(layer_keys)
+
+        with jax.ensure_compile_time_eval():
+            self.use_optimized_decoder = use_optimized_decoder
+            print(f"use_optimized_decoder: {self.use_optimized_decoder}")
+            if self.use_optimized_decoder:
+                # LlamaDecoderLayers
+                make_layer = lambda k: LlamaDecoderLayer(
+                    config=config,
+                    param_dtype=param_dtype,
+                    compute_dtype=compute_dtype,
+                    key=k,
+                )
+                self.layers = eqx.filter_vmap(make_layer)(layer_keys)
+            else:
+                self.layers = [
+                    LlamaDecoderLayer(
+                        config,
+                        param_dtype=self.param_dtype,
+                        compute_dtype=self.compute_dtype,
+                        key=layer_keys[i],
+                    )
+                    for i in range(config.num_hidden_layers)
+                ]
 
         self.norm = LlamaRMSNorm(
             config.hidden_size,
@@ -596,17 +616,27 @@ class LlamaModel(eqx.Module):
         hidden_states = hidden_states.astype(self.compute_dtype)
 
         policy = remat_policy["nothing"]
-        dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
 
-        def f(carry, dynamic_layer):
-            hidden_states = carry
-            layer = eqx.combine(dynamic_layer, static_layers)
-            hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
-                hidden_states, attention_mask, position_ids
-            ).astype(self.compute_dtype)
-            return hidden_states, None
+        with jax.ensure_compile_time_eval():
+            if self.use_optimized_decoder:
+                dynamic_layers, static_layers = eqx.partition(
+                    self.layers, eqx.is_array
+                )
 
-        hidden_states, _ = jax.lax.scan(f, hidden_states, dynamic_layers)
+                def f(carry, dynamic_layer):
+                    hidden_states = carry
+                    layer = eqx.combine(dynamic_layer, static_layers)
+                    hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                        hidden_states, attention_mask, position_ids
+                    ).astype(self.compute_dtype)
+                    return hidden_states, None
+
+                hidden_states, _ = jax.lax.scan(f, hidden_states, dynamic_layers)
+            else:
+                for layer in self.layers:
+                    hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                        hidden_states, attention_mask, position_ids
+                    ).astype(self.compute_dtype)
 
         hidden_states = self.norm(hidden_states)
         return hidden_states.astype(self.compute_dtype)
@@ -622,6 +652,7 @@ class LlamaForCausalLM(eqx.Module):
         param_dtype=jnp.float32,
         compute_dtype=jnp.float32,
         key=None,
+        use_optimized_decoder=True,
     ):
         if key is None:
             key = jax.random.PRNGKey(99)
@@ -631,6 +662,7 @@ class LlamaForCausalLM(eqx.Module):
             param_dtype=param_dtype,
             compute_dtype=compute_dtype,
             key=key1,
+            use_optimized_decoder=use_optimized_decoder,
         )
 
         self.lm_head = LlamaLinear(
