@@ -6,5 +6,7 @@
         "felafax-config": true,
         "**/__init__.py": true,
         "**/~archive": true,
+        // "**/huggingface*": true,
+        // "**/.[aicsbp]*": true,
     }
 }
