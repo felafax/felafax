@@ -27,7 +27,7 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 ## Currently supported models
 - **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
   - Converted from PyTorch to JAX for improved performance
-  - Full-precision and LoRA training support
+  - Full-precision and LoRA training support for **1B, 3B, 8B, 70B, 405B**.
   - Run efficiently across diverse hardware (TPUs, AWS Trainium, NVIDIA, AMD) through JAX's hardware-optimized XLA backend
   - Scale seamlessly to handle larger context lengths and datasets by sharding across multiple accelerators
 
