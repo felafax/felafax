@@ -50,7 +50,7 @@ pipx install felafax-cli
 
 Then, generate an Auth Token:
 
-- Visit [felafax.ai](https://preview.felafax.ai) and create/sign in to your account.
+- Visit [preview.felafax.ai](https://preview.felafax.ai) and create/sign in to your account.
 - Navigate to [Tokens](https://preview.felafax.ai/tokens) page and create a new token.
 
 Finally, authenticate your CLI session using your token:
