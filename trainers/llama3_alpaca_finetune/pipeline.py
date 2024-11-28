@@ -98,6 +98,7 @@ trainer_config = TrainerConfig(
     log_interval=1,
     eval_interval=50,
     eval_steps=5,
+    use_optimized_decoder=True,
 )
 
 # Set up the training environment using trainer_config
