@@ -28,9 +28,9 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
 ## Currently supported models
 - **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
   - Converted from PyTorch to JAX for improved performance
-  - On TPU v4, v5, runs 2-way data parallel and 2-way model parallel training (2 data parallel model copies and each model copy is sharded across two TPU chips).
-  - On TPU v2, v3, runs 1 model copy sharded across 8 cores.
   - Full-precision and LoRA training support
+  - Run efficiently across diverse hardware (TPUs, AWS Trainium, NVIDIA, AMD) through JAX's hardware-optimized XLA backend
+  - Scale seamlessly to handle larger context lengths and datasets by sharding across multiple accelerators
 
 - **LLaMa-3/3.1 PyTorch XLA**
   - LoRA and full-precision training support
