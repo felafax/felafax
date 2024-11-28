@@ -140,8 +140,9 @@ Use the `--help` flag to discover more about any command group:
 felafax-cli tune --help
 ```
 
+## AMD 405B fine-tuning run
+<details>
 
-## AMD 405B fine-tuning run:
 We recently fine-tuned the llama3.1 405B model on 8xAMD MI300x GPUs using JAX instead of PyTorch. JAX's advanced sharding APIs allowed us to achieve great performance. Check out our [blog post](https://dub.sh/felafax-amd-blog) to learn about the setup and the sharding tricks we used.
 
 We did LoRA fine-tuning with all model weights and lora parameters in bfloat16 precision, and with LoRA rank of 8 and LoRA alpha of 16:
@@ -161,6 +162,7 @@ Note: We couldn't run the JIT-compiled version of the 405B model due to infrastr
 - VRAM  utilization:
   ![image](./misc/assets/amd_405B_run_sep22/vram_utilization.png)
 - rocm-smi data can be found [here](./misc/assets/amd_405b_run_sep22/rocm_smi_cleaned_405b_batchsize16_seqlen64.csv).
+</details>
 
 ## Credits:
 - Google Deepmind's [Gemma repo](https://github.com/google-deepmind/gemma).
