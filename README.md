@@ -36,51 +36,110 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
   - LoRA and full-precision training support
   - [codepointer](https://github.com/felafax/felafax/tree/main/~archive/llama3_pytorch_xla)
 
-## Setup
+## Running fine-tuning via CLI
 
-**For a hosted version with a seamless workflow, please request access [here](https://tally.so/r/mRLeaQ). 🦊.**
+Get started with fine-tuning your models using the Felafax CLI in a few simple steps.
 
-If you prefer a self-hosted training version, follow the instructions below. These steps will guide you through launching a TPU VM on your Google Cloud account and starting a Jupyter notebook. With just 3 simple steps, you'll be up and running in under 10 minutes. 🚀
+### Step 1. Install the CLI and authenticate
 
-1. Install gcloud command-line tool and authenticate your account (SKIP this STEP if you already have gcloud installed and have used TPUs before! 😎)
+Start off by installing the CLI.
 
-   ```bash
-    # Download gcloud CLI
-    curl https://sdk.cloud.google.com | bash
-    source ~/.bashrc
+```bash
+pip install pipx
+pipx install felafax-cli
+```
 
-    # Authenticate gcloud CLI
-    gcloud auth login
+Then, generate an Auth Token:
 
-    # Create a new project for now
-    gcloud projects create LLaMa3-tunerX --set-as-default
+- Visit [felafax.ai](https://preview.felafax.ai) and create/sign in to your account.
+- Navigate to [Tokens](https://preview.felafax.ai/tokens) page and create a new token.
 
-    # Config SSH and add
-    gcloud compute config-ssh --quiet
-   
-    # Set up default credentials
-    gcloud auth application-default login
+Finally, authenticate your CLI session using your token:
 
-    # Enable Cloud TPU API access
-    gcloud services enable compute.googleapis.com tpu.googleapis.com storage-component.googleapis.com aiplatform.googleapis.com
-   ```
+```bash
+felafax-cli auth login --token <your_token>
+```
 
-2. Spin up a TPU v5-8 VM 🤠.
+### Step 2. Set up the fine-tuning config
 
-    ```bash
-    sh ./launch_tuner.sh
-    ```
-    Keep an eye on the terminal -- you might be asked to input SSH key password and need to put in your HuggingFace token. 
+First, generate a default configuration file for fine-tuning. This command generates a `config.yml` file in the current directory with default hyperparameter values.
 
-3. Clone the repo and install dependencies
+```bash
+felafax-cli tune init-config
+```
 
-    ```bash
-    git clone https://github.com/felafax/felafax.git
-    cd felafax
-    pip install -r requirements.txt
-    ```
+Second, update the config file with your hyperparameters:
 
-3. Open the Jupyter notebook at `https://localhost:888` and start fine-tuning!
+- **HuggingFace knobs:**
+
+  - Provide your HuggingFace token and repository ID to upload the fine-tuned model.
+
+- **Dataset pipeline and training params:**
+  - Adjust `batch_size`, `max_seq_length` to use for fine-tuning dataset.
+  - Set num_steps to `null` if you want trainig to run through entire dataset. If num_steps is set to a number, training will stop after the specified number of steps.
+  - Set `learning_rate` and `lora_rank` to use for fine-tuning.
+  - `eval_interval` is the number of steps between evaluations.
+
+### Step 3. Start the fine-tuning run
+
+Run the follow command to see the list of base models you can fine-tune, we support all variants of LLaMA-3.1 as of now.
+
+```bash
+felafax-cli tune start --help
+```
+
+Now, you can start the fine-tuning process with your selected model from above list and dataset name from HuggingFace (like `yahma/alpaca-cleaned`):
+
+```bash
+felafax-cli tune start --model <your_selected_model> --config ./config.yml --hf-dataset-id <your_hf_dataset_name>
+```
+
+Example command to get you started:
+
+```bash
+felafax-cli tune start --model llama3-2-1b --config ./config.yml --hf-dataset-id yahma/alpaca-cleaned
+```
+
+After you start the fine-tuning job, **Felafax CLI takes care of spinning up the TPUs, running the training, and it uploads the fine-tuned model to the HuggingFace Hub.**
+
+### Other handy commands
+
+##### Monitor the fine-tuning job
+You can stream realtime logs to monitor the progress of your fine-tuning job:
+
+```bash
+# Use `<job_name>` with the job namethat you get after starting the fine-tuning.
+felafax-cli tune logs --job-id <job_name> -f
+```
+
+##### List your fine-tuned models
+After fine-tuning is complete, you can list all your fine-tuned models:
+
+```bash
+felafax-cli model list
+```
+
+##### Chat with your fine-tuned model (runs on TPU again!):
+
+You can start an interactive terminal session to chat with your fine-tuned model:
+
+```bash
+# Replace `<model_id>` with model id from `model list` command you ran above.
+felafax-cli model chat --model-id <model_id>
+```
+
+##### Use help to explore more commands!
+
+The CLI is broken into three main command groups:
+- **`tune`**: To start/stop fine-tuning jobs.
+- **`model`**: To manage and interact with your fine-tuned models.
+- **`files`**: To upload/view yourdataset files.
+
+Use the `--help` flag to discover more about any command group:
+```bash
+felafax-cli tune --help
+```
+
 
 ## AMD 405B fine-tuning run:
 We recently fine-tuned the llama3.1 405B model on 8xAMD MI300x GPUs using JAX instead of PyTorch. JAX's advanced sharding APIs allowed us to achieve great performance. Check out our [blog post](https://dub.sh/felafax-amd-blog) to learn about the setup and the sharding tricks we used.
