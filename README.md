@@ -14,6 +14,8 @@ Felafax is a framework for continued-training and fine-tuning open source LLMs u
 - Easy to configure all aspects of training (designed for ML researchers and hackers).
 - Easy to scale training from a single TPU VM with 8 cores to entire TPU Pod containing 6000 TPU cores (**1000X**)!
 
+Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPUs, and Intel GPUs).
+
 ## ✨ Finetune for Free
 
 Add your dataset, click "Run All", and you'll run on free TPU resource on Google Colab!
@@ -21,9 +23,6 @@ Add your dataset, click "Run All", and you'll run on free TPU resource on Google
 | Felafax supports | Free Notebooks |
 |-------------------|-----------------|
 | **Llama 3.1 (1B, 3B)** | [▶️ Start for free on Google Colab TPU](https://dub.sh/felafax-colab) |
-
-## Goal
-Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to run AI workloads on non-NVIDIA hardware (TPU, AWS Trainium, AMD GPUs, and Intel GPUs).
 
 ## Currently supported models
 - **LLaMa-3.1 JAX Implementation** $${\color{red}New!}$$	 
@@ -36,7 +35,7 @@ Our goal at [felafax](https://felafax.ai) is to build infra to make it easier to
   - LoRA and full-precision training support
   - [codepointer](https://github.com/felafax/felafax/tree/main/~archive/llama3_pytorch_xla)
 
-## Running fine-tuning via CLI
+## Running fine-tuning via Felafax CLI $${\color{red}New!}$$	
 
 Get started with fine-tuning your models using the Felafax CLI in a few simple steps.
 
