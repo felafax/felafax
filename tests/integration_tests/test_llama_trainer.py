@@ -20,7 +20,9 @@ def _get_dummy_data(batch_size, seq_length):
 
 def dummy_data_loader(batch_size, seq_length):
     while True:
-        input_ids, attention_mask, position_ids = _get_dummy_data(batch_size, seq_length)
+        input_ids, attention_mask, position_ids = _get_dummy_data(
+            batch_size, seq_length
+        )
         yield {
             "input_ids": input_ids,
             "labels": input_ids,
@@ -49,10 +51,7 @@ def test_llama_trainer():
     # Initialize model directly instead of loading from HF
     key = jax.random.PRNGKey(0)
     model = LlamaForCausalLM(
-        model_config,
-        param_dtype=jnp.float32,
-        compute_dtype=jnp.float32,
-        key=key
+        model_config, param_dtype=jnp.float32, compute_dtype=jnp.float32, key=key
     )
 
     trainer_config = TrainerConfig(
@@ -80,7 +79,7 @@ def test_llama_trainer():
         train_dataloader=train_dataloader,
         val_dataloader=val_dataloader,
         model=model,
-        model_config=model_config
+        model_config=model_config,
     )
 
     # If we don't provide a checkpointer, the trainer should not save any checkpoints.

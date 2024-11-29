@@ -556,7 +556,7 @@ class LlamaModel(eqx.Module):
     param_dtype: Any
     compute_dtype: Any
     use_optimized_decoder: bool
-    
+
     def __init__(
         self,
         config,

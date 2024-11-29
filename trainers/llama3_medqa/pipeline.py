@@ -105,16 +105,18 @@ trainer = Trainer(
 )
 
 # Run training
-trainer.train()
+# trainer.train()
 
-export_dir = f"{trainer_config.base_dir}/hf_export/"
+trainer.save_checkpoint(step=0, wait_until_finished=True)
 
-# Export the model in HF format
-trainer.export(export_dir=export_dir)
+# export_dir = f"{trainer_config.base_dir}/hf_export/"
 
-# Upload exported model to HF
-utils.upload_dir_to_hf(
-    dir_path=export_dir,
-    repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048-no-mask",
-    token=HF_TOKEN,
-)
+# # Export the model in HF format
+# trainer.export(export_dir=export_dir)
+
+# # Upload exported model to HF
+# utils.upload_dir_to_hf(
+#     dir_path=export_dir,
+#     repo_name="felarof01/test-llama3.1-8b-medqa-finetuned-2048-no-mask",
+#     token=HF_TOKEN,
+# )

@@ -452,6 +452,7 @@ def save_model_to_hf(
     )
 
     hf_layers = hf_model.model.layers
+
     def _copy_weights(from_eqx_layer, to_hf_layer_name):
         """Copies weights from vmapped Equinox layers to Hugging Face layers."""
         for i in range(len(hf_layers)):

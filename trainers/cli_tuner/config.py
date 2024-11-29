@@ -54,7 +54,7 @@ class CLITunerCheckpointConfig(CheckpointerConfig):
     max_to_keep: int = 2
     save_interval_steps: int = 50
     enable_async_checkpointing: bool = True
-    erase_existing_checkpoints: bool = True 
+    erase_existing_checkpoints: bool = True
 
 
 @dataclass
