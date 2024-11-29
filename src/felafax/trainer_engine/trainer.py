@@ -48,8 +48,6 @@ def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
     return mesh
 
 
-
-
 # Define configuration flags and default values
 @dataclass
 class TrainerConfig:
@@ -85,6 +83,7 @@ class TrainerConfig:
     restore_checkpoint: bool = False
 
     use_optimized_decoder: bool = True
+
 
 # Core trainer class -- add non-essential things in private functions.
 class Trainer:
@@ -266,10 +265,8 @@ class Trainer:
         max_steps = self.trainer_config.num_steps or float("inf")
 
         prev_step = 0
-        prev_loss = 0.0
-        prev_accuracy = 0.0
-        prev_val_loss = 0.0
-        prev_val_accuracy = 0.0
+        prev_loss, prev_accuracy = 0.0, 0.0
+        prev_val_loss, prev_val_accuracy = 0.0, 0.0
 
         for epoch in range(self.trainer_config.num_epochs):
             print(
@@ -313,15 +310,10 @@ class Trainer:
                     batch=batch,
                 )
 
-                prev_step = step + 1
-                prev_loss = loss
-                prev_accuracy = accuracy
-
-                if (
-                    step == 0
-                    or (step + 1) % self.trainer_config.eval_interval == 0
+                if self.trainer_config.eval_interval > 0 and (
+                    (step + 1) % self.trainer_config.eval_interval == 0
                 ):
-                    prev_val_loss, prev_val_accuracy = self.evaluate(
+                    val_loss, val_accuracy = self.evaluate(
                         model_params=model_params,
                         model_static=model_static,
                         max_eval_steps=self.trainer_config.eval_steps,
@@ -331,11 +323,17 @@ class Trainer:
                     (step + 1) % self.checkpointer.config.save_interval_steps
                     == 0
                 ):
-                    self.checkpointer.save_checkpoint(
-                        model=eqx.combine(model_params, model_static),
-                        model_config=self.model_config,
-                        step=step + 1,
+                    self.save_checkpoint(
+                        step + 1,
+                        model_params,
+                        model_static,
+                        wait_until_finished=False,
                     )
+
+                # Update previous step metrics, which will be used for logging.
+                prev_step = step
+                prev_loss, prev_accuracy = loss, accuracy
+                prev_val_loss, prev_val_accuracy = val_loss, val_accuracy
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
@@ -343,12 +341,9 @@ class Trainer:
 
         # Save final checkpoint
         if self.checkpointer:
-            self.checkpointer.save_checkpoint(
-                model=self.model,
-                model_config=self.model_config,
-                step=step + 1,
+            self.save_checkpoint(
+                step + 1, model_params, model_static, wait_until_finished=True
             )
-            self.checkpointer.wait_until_finished()
             print("Final checkpoint saved at:", self.checkpointer.directory)
 
     def evaluate(self, model_params, model_static, max_eval_steps=None):
@@ -391,6 +386,36 @@ class Trainer:
             jnp.mean(jnp.array(val_accuracies)),
         )
 
+    def save_checkpoint(
+        self,
+        step: int,
+        model_params=None,
+        model_static=None,
+        wait_until_finished=False,
+    ):
+        """Saves a checkpoint of the model using the checkpointer.
+
+        Args:
+            step: Current training step
+            model_params: Optional model parameters (if not provided, uses self.model)
+            model_static: Optional static model parts (if not provided, uses self.model)
+        """
+        if not self.checkpointer:
+            return
+
+        if model_params is not None and model_static is not None:
+            model = eqx.combine(model_params, model_static)
+        else:
+            model = self.model
+
+        self.checkpointer.save_checkpoint(
+            model=model,
+            model_config=self.model_config,
+            step=step,
+        )
+        if wait_until_finished:
+            self.checkpointer.wait_until_finished()
+
     def export(self, export_dir: Optional[str] = None):
         # After training, convert and save the model in Hugging Face format
         if self.trainer_config.use_lora:
@@ -407,6 +432,7 @@ class Trainer:
             use_optimized_decoder=self.trainer_config.use_optimized_decoder,
         )
         print("Hugging Face model saved at:", export_dir)
+
 
 def _merge_lora_params(model):
     def merge_fn(module):
@@ -427,6 +453,7 @@ def _merge_lora_params(model):
 
     model = jtu.tree_map(merge_fn, model, is_leaf=eqx.is_array)
     return model
+
 
 def _preprocess_batch(batch):
     # Convert PyTorch tensors to JAX arrays
