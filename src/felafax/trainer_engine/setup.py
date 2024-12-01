@@ -4,8 +4,10 @@ import os
 import jax
 import warnings
 
+
 def setup_distributed_jax():
     jax.distributed.initialize()
+
 
 def setup_environment(base_dir: str):
     """
