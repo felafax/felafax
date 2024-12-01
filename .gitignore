@@ -1,4 +1,5 @@
 trainers/llama3_test*
+**/checkpoints/*
 bin/
 include/
 lib/
