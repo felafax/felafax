@@ -21,6 +21,8 @@ class CLITunerDataConfig(DatasetConfig):
     dataset_input_field: str = "instruction"
     dataset_output_field: str = "output"
 
+    split: str = "train"
+
 
 @dataclass
 class CLITunerTrainerConfig(TrainerConfig):
