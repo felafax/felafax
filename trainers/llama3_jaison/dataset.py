@@ -9,22 +9,23 @@ from typing import Dict, Any, Tuple
 from transformers import PreTrainedTokenizerBase
 
 
-class MedQADataset(SFTDataset):
+class CustomDataset(SFTDataset):
     """Custom dataset for MedQA data."""
 
     def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
-        """Override apply_format to handle MedQA format."""
+        """Override apply_format to provide custom prompt formatting."""
+        input_prompt = example[self.config.dataset_input_field]
+        response_prompt = example[self.config.dataset_output_field]
+
         prompt = (
-            "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request. ",
-            "### Instruction: Pretend you are a real estate agent. \n\n",
-            f"### Input: {example['input']}\n\n",
-            "### Response: \n\n",
+            "Below is an instruction that describes a task. "
+            "Write a response that appropriately completes the request.\n\n"
+            f"### Instruction:\n{input_prompt}\n\n### Response:\n"
         )
-        response = example['response']
-        return prompt, response
+        return prompt, response_prompt
 
 
-def create_med_qa_loaders(
+def create_dataloaders(
     config: DatasetConfig, tokenizer: PreTrainedTokenizerBase
 ):
     """Creates and returns train and validation dataloaders for MedQA dataset.
@@ -41,12 +42,12 @@ def create_med_qa_loaders(
     train_data, val_data = load_data(config=config)
 
     # Create datasets
-    train_dataset = MedQADataset(
+    train_dataset = CustomDataset(
         config=config,
         data=train_data,
         tokenizer=tokenizer,
     )
-    val_dataset = MedQADataset(
+    val_dataset = CustomDataset(
         config=config,
         data=val_data,
         tokenizer=tokenizer,
