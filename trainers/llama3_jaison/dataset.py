@@ -15,12 +15,12 @@ class MedQADataset(SFTDataset):
     def apply_format(self, example: Dict[str, Any]) -> Tuple[str, str]:
         """Override apply_format to handle MedQA format."""
         prompt = (
-            "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request. "
+            "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request. ",
             "### Instruction: Pretend you are a real estate agent. \n\n",
             f"### Input: {example['input']}\n\n",
             "### Response: \n\n",
         )
-        response = ""
+        response = example['response']
         return prompt, response
 
 
