@@ -12,6 +12,7 @@ from .config import PipelineConfig
 
 def main(cfg: PipelineConfig):
     # Set up training environment.
+    setup_distributed_jax()
     setup_environment(cfg.trainer_config.base_dir)
     setup_distributed_jax()
     
