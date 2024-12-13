@@ -3,7 +3,7 @@ import pyrallis
 from pathlib import Path
 from transformers import AutoTokenizer
 from src.felafax.trainer_engine.trainer import Trainer
-from src.felafax.trainer_engine.setup import setup_environment
+from src.felafax.trainer_engine.setup import setup_environment, setup_distributed_jax
 from src.felafax.trainer_engine.checkpoint import Checkpointer
 from src.felafax.trainer_engine import utils
 from .dataset import create_dataloaders
@@ -13,7 +13,8 @@ from .config import PipelineConfig
 def main(cfg: PipelineConfig):
     # Set up training environment.
     setup_environment(cfg.trainer_config.base_dir)
-
+    setup_distributed_jax()
+    
     tokenizer = AutoTokenizer.from_pretrained(
         cfg.trainer_config.model_name, token=cfg.trainer_config.hf_token
     )
