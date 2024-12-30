@@ -72,7 +72,7 @@ RUN gcloud auth activate-service-account --key-file=/home/.gcloud_key/storage_ke
 
 # Create startup script
 RUN mkdir /scripts
-COPY misc/docker/startup.sh /scripts/startup.sh
+COPY scripts/docker/startup.sh /scripts/startup.sh
 RUN chmod +x /scripts/startup.sh
 
 

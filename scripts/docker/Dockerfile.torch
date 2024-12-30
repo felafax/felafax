@@ -45,7 +45,7 @@ RUN pip install --no-cache-dir datasets==2.18.0
 RUN pip install --no-cache-dir trl==0.8.1 peft==0.10.0
 RUN pip install --no-cache-dir accelerate==0.28.0
 RUN pip install --no-cache-dir jupyterlab
-RUN pip install --no-cache-dir torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
+RUN pip install --no-cache-dir torch~=2.5.0 torch_xla[tpu]~=2.5.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
 RUN pip install --no-cache-dir ansible
 
 # Install gcsfuse
@@ -73,7 +73,7 @@ RUN mkdir "/home/felafax-storage-eu/"
 
 # Create startup script
 RUN mkdir /scripts
-COPY misc/docker/startup.sh /scripts/startup.sh
+COPY scripts/docker/startup.sh /scripts/startup.sh
 RUN chmod +x /scripts/startup.sh
 
 # Command to run when the container starts

@@ -14,7 +14,7 @@ fi
 
 if [ "$TORCH_XLA" = "1" ]; then
   # install pytorch stuff
-  pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
+  pip install torch~=2.5.0 torch_xla[tpu]~=2.5.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
   pip install --upgrade transformers
 fi
 
@@ -24,17 +24,17 @@ if [ "$UID" != "0" ]; then
   mkdir -p "/home/felafax-storage/"
   gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage "/home/felafax-storage/"
 
-  mkdir -p "/home/felafax-storage-eu/"
-  gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/"
+  # gcsfuse --implicit-dirs --only-dir "$UID" felafax-storage-eu "/home/felafax-storage-eu/"
+  # mkdir -p "/home/felafax-storage-eu/"
 fi
 
 # mount config config
-mkdir -p "/home/felafax-config/"
-gcsfuse --implicit-dirs felafax-config "/home/felafax-config/"
+# mkdir -p "/home/felafax-config/"
+# gcsfuse --implicit-dirs felafax-config "/home/felafax-config/"
 
 # model storage
-mkdir -p "/home/felafax-models/"
-gcsfuse --implicit-dirs --only-dir "MODEL_STORAGE" felafax-storage-eu "/home/felafax-models/"
+# mkdir -p "/home/felafax-models/"
+# gcsfuse --implicit-dirs --only-dir "MODEL_STORAGE" felafax-storage-eu "/home/felafax-models/"
 
 # Start Jupyter Lab
 exec jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
