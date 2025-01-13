@@ -583,7 +583,6 @@ class LlamaModel(eqx.Module):
 
         with jax.ensure_compile_time_eval():
             self.use_optimized_decoder = use_optimized_decoder
-            print(f"use_optimized_decoder: {self.use_optimized_decoder}")
             if self.use_optimized_decoder:
                 # LlamaDecoderLayers
                 make_layer = lambda k: LlamaDecoderLayer(
