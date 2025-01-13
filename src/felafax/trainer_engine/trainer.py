@@ -164,7 +164,6 @@ class Trainer:
         )
         self.opt_state = self.optimizer.init(optimizer_params)
 
-    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
     def forward(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]

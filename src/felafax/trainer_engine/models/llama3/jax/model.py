@@ -581,27 +581,26 @@ class LlamaModel(eqx.Module):
 
         layer_keys = jax.random.split(key, config.num_hidden_layers)
 
-        with jax.ensure_compile_time_eval():
-            self.use_optimized_decoder = use_optimized_decoder
-            if self.use_optimized_decoder:
-                # LlamaDecoderLayers
-                make_layer = lambda k: LlamaDecoderLayer(
-                    config=config,
-                    param_dtype=param_dtype,
-                    compute_dtype=compute_dtype,
-                    key=k,
+        self.use_optimized_decoder = use_optimized_decoder
+        if self.use_optimized_decoder:
+            # LlamaDecoderLayers
+            make_layer = lambda k: LlamaDecoderLayer(
+                config=config,
+                param_dtype=param_dtype,
+                compute_dtype=compute_dtype,
+                key=k,
+            )
+            self.layers = eqx.filter_vmap(make_layer)(layer_keys)
+        else:
+            self.layers = [
+                LlamaDecoderLayer(
+                    config,
+                    param_dtype=self.param_dtype,
+                    compute_dtype=self.compute_dtype,
+                    key=layer_keys[i],
                 )
-                self.layers = eqx.filter_vmap(make_layer)(layer_keys)
-            else:
-                self.layers = [
-                    LlamaDecoderLayer(
-                        config,
-                        param_dtype=self.param_dtype,
-                        compute_dtype=self.compute_dtype,
-                        key=layer_keys[i],
-                    )
-                    for i in range(config.num_hidden_layers)
-                ]
+                for i in range(config.num_hidden_layers)
+            ]
 
         self.norm = LlamaRMSNorm(
             config.hidden_size,
@@ -616,26 +615,25 @@ class LlamaModel(eqx.Module):
 
         policy = remat_policy["nothing"]
 
-        with jax.ensure_compile_time_eval():
-            if self.use_optimized_decoder:
-                dynamic_layers, static_layers = eqx.partition(
-                    self.layers, eqx.is_array
-                )
+        if self.use_optimized_decoder:
+            dynamic_layers, static_layers = eqx.partition(
+                self.layers, eqx.is_array
+            )
 
-                def f(carry, dynamic_layer):
-                    hidden_states = carry
-                    layer = eqx.combine(dynamic_layer, static_layers)
-                    hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
-                        hidden_states, attention_mask, position_ids
-                    ).astype(self.compute_dtype)
-                    return hidden_states, None
+            def f(carry, dynamic_layer):
+                hidden_states = carry
+                layer = eqx.combine(dynamic_layer, static_layers)
+                hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                    hidden_states, attention_mask, position_ids
+                ).astype(self.compute_dtype)
+                return hidden_states, None
 
-                hidden_states, _ = jax.lax.scan(f, hidden_states, dynamic_layers)
-            else:
-                for layer in self.layers:
-                    hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
-                        hidden_states, attention_mask, position_ids
-                    ).astype(self.compute_dtype)
+            hidden_states, _ = jax.lax.scan(f, hidden_states, dynamic_layers)
+        else:
+            for layer in self.layers:
+                hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                    hidden_states, attention_mask, position_ids
+                ).astype(self.compute_dtype)
 
         hidden_states = self.norm(hidden_states)
         return hidden_states.astype(self.compute_dtype)
